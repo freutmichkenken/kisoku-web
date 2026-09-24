@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>就業規則 整形</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDPMincho:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #F4F6F9;
+  --surface: #FFFFFF;
+  --ink: #1A2233;
+  --muted: #5B6475;
+  --rule: #D3D9E3;
+  --ai: #2A4A8F;          /* 藍：表記ゆれの青字と同じ系統 */
+  --ai-soft: #E8EEF9;
+  --caution: #7A4F00;
+  --caution-bg: #FFF5DC;
+  --ok: #2E6B4F;
+  --err: #A1262B;
+  --err-bg: #FCECEC;
+  --mincho: "BIZ UDPMincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+  --gothic: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #12161F; --surface: #1A2030; --ink: #E6E9F0; --muted: #9AA3B5;
+    --rule: #323B4F; --ai: #8FAEEF; --ai-soft: #1F2B47;
+    --caution: #F0C674; --caution-bg: #2E2614; --ok: #7CC4A0;
+    --err: #F29B9F; --err-bg: #3A1D20;
+  }
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--gothic); font-size: 16px; line-height: 1.7;
+  -webkit-text-size-adjust: 100%;
+}
+main { max-width: 640px; margin: 0 auto; padding: 28px 18px 64px; }
+
+header h1 {
+  font-family: var(--mincho); font-weight: 700;
+  font-size: clamp(28px, 7vw, 38px); letter-spacing: .08em;
+  margin: 0; line-height: 1.3;
+}
+header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+
+.engine {
+  display: flex; align-items: center; gap: 10px;
+  margin: 18px 0 0; font-size: 14px; color: var(--muted);
+}
+.engine .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--rule); flex: none; }
+.engine[data-state="loading"] .dot { background: var(--ai); animation: pulse 1.2s ease-in-out infinite; }
+.engine[data-state="ready"] .dot { background: var(--ok); }
+.engine[data-state="fatal"] .dot { background: var(--err); }
+.engine[data-state="fatal"] { color: var(--err); }
+@keyframes pulse { 50% { opacity: .25; } }
+
+.caution {
+  margin: 20px 0 0; padding: 12px 14px; border-left: 3px solid var(--caution);
+  background: var(--caution-bg); color: var(--ink); font-size: 13.5px; line-height: 1.75;
+}
+.caution summary { cursor: pointer; font-weight: 700; color: var(--caution); }
+.caution ul { margin: 8px 0 0; padding-left: 1.2em; }
+
+/* 様式の罫線のように、手順を左の番号欄と右の記入欄で組む */
+.step {
+  display: grid; grid-template-columns: 2.2em 1fr; gap: 0 12px;
+  margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--rule);
+}
+.step > .no {
+  font-family: var(--mincho); font-size: 26px; line-height: 1.1; color: var(--ai);
+}
+.step h2 { margin: 0 0 10px; font-size: 17px; font-weight: 700; line-height: 1.5; }
+.step .body { min-width: 0; }
+
+.file {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+}
+.file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 0 18px; border-radius: 6px;
+  font: inherit; font-weight: 700; cursor: pointer;
+  border: 1.5px solid var(--ai); background: var(--surface); color: var(--ai);
+}
+.btn.primary { background: var(--ai); color: var(--surface); width: 100%; min-height: 52px; font-size: 17px; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.file input:focus-visible + .btn, .btn:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible {
+  outline: 3px solid var(--ai); outline-offset: 2px;
+}
+.file .name { font-size: 14px; word-break: break-all; }
+.hint { margin: 8px 0 0; font-size: 13.5px; color: var(--muted); }
+.hint.ok { color: var(--ok); }
+.hint.err { color: var(--err); }
+
+.opt { display: grid; grid-template-columns: 22px 1fr; gap: 0 10px; padding: 8px 0; }
+.opt input { width: 20px; height: 20px; margin: 3px 0 0; accent-color: var(--ai); }
+.opt label { font-weight: 700; font-size: 15px; cursor: pointer; }
+.opt .desc { grid-column: 2; font-size: 13px; color: var(--muted); line-height: 1.7; }
+.opt + .opt { border-top: 1px dashed var(--rule); }
+
+.gemini {
+  grid-column: 2; margin-top: 8px; padding: 10px 12px;
+  background: var(--ai-soft); border-radius: 6px; font-size: 13px;
+}
+.gemini[hidden] { display: none; }
+.gemini label.field { display: block; font-weight: 700; margin-bottom: 4px; }
+.gemini input[type="password"], .gemini input[type="text"] {
+  width: 100%; min-height: 40px; padding: 6px 10px; font: inherit; font-size: 14px;
+  border: 1px solid var(--rule); border-radius: 5px; background: var(--surface); color: var(--ink);
+}
+.gemini .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.gemini .row input { accent-color: var(--ai); }
+.gemini .linkbtn { background: none; border: 0; color: var(--ai); text-decoration: underline; font: inherit; cursor: pointer; padding: 0; }
+
+/* テンプレート見本：条・項の組み方をそのまま小さく見せる */
+.tpls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 340px) { .tpls { grid-template-columns: 1fr; } }
+.tpl { position: relative; }
+.tpl input { position: absolute; opacity: 0; width: 1px; height: 1px; top: 12px; left: 12px; }
+.tpl label {
+  display: block; height: 100%; padding: 10px 10px 12px; cursor: pointer;
+  background: var(--surface); border: 1.5px solid var(--rule); border-radius: 6px;
+}
+.tpl input:checked + label { border-color: var(--ai); box-shadow: inset 0 0 0 1px var(--ai); }
+.tpl input:focus-visible + label { outline: 3px solid var(--ai); outline-offset: 2px; }
+.tpl .t { font-weight: 700; font-size: 14px; }
+.tpl .s { display: block; font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 8px; }
+.spec {
+  font-family: var(--mincho); font-size: 12px; line-height: 1.85;
+  border-top: 1px solid var(--rule); padding-top: 7px; white-space: nowrap; overflow: hidden;
+}
+.spec span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.spec .i1 { padding-left: 1em; }
+.spec .i2 { padding-left: 2em; }
+.spec .h { font-weight: 700; }
+
+.result { margin-top: 14px; }
+.result .box { padding: 12px 14px; border-radius: 6px; font-size: 14px; }
+.result .box.ok { background: var(--surface); border: 1.5px solid var(--ok); }
+.result .box.err { background: var(--err-bg); color: var(--err); }
+.result .box.busy { background: var(--surface); border: 1px solid var(--rule); color: var(--muted); }
+.result a.dl { display: inline-block; margin-top: 6px; font-weight: 700; color: var(--ai); word-break: break-all; }
+.result .sub { display: block; margin-top: 4px; font-size: 13px; }
+
+details.log { margin-top: 12px; font-size: 13px; }
+details.log summary { cursor: pointer; color: var(--muted); }
+details.log pre {
+  margin: 8px 0 0; padding: 10px; max-height: 320px; overflow: auto;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 5px;
+  font-family: var(--gothic); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;
+}
+
+footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 1.8; }
+
+@media (prefers-reduced-motion: reduce) {
+  .engine[data-state="loading"] .dot { animation: none; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>就業規則 整形</h1>
+    <p>整形前の docx を読み込み、事務所のテンプレートで組み直した docx を作ります。</p>
+    <div class="engine" id="engine" data-state="loading" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span><span id="engineText">準備中：Python 実行環境を読み込んでいます（初回は数十秒かかります）</span>
+    </div>
+  </header>
+
+  <details class="caution">
+    <summary>整形する前にご確認ください</summary>
+    <ul>
+      <li>元ファイルの文字書式（フォント・太字・文字色）は引き継がれず、テンプレートのスタイルに置き換わります。強調表示など重要な書式は整形後に付け直してください。</li>
+      <li>文書の書き方によっては、条・項・号の判定を誤ることがあります。整形結果は必ず元ファイルと照合してください。</li>
+      <li>AI が再構成した条には Word のコメントが付きます。その箇所は特に重点的に確認してください。</li>
+      <li>ファイルはこの端末のブラウザ内だけで処理され、外部には送られません（Gemini を使う場合のみ、判定対象の文章が Google に送られます）。</li>
+    </ul>
+  </details>
+
+  <section class="step" aria-labelledby="h1">
+    <div class="no" aria-hidden="true">①</div>
+    <div class="body">
+      <h2 id="h1">整形前の docx を選ぶ</h2>
+      <div class="file">
+        <input type="file" id="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+        <label for="file" class="btn" id="fileBtn">ファイルを選ぶ</label>
+        <span class="name" id="fileName">未選択</span>
+      </div>
+      <p class="hint" id="parseHint" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="h2">
+    <div class="no" aria-hidden="true">②</div>
+    <div class="body">
+      <h2 id="h2">オプション</h2>
+
+      <div class="opt">
+        <input type="checkbox" id="optLayout">
+        <label for="optLayout">下線・アンダーバーの行を図とみなす</label>
+        <div class="desc">下線や「＿」、スペースの位置合わせで図表を作っている規程向け。オンにすると、その部分は整形せず元のまま残します。線やテキストボックスなど実際の図形は、この設定に関わらず常に保持されます。</div>
+      </div>
+
+      <div class="opt">
+        <input type="checkbox" id="optToc">
+        <label for="optToc">目次を作成する</label>
+        <div class="desc">表紙の直後に章・条見出しの目次を入れます。Word で開いたときにフィールド更新の確認が出たら「はい」を選んでください（作られない場合は Ctrl+A → F9）。</div>
+      </div>
+
+      <div class="opt">
+        <input type="checkbox" id="optHyoki">
+        <label for="optHyoki">表記ゆれを青字にする</label>
+        <div class="desc">「従業員／社員」「1か月／1ヵ月」などのゆれを青字にし、ゆれ1件につき初出の1箇所にコメントを付けます。文字は書き換えません。対象は本文のみで、表・表紙・附則は対象外です。</div>
+      </div>
+
+      <div class="opt">
+        <input type="checkbox" id="optGemini">
+        <label for="optGemini">Gemini で分割ミスを検出する</label>
+        <div class="desc">長い項・号の分割ミスや、機械的に判定できない段落を Gemini に確認させます。判定対象の文章が Google に送られます。無料枠では学習に使われる可能性があるため、機密性の高い規程では注意してください。</div>
+        <div class="gemini" id="geminiBox" hidden>
+          <label class="field" for="apiKey">Gemini API キー</label>
+          <input type="password" id="apiKey" autocomplete="off" spellcheck="false" placeholder="AIza…">
+          <div class="row">
+            <input type="checkbox" id="saveKey"><label for="saveKey">この端末のブラウザに保存する</label>
+            <button type="button" class="linkbtn" id="clearKey">保存したキーを削除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="h3">
+    <div class="no" aria-hidden="true">③</div>
+    <div class="body">
+      <h2 id="h3">テンプレートを選ぶ</h2>
+      <div class="tpls" role="radiogroup" aria-labelledby="h3">
+        <div class="tpl">
+          <input type="radio" name="tpl" id="t1" value="t1">
+          <label for="t1"><span class="t">テンプレ1</span><span class="s">項が独立</span>
+            <span class="spec" aria-hidden="true"><span class="h">第1条（目的）</span><span class="i1">1　この規則は、……</span><span class="i1">2　前項の……</span></span>
+          </label>
+        </div>
+        <div class="tpl">
+          <input type="radio" name="tpl" id="t2" value="t2">
+          <label for="t2"><span class="t">テンプレ2</span><span class="s">条の後ろに1項</span>
+            <span class="spec" aria-hidden="true"><span class="h i1">（目的）</span><span>第1条　この規則は、……</span><span>2　前項の……</span></span>
+          </label>
+        </div>
+        <div class="tpl">
+          <input type="radio" name="tpl" id="t3" value="t3">
+          <label for="t3"><span class="t">テンプレ3</span><span class="s">条の後ろに1項・項を1字下げ</span>
+            <span class="spec" aria-hidden="true"><span class="h i1">（目的）</span><span>第1条　この規則は、……</span><span class="i1">2　前項の……</span></span>
+          </label>
+        </div>
+        <div class="tpl">
+          <input type="radio" name="tpl" id="t4" value="t4">
+          <label for="t4"><span class="t">テンプレ4</span><span class="s">第1項／第2項分離</span>
+            <span class="spec" aria-hidden="true"><span class="h">第1条（目的）</span><span class="i1">この規則は、……</span><span>2.　前項の……</span></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="h4">
+    <div class="no" aria-hidden="true">④</div>
+    <div class="body">
+      <h2 id="h4">整形して保存</h2>
+      <button type="button" class="btn primary" id="run" disabled>整形してダウンロード</button>
+      <p class="hint" id="runHint"></p>
+      <div class="result" id="result" aria-live="polite"></div>
+      <details class="log" id="logBox">
+        <summary>処理の記録</summary>
+        <pre id="log"></pre>
+      </details>
+    </div>
+  </section>
+
+  <footer>
+    整形結果の照合レポート（原本との文字数の突き合わせ）も一緒に作られます。<br>
+    処理はすべてこのブラウザ内で行われます。ページを閉じると作業中のファイルは消えます。
+  </footer>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+  const K = { key: "kisoku.geminiKey", prefs: "kisoku.prefs" };
+
+  // ---------- 状態 ----------
+  let engineReady = false;
+  let busy = false;
+  let file = null;
+  let parsedKey = null;      // 解析済みの「ファイル＋解析オプション」
+  let parsedInfo = null;
+  let urls = [];
+  let seq = 0;
+  const pending = new Map();
+
+  // ---------- Worker ----------
+  const worker = new Worker("worker.js?v=" + Date.now());
+  worker.onmessage = (ev) => {
+    const m = ev.data;
+    if (m.type === "status") setEngine("loading", "準備中：" + m.text);
+    else if (m.type === "ready") { engineReady = true; setEngine("ready", "準備完了"); refresh(); }
+    else if (m.type === "fatal") {
+      setEngine("fatal", "読み込みに失敗しました。通信状態を確認して、ページを再読み込みしてください。");
+      log("[起動エラー] " + m.text);
+    }
+    else if (m.type === "log") log(m.text);
+    else if (pending.has(m.id)) { const p = pending.get(m.id); pending.delete(m.id); p(m); }
+  };
+  const call = (msg, transfer) => new Promise((resolve) => {
+    const id = ++seq; pending.set(id, resolve); worker.postMessage({ ...msg, id }, transfer || []);
+  });
+
+  function setEngine(state, text) { $("engine").dataset.state = state; $("engineText").textContent = text; }
+  function log(text) { const el = $("log"); el.textContent += text + "\n"; el.scrollTop = el.scrollHeight; }
+
+  // ---------- 設定の保存・復元 ----------
+  const prefs = JSON.parse(store.get(K.prefs) || "{}");
+  $("optLayout").checked = !!prefs.layout;
+  $("optToc").checked = !!prefs.toc;
+  $("optHyoki").checked = !!prefs.hyoki;
+  $("optGemini").checked = !!prefs.gemini;
+  ($("t" + (prefs.tpl || "1").replace("t", "")) || $("t1")).checked = true;
+  const savedKey = store.get(K.key);
+  if (savedKey) { $("apiKey").value = savedKey; $("saveKey").checked = true; }
+
+  function savePrefs() {
+    store.set(K.prefs, JSON.stringify({
+      layout: $("optLayout").checked, toc: $("optToc").checked,
+      hyoki: $("optHyoki").checked, gemini: $("optGemini").checked, tpl: tplValue(),
+    }));
+  }
+  const tplValue = () => (document.querySelector('input[name="tpl"]:checked') || {}).value || "t1";
+
+  // ---------- 画面の更新 ----------
+  function refresh() {
+    $("geminiBox").hidden = !$("optGemini").checked;
+    $("run").disabled = busy || !file;
+    $("file").disabled = busy;
+    $("fileBtn").setAttribute("aria-disabled", busy ? "true" : "false");
+    const hint = $("runHint");
+    if (!file) hint.textContent = "① でファイルを選ぶと押せるようになります。";
+    else if (!engineReady) hint.textContent = "準備が終わり次第、処理を始めます。";
+    else hint.textContent = "";
+  }
+
+  function parseKeyNow() {
+    const g = $("optGemini").checked;
+    return [file && file.name, file && file.size, file && file.lastModified,
+            $("optLayout").checked, g, g ? $("apiKey").value.trim() : ""].join("|");
+  }
+
+  function geminiKeyProblem() {
+    if ($("optGemini").checked && !$("apiKey").value.trim()) {
+      return "Gemini を使う場合は API キーを入力してください（使わない場合はチェックを外してください）。";
+    }
+    return null;
+  }
+
+  function showResult(kind, html) { $("result").innerHTML = `<div class="box ${kind}">${html}</div>`; }
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // ---------- 解析 ----------
+  async function parse() {
+    const problem = geminiKeyProblem();
+    if (problem) { $("parseHint").className = "hint err"; $("parseHint").textContent = problem; return false; }
+    const key = parseKeyNow();
+    const hint = $("parseHint");
+    hint.className = "hint";
+    hint.textContent = engineReady ? "構造を解析しています…" : "準備が終わり次第、構造を解析します…";
+    if ($("optGemini").checked) hint.textContent += "（Gemini 使用時は数分かかることがあります）";
+    const bytes = await file.arrayBuffer();
+    const m = await call({
+      type: "parse", name: file.name, bytes,
+      layoutAsFigure: $("optLayout").checked,
+      useGemini: $("optGemini").checked, apiKey: $("apiKey").value.trim(),
+    }, [bytes]);
+    if (m.type === "error") {
+      parsedKey = null;
+      hint.className = "hint err";
+      hint.textContent = "解析できませんでした：" + m.text;
+      log(m.detail || m.text);
+      return false;
+    }
+    parsedKey = key;
+    parsedInfo = m;
+    hint.className = "hint ok";
+    hint.textContent = `章 ${m.chapters} 件・条 ${m.articles} 件を読み取りました。`;
+    return true;
+  }
+
+  async function withBusy(fn) {
+    busy = true; refresh();
+    try { return await fn(); } finally { busy = false; refresh(); }
+  }
+
+  $("file").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!/\.docx$/i.test(f.name)) {
+      $("parseHint").className = "hint err";
+      $("parseHint").textContent = "docx 形式のファイルを選んでください（.doc は Word で docx に保存し直してください）。";
+      return;
+    }
+    file = f; parsedKey = null;
+    $("fileName").textContent = f.name;
+    $("result").innerHTML = ""; $("log").textContent = "";
+    await withBusy(parse);
+  });
+
+  // ---------- 整形 ----------
+  $("run").addEventListener("click", () => withBusy(async () => {
+    const problem = geminiKeyProblem();
+    if (problem) { showResult("err", esc(problem)); return; }
+    $("log").textContent = "";
+    if (parsedKey !== parseKeyNow()) {
+      showResult("busy", "オプションが変わったので、構造を解析し直しています…");
+      if (!(await parse())) { showResult("err", "解析に失敗しました。上の表示と「処理の記録」を確認してください。"); return; }
+    }
+    const tpl = tplValue();
+    const tplName = document.querySelector(`label[for="${tpl}"] .t`).textContent;
+    showResult("busy", `${esc(tplName)} で整形しています…`);
+    const m = await call({
+      type: "format", templateKey: tpl,
+      checkHyoki: $("optHyoki").checked, insertToc: $("optToc").checked,
+    });
+    if (m.type === "error") {
+      showResult("err", "整形できませんでした：" + esc(m.text) + "<span class=\"sub\">詳しくは「処理の記録」を開いてください。</span>");
+      log(m.detail || m.text);
+      $("logBox").open = true;
+      return;
+    }
+    urls.forEach((u) => URL.revokeObjectURL(u)); urls = [];
+    const docxUrl = URL.createObjectURL(new Blob([m.docx], {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }));
+    urls.push(docxUrl);
+    let html = `整形が完了しました。<br><a class="dl" href="${docxUrl}" download="${esc(m.docxName)}">${esc(m.docxName)} を保存</a>`;
+    if (m.reportText) {
+      const repUrl = URL.createObjectURL(new Blob([m.reportText], { type: "text/markdown;charset=utf-8" }));
+      urls.push(repUrl);
+      html += `<span class="sub"><a href="${repUrl}" download="${esc(m.reportName)}">照合レポート（${esc(m.reportName)}）を保存</a></span>`;
+    }
+    html += `<span class="sub">保存が始まらない場合は、上のリンクを押してください。</span>`;
+    showResult("ok", html);
+    // 自動で保存を開始
+    const a = document.createElement("a");
+    a.href = docxUrl; a.download = m.docxName; document.body.appendChild(a); a.click(); a.remove();
+  }));
+
+  // ---------- 入力の反映 ----------
+  ["optLayout", "optToc", "optHyoki", "optGemini"].forEach((id) =>
+    $(id).addEventListener("change", () => { savePrefs(); refresh(); }));
+  document.querySelectorAll('input[name="tpl"]').forEach((r) => r.addEventListener("change", savePrefs));
+
+  $("apiKey").addEventListener("input", () => { if ($("saveKey").checked) store.set(K.key, $("apiKey").value.trim()); });
+  $("saveKey").addEventListener("change", () => {
+    if ($("saveKey").checked) store.set(K.key, $("apiKey").value.trim()); else store.del(K.key);
+  });
+  $("clearKey").addEventListener("click", () => {
+    store.del(K.key); $("apiKey").value = ""; $("saveKey").checked = false;
+  });
+
+  refresh();
+})();
+</script>
+</body>
+</html>
