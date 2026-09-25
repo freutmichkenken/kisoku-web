@@ -690,6 +690,10 @@ def _sanitize_copied_para(el):
         parent = npr.getparent()
         if parent is not None:
             parent.remove(npr)
+    # 段落内のセクション区切りは元文書のフッター等（r:id）を参照しており、
+    # 出力側に対応するパートが無いと Word で「破損」扱いになるため除去する
+    for sp in el.findall('./' + qn('w:pPr') + '/' + qn('w:sectPr')):
+        sp.getparent().remove(sp)
     return el
 
 
