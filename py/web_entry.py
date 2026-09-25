@@ -57,7 +57,7 @@ def parse(src_path, use_gemini=False, layout_as_figure=False, api_key=""):
 
 
 def format_docx(src_path, json_path, template_key,
-                check_hyoki=False, insert_toc=False):
+                check_hyoki=False, insert_toc=False, keep_crossref=False):
     """解析済み JSON にテンプレートを適用し、出力ファイルのパスを返す。"""
     if template_key not in TEMPLATES:
         raise ValueError(f"不明なテンプレートです: {template_key}")
@@ -79,6 +79,7 @@ def format_docx(src_path, json_path, template_key,
         show_notice=False,           # 注意事項は画面に常時表示している
         check_hyoki=bool(check_hyoki),
         insert_toc=bool(insert_toc),
+        keep_crossref=bool(keep_crossref),
     )
 
     if not os.path.exists(report_path):

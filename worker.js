@@ -99,7 +99,8 @@ async function handleParse(msg) {
 async function handleFormat(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
   const res = JSON.parse(entry.format_docx(current.srcPath, current.jsonPath,
-    msg.templateKey, !!msg.checkHyoki, !!msg.insertToc));
+    msg.templateKey, !!msg.checkHyoki, !!msg.insertToc,
+    !!msg.keepCrossref));
 
   const docx = readOut(res.output_path);
   const out = {

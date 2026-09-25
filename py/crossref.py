@@ -51,6 +51,12 @@ _TOC_BM_RE = re.compile(r'^_Toc', re.I)
 _PARA_NUM_SW_RE = re.compile(r'\\[nrw]\b', re.I)
 # 「第N条」を表示している参照
 _ART_RESULT_RE = re.compile(r'^第[0-9０-９一二三四五六七八九十百千]+条')
+# 「第N条」だけ（「第N条第2項」などを含まない）
+_ART_ONLY_RE = re.compile(r'^第[0-9０-９一二三四五六七八九十百千]+条$')
+# 段落番号スイッチを足すための REF の頭（REF とブックマーク名）
+_REF_HEAD_RE = re.compile(r'^(\s*REF\s+\S+)', re.I)
+# 復元した相互参照の文字色（青は表記ゆれ、赤は別用途で使用済み）
+XREF_COLOR = "00B050"    # 緑
 
 
 # ============================================================
@@ -367,6 +373,30 @@ def _existing_bookmark_names(doc):
             for e in doc.element.body.iter(qn('w:bookmarkStart'))}
 
 
+# w:rPr の中で w:color より後ろに置くべき要素（スキーマの順序）
+_AFTER_COLOR = {qn('w:' + t) for t in (
+    'spacing', 'w', 'kern', 'position', 'sz', 'szCs', 'highlight', 'u',
+    'effect', 'bdr', 'shd', 'fitText', 'vertAlign', 'rtl', 'cs', 'em', 'lang',
+    'eastAsianLayout', 'specVanish', 'oMath')}
+
+
+def _set_color(r, hex_value):
+    """ラン要素に文字色を直接設定する（順序を守らないと Word が修復を求める）。"""
+    rPr = r.find(qn('w:rPr'))
+    if rPr is None:
+        rPr = OxmlElement('w:rPr')
+        r.insert(0, rPr)
+    for old in rPr.findall(qn('w:color')):
+        rPr.remove(old)
+    c = OxmlElement('w:color')
+    c.set(qn('w:val'), hex_value)
+    after = next((e for e in rPr if e.tag in _AFTER_COLOR), None)
+    if after is not None:
+        after.addprevious(c)
+    else:
+        rPr.append(c)
+
+
 def _make_fld_run(kind, dirty=False, instr=None):
     r = OxmlElement('w:r')
     if instr is not None:
@@ -383,9 +413,44 @@ def _make_fld_run(kind, dirty=False, instr=None):
     return r
 
 
-def restore(doc, info, verbose=True, dirty=True):
+def _convert_typed_refs(info):
+    """
+    手打ちの条番号（「第10条」という文字）をブックマークで囲み、その文字を
+    表示している相互参照を、段落番号を表示する参照（\\n 付き）に作り替える。
+
+    整形で手打ちの条番号はテンプレの自動番号に置き換わり、囲んでいた文字が
+    無くなるため、そのままでは参照が段落全体の文章を表示してしまう。
+    作り替えた参照は、以降の処理で「第N条」の番号を持つ段落を指す。
+
+    戻り値: (作り替えたフィールドのリスト, 作り替えられなかった旨のメッセージ)
+    """
+    fields, skipped = [], []
+    for f in info["fields"]:
+        f = dict(f)
+        bm = info["bookmarks"].get(f["bookmark"])
+        if (bm and not _PARA_NUM_SW_RE.search(f["instr"])
+                and _ART_RESULT_RE.match(f["result"])
+                and _REF_HEAD_RE.match(f["instr"])):
+            bm_text = _norm(bm["para"][bm["start"]:bm["end"]])
+            # 段落の先頭の条番号だけを対象にする（本文中の「第2条による」を
+            # 囲んだ参照まで作り替えると、その段落の条番号を指してしまう）
+            at_head = not _norm(bm["para"][:bm["start"]])
+            if at_head and _ART_ONLY_RE.match(_norm(f["result"])) \
+                    and bm_text == _norm(f["result"]):
+                f["instr"] = _REF_HEAD_RE.sub(r'\1 \\n', f["instr"], count=1)
+            else:
+                skipped.append(f"条番号の参照に作り替えられません: {f['result']}"
+                               f"（{f['para'][:20]}）")
+        fields.append(f)
+    return fields, skipped
+
+
+def restore(doc, info, verbose=True, dirty=True, color=XREF_COLOR):
     """
     整形後の Document に相互参照を復元する。
+
+    color を指定すると、復元した参照の文字をその色にする（整形後の確認用）。
+    None なら色を付けない。
 
     dirty=True（既定）にすると、Wordで開いたときに参照先の条番号が
     自動更新される。その代わり、Wordが毎回「他のファイルを参照する
@@ -398,7 +463,7 @@ def restore(doc, info, verbose=True, dirty=True):
 
     paragraphs = doc.paragraphs
     failed = []
-    warned = []
+    fields, warned = _convert_typed_refs(info)
     landed = []       # (ブックマーク名, 着地した段落のテキスト)
 
     # --- ブックマーク（参照先）を先に復元する ---
@@ -409,7 +474,7 @@ def restore(doc, info, verbose=True, dirty=True):
     bm_items = sorted(info["bookmarks"].items(),
                       key=lambda kv: kv[1].get("order", 0))
     # 「第N条」を段落番号として参照されているブックマーク
-    art_refs = {f["bookmark"] for f in info["fields"]
+    art_refs = {f["bookmark"] for f in fields
                 if f["bookmark"] and _PARA_NUM_SW_RE.search(f["instr"])
                 and _ART_RESULT_RE.match(f["result"])}
     nums = _NumLookup(doc) if art_refs else None
@@ -468,7 +533,7 @@ def restore(doc, info, verbose=True, dirty=True):
 
     n_fld = 0
     min_index = 0
-    for f in sorted(info["fields"], key=lambda x: x.get("order", 0)):
+    for f in sorted(fields, key=lambda x: x.get("order", 0)):
         if any(_norm(f["instr"]) in s for s in kept.get(_norm(f["para"]), ())):
             continue
         idx, n_cand, _ = _find_paragraph(paragraphs, f["para"],
@@ -499,16 +564,28 @@ def restore(doc, info, verbose=True, dirty=True):
             failed.append(f"ランの分割に失敗: {f['result']}")
             continue
 
-        runs[0].addprevious(_make_fld_run('begin', dirty=dirty))
-        runs[0].addprevious(_make_fld_run(None, instr=f["instr"]))
-        runs[0].addprevious(_make_fld_run('separate'))
-        runs[-1].addnext(_make_fld_run('end'))
+        instr = f["instr"]
+        if color and 'MERGEFORMAT' not in instr.upper():
+            # 更新後も表示文字の書式（緑字）を保たせる
+            instr = instr.rstrip() + ' \\* MERGEFORMAT '
+        fld_runs = [_make_fld_run('begin', dirty=dirty),
+                    _make_fld_run(None, instr=instr),
+                    _make_fld_run('separate')]
+        for r in fld_runs:
+            runs[0].addprevious(r)
+        fld_runs.append(_make_fld_run('end'))
+        runs[-1].addnext(fld_runs[-1])
+        if color:
+            # 表示文字だけでなくフィールドコードにも付け、更新後も色が残るようにする
+            for r in [fld_runs[1]] + runs:
+                _set_color(r, color)
         n_fld += 1
 
     if verbose:
         if n_fld or n_bm:
             print(f"  相互参照: {n_fld}件を復元"
-                  f"（参照先ブックマーク {n_bm}件）")
+                  f"（参照先ブックマーク {n_bm}件）"
+                  + ("・緑字で表示" if color else ""))
             # どこに着地したかを出す（飛び先が正しいか目視できるように）
             for name, txt in landed[:20]:
                 print(f"    {name} → {txt[:28]}")
