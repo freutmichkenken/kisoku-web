@@ -47,6 +47,10 @@ _REF_INSTR_RE = re.compile(r'^\s*(REF|NOTEREF)\b', re.I)
 _REF_NAME_RE = re.compile(r'^\s*(?:REF|NOTEREF)\s+(\S+)', re.I)
 # 目次が使う自動生成ブックマーク（本文に復元しても Word が作り直す）
 _TOC_BM_RE = re.compile(r'^_Toc', re.I)
+# 段落番号を表示する REF のスイッチ（\n \r \w）
+_PARA_NUM_SW_RE = re.compile(r'\\[nrw]\b', re.I)
+# 「第N条」を表示している参照
+_ART_RESULT_RE = re.compile(r'^第[0-9０-９一二三四五六七八九十百千]+条')
 
 
 # ============================================================
@@ -235,6 +239,122 @@ def _find_paragraph(paragraphs, orig_text, must_contain=None, min_index=0):
     return None, 0, False
 
 
+class _NumLookup:
+    """段落の自動番号を (レベル, 番号書式 lvlText) で引く。番号なしは None。"""
+
+    def __init__(self, doc):
+        self.styles = {}
+        for s in doc.styles.element.iter(qn('w:style')):
+            self.styles[s.get(qn('w:styleId'))] = s
+        self.abstract = {}
+        self.nums = {}
+        try:
+            numbering = doc.part.numbering_part.element
+        except Exception:
+            return          # 自動番号の定義が無い文書
+        for a in numbering.iter(qn('w:abstractNum')):
+            self.abstract[a.get(qn('w:abstractNumId'))] = a
+        for n in numbering.iter(qn('w:num')):
+            self.nums[n.get(qn('w:numId'))] = n
+
+    def _style_numpr(self, style_id):
+        """スタイル（basedOn をたどる）に設定された numPr と、そのスタイルID。"""
+        seen = set()
+        while style_id and style_id not in seen:
+            seen.add(style_id)
+            s = self.styles.get(style_id)
+            if s is None:
+                return None, None
+            numPr = s.find(qn('w:pPr') + '/' + qn('w:numPr'))
+            if numPr is not None:
+                return numPr, style_id
+            based = s.find(qn('w:basedOn'))
+            style_id = based.get(qn('w:val')) if based is not None else None
+        return None, None
+
+    def _lvl(self, num_id, ilvl, style_id):
+        num = self.nums.get(num_id)
+        if num is None:
+            return None
+        for ov in num.findall(qn('w:lvlOverride')):
+            lvl = ov.find(qn('w:lvl'))
+            if lvl is not None and ov.get(qn('w:ilvl')) == str(ilvl):
+                return lvl
+        aid = num.find(qn('w:abstractNumId'))
+        a = self.abstract.get(aid.get(qn('w:val')) if aid is not None else None)
+        if a is None:
+            return None
+        lvls = a.findall(qn('w:lvl'))
+        if ilvl is None:
+            # スタイル経由でレベル指定が無い場合は、そのスタイルに結び付いたレベル
+            for lvl in lvls:
+                ps = lvl.find(qn('w:pStyle'))
+                if ps is not None and ps.get(qn('w:val')) == style_id:
+                    return lvl
+            ilvl = 0
+        for lvl in lvls:
+            if lvl.get(qn('w:ilvl')) == str(ilvl):
+                return lvl
+        return None
+
+    def get(self, p):
+        pPr = p.find(qn('w:pPr'))
+        own = pPr.find(qn('w:numPr')) if pPr is not None else None
+        ps = pPr.find(qn('w:pStyle')) if pPr is not None else None
+        style_numPr, style_id = self._style_numpr(
+            ps.get(qn('w:val')) if ps is not None else None)
+
+        def val(numPr, tag):
+            el = numPr.find(qn(tag)) if numPr is not None else None
+            return el.get(qn('w:val')) if el is not None else None
+
+        if val(own, 'w:numId'):
+            # 段落に直接の番号指定があれば、レベルもスタイルと混ぜない
+            num_id, ilvl = val(own, 'w:numId'), val(own, 'w:ilvl')
+        else:
+            num_id = val(style_numPr, 'w:numId')
+            ilvl = val(own, 'w:ilvl') or val(style_numPr, 'w:ilvl')
+        if not num_id or num_id == '0':
+            return None
+        lvl = self._lvl(num_id, int(ilvl) if ilvl else None, style_id)
+        if lvl is None:
+            return None
+        text = lvl.find(qn('w:lvlText'))
+        return (int(lvl.get(qn('w:ilvl')) or ilvl or 0),
+                (text.get(qn('w:val')) or '') if text is not None else '')
+
+
+def _article_number_para(paragraphs, idx, nums):
+    """
+    「第N条」の自動番号を持つ段落のインデックスを返す。
+
+    テンプレートによって「第N条」の番号が付く段落が違う
+    （見出し「（〇〇）」に付くもの／第1項の本文に付くもの）。
+    元ファイルと同じ段落にブックマークを置くと、テンプレによっては
+    項番号（「1」）を参照してしまうため、同じ条の隣の段落へ移す。
+    見出しは第1項より上位のレベルなので、レベルの上下で同じ条かを確かめ、
+    隣の条の段落へ移らないようにしている。
+    """
+    def info(i):
+        return nums.get(paragraphs[i]._p) if 0 <= i < len(paragraphs) \
+            else None
+
+    own = info(idx)
+    if own is None:
+        # 番号の無い段落は見出しか本文か判別できず、隣の条へ移るおそれがあるため動かさない
+        return idx
+    if '条' in own[1]:
+        return idx
+    lvl = own[0]
+    prev = info(idx - 1)
+    if prev and '条' in prev[1] and prev[0] < lvl:     # 見出しに番号がある
+        return idx - 1
+    nxt = info(idx + 1)
+    if nxt and '条' in nxt[1] and nxt[0] > lvl:        # 第1項に番号がある
+        return idx + 1
+    return idx
+
+
 def _next_bookmark_id(doc):
     ids = [int(e.get(qn('w:id')))
            for e in doc.element.body.iter(qn('w:bookmarkStart'))
@@ -288,6 +408,11 @@ def restore(doc, info, verbose=True, dirty=True):
     # 元ファイルでの並び順に処理し、出力側でも順序が前後しないようにする
     bm_items = sorted(info["bookmarks"].items(),
                       key=lambda kv: kv[1].get("order", 0))
+    # 「第N条」を段落番号として参照されているブックマーク
+    art_refs = {f["bookmark"] for f in info["fields"]
+                if f["bookmark"] and _PARA_NUM_SW_RE.search(f["instr"])
+                and _ART_RESULT_RE.match(f["result"])}
+    nums = _NumLookup(doc) if art_refs else None
     min_index = 0
     for name, bm in bm_items:
         if name in exists:
@@ -301,6 +426,10 @@ def restore(doc, info, verbose=True, dirty=True):
         if n_cand > 1:
             warned.append(f"参照先の候補が{n_cand}件ありました: "
                           f"{bm['para'][:20]}")
+        if name in art_refs:
+            moved = _article_number_para(paragraphs, idx, nums)
+            if moved != idx:
+                idx, is_exact = moved, False   # 移した先は段落全体を範囲にする
         p = paragraphs[idx]
         landed.append((name, p.text))
         min_index = idx        # 以降のブックマークはここより後ろを優先
@@ -328,9 +457,20 @@ def restore(doc, info, verbose=True, dirty=True):
         n_bm += 1
 
     # --- 参照側のフィールドを復元する ---
+    # 表・前付け・後付けは元の XML を複製するのでフィールドが既に残っている。
+    # それらを二重に復元したり「見つかりません」と誤って警告したりしないよう、
+    # 出力に同じ参照が残っている段落を控えておく（表の中も含めて全段落を見る）
+    kept = {}
+    for p in doc.element.body.iter(qn('w:p')):
+        instr = ''.join(e.text or '' for e in p.iter(qn('w:instrText')))
+        if instr:
+            kept.setdefault(_norm(_p_text(p)), []).append(_norm(instr))
+
     n_fld = 0
     min_index = 0
     for f in sorted(info["fields"], key=lambda x: x.get("order", 0)):
+        if any(_norm(f["instr"]) in s for s in kept.get(_norm(f["para"]), ())):
+            continue
         idx, n_cand, _ = _find_paragraph(paragraphs, f["para"],
                                          must_contain=f["result"],
                                          min_index=min_index)
