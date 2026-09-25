@@ -457,9 +457,20 @@ def restore(doc, info, verbose=True, dirty=True):
         n_bm += 1
 
     # --- 参照側のフィールドを復元する ---
+    # 表・前付け・後付けは元の XML を複製するのでフィールドが既に残っている。
+    # それらを二重に復元したり「見つかりません」と誤って警告したりしないよう、
+    # 出力に同じ参照が残っている段落を控えておく（表の中も含めて全段落を見る）
+    kept = {}
+    for p in doc.element.body.iter(qn('w:p')):
+        instr = ''.join(e.text or '' for e in p.iter(qn('w:instrText')))
+        if instr:
+            kept.setdefault(_norm(_p_text(p)), []).append(_norm(instr))
+
     n_fld = 0
     min_index = 0
     for f in sorted(info["fields"], key=lambda x: x.get("order", 0)):
+        if any(_norm(f["instr"]) in s for s in kept.get(_norm(f["para"]), ())):
+            continue
         idx, n_cand, _ = _find_paragraph(paragraphs, f["para"],
                                          must_contain=f["result"],
                                          min_index=min_index)
