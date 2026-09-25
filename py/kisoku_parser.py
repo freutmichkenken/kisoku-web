@@ -1446,7 +1446,7 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
                 APIキー未設定やライブラリ未導入の場合は自動でスキップする。
     """
     if stop_words is None:
-        stop_words = ['附則', '改版履歴', '改訂履歴', '制定・改廃履歴', '沿革']
+        stop_words = ['附則', '付則', '改版履歴', '改訂履歴', '制定・改廃履歴', '沿革']
 
     doc = Document(docx_path)
 
@@ -1530,7 +1530,8 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
 
             # 停止ワード（附則・改版履歴など）を検出したら、
             # そこから末尾までは「後付け」として整形せず元のまま保持する
-            if text.strip() and stop_re.search(text.strip()):
+            # 行頭一致に限る（本文中の「〇〇法附則第3項」で止まらないように）
+            if text.strip() and stop_re.match(text.strip()):
                 print(f"停止: {repr(text.strip()[:30])}（以降は整形せず保持）")
                 back_start = child_idx
                 break
