@@ -217,6 +217,12 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       </div>
 
       <div class="opt">
+        <input type="checkbox" id="optXref">
+        <label for="optXref">相互参照を残す（緑字）</label>
+        <div class="desc">Word の相互参照（「第10条に定める」などの自動で番号が変わる参照）を整形後も残し、緑字にします。確認が終わったら文字色を戻してください。オフにすると、本文の相互参照はただの文字になります。表・表紙・附則の相互参照は、この設定に関わらず元のまま残ります。</div>
+      </div>
+
+      <div class="opt">
         <input type="checkbox" id="optHyoki">
         <label for="optHyoki">表記ゆれを青字にする</label>
         <div class="desc">「従業員／社員」「1か月／1ヵ月」などのゆれを青字にし、ゆれ1件につき初出の1箇所にコメントを付けます。文字は書き換えません。対象は本文のみで、表・表紙・附則は対象外です。</div>
@@ -336,6 +342,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   $("optLayout").checked = !!prefs.layout;
   $("optToc").checked = !!prefs.toc;
   $("optHyoki").checked = !!prefs.hyoki;
+  $("optXref").checked = !!prefs.xref;
   $("optGemini").checked = !!prefs.gemini;
   ($("t" + (prefs.tpl || "1").replace("t", "")) || $("t1")).checked = true;
   const savedKey = store.get(K.key);
@@ -344,7 +351,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   function savePrefs() {
     store.set(K.prefs, JSON.stringify({
       layout: $("optLayout").checked, toc: $("optToc").checked,
-      hyoki: $("optHyoki").checked, gemini: $("optGemini").checked, tpl: tplValue(),
+      hyoki: $("optHyoki").checked, xref: $("optXref").checked, gemini: $("optGemini").checked, tpl: tplValue(),
     }));
   }
   const tplValue = () => (document.querySelector('input[name="tpl"]:checked') || {}).value || "t1";
@@ -441,6 +448,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     const m = await call({
       type: "format", templateKey: tpl,
       checkHyoki: $("optHyoki").checked, insertToc: $("optToc").checked,
+      keepCrossref: $("optXref").checked,
     });
     if (m.type === "error") {
       showResult("err", "整形できませんでした：" + esc(m.text) + "<span class=\"sub\">詳しくは「処理の記録」を開いてください。</span>");
@@ -466,7 +474,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   }));
 
   // ---------- 入力の反映 ----------
-  ["optLayout", "optToc", "optHyoki", "optGemini"].forEach((id) =>
+  ["optLayout", "optToc", "optHyoki", "optXref", "optGemini"].forEach((id) =>
     $(id).addEventListener("change", () => { savePrefs(); refresh(); }));
   document.querySelectorAll('input[name="tpl"]').forEach((r) => r.addEventListener("change", savePrefs));
 

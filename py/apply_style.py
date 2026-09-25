@@ -906,7 +906,9 @@ def apply_style(json_path, template_path, template_key, output_path,
                     挿入する。章・条見出しのスタイルを名指しで拾うので、
                     テンプレ2でも第1項の本文が目次に混ざらない。
     keep_crossref : True にすると、元docxのWord相互参照（REFフィールド）を
-                    整形後の文書に復元する。source_docx の指定が必要。
+                    整形後の文書に復元し、緑字にする。手打ちの条番号への
+                    参照は、条番号を表示する参照に作り替える。
+                    source_docx の指定が必要。
     check_hyoki   : True にすると表記ゆれを検出し、該当語を青字にして
                     段落ごとにWordコメントを付ける（本文のみ・自動修正はしない）
     hyoki_options : hyoki_check.analyze() に渡す辞書。例:
