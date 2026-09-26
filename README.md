@@ -62,3 +62,12 @@ wheels/         python-docx 1.2.0（固定版）
   2回目以降はブラウザのキャッシュが効いて速くなります。
 - Gemini の API キーは、「この端末のブラウザに保存する」にチェックした場合のみ、
   その端末のブラウザ内に保存されます。
+
+## 回帰テスト
+
+`tests/samples/` の就業規則サンプルで、修正後も整形結果が変わっていないかを確認できます（python-docx が必要：`pip install wheels/*.whl`）。
+
+```
+python3 tests/regression.py            # 基準（tests/expected/）と比較
+python3 tests/regression.py --update   # 意図した変更のあと基準を作り直す
+```

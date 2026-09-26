@@ -1,0 +1,416 @@
+[
+  {
+    "type": "front_matter",
+    "indices": [
+      0
+    ],
+    "texts": []
+  },
+  {
+    "type": "chapter",
+    "number": 1,
+    "number_str": "第1章",
+    "title": "総　則",
+    "articles": [
+      {
+        "type": "article",
+        "number": 1,
+        "branch": 0,
+        "number_str": "第1条",
+        "title": "目 的",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "この就業規則（以下「規則」という。）は、労働基準法（以下「労基法」という。）第８９条に基づき、　　　　株式会社の労働者の就業に関する事項を定めるものである。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 2,
+            "body": "この規則に定めた事項のほか、就業に関する事項については、労基法その他の法令の定めによる。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 2,
+        "branch": 0,
+        "number_str": "第２条",
+        "title": "適用範囲",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "この規則は、　　　　株式会社の労働者に適用する。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 2,
+            "body": "パートタイム労働者の就業に関する事項については、別に定めるところによる。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 3,
+            "body": "前項については、別に定める規則に定めのない事項は、この規則を適用する。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 3,
+        "branch": 0,
+        "number_str": "第３条",
+        "title": "規則の遵守",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "会社は、この規則に定める労働条件により、労働者に就業させる義務を負う。また、労働者は、この規則を遵守しなければならない。",
+            "items": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "chapter",
+    "number": 2,
+    "number_str": "第２章",
+    "title": "採用、異動等",
+    "articles": [
+      {
+        "type": "article",
+        "number": 4,
+        "branch": 0,
+        "number_str": "第４条",
+        "title": "採用手続",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "会社は、入社を希望する者の中から選考試験を行い、これに合格した者を採用する。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 5,
+        "branch": 0,
+        "number_str": "第5条",
+        "title": "採用時の提出書類",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "労働者として採用された者は、採用された日から　　週間以内に次の書類を提出しなければならない。1)　住民票記載事項証明書2)　自動車運転免許証の写し（ただし、自動車運転免許証を有する場合に限る。）3)　資格証明書の写し（ただし、何らかの資格証明書を有する場合に限る。）4)　その他会社が指定するもの",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 2,
+            "body": "前項の定めにより提出した書類の記載事項に変更を生じたときは、速やかに書面で会社に変更事項を届け出なければならない。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 6,
+        "branch": 0,
+        "number_str": "第6条",
+        "title": "試 用 期 間",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "労働者として新たに採用した者については、採用した日から　　か月間を試用期間とする。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 2,
+            "body": "前項について、会社が特に認めたときは、試用期間を短縮し、又は設けないことがある。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 3,
+            "body": "試用期間中に労働者として不適格と認めた者は、解雇することがある。ただし、入社後１４日を経過した者については、第５３条第２項に定める手続によって行う。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 4,
+            "body": "試用期間は、勤続年数に通算する。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 7,
+        "branch": 0,
+        "number_str": "第７条",
+        "title": "労働条件の明示",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "会社は、労働者を採用するとき、採用時の賃金、就業場所、従事する業務、労働時間、休日、その他の労働条件を記した労働条件通知書及びこの規則を交付して労働条件を明示するものとする。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 8,
+        "branch": 0,
+        "number_str": "第８条",
+        "title": "人事異動",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "会社は、業務上必要がある場合に、労働者に対して就業する場所及び従事する業務の変更を命ずることがある。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 2,
+            "body": "会社は、業務上必要がある場合に、労働者を在籍のまま関係会社へ出向させることがある。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 3,
+            "body": "前２項の場合、労働者は正当な理由なくこれを拒むことはできない。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 9,
+        "branch": 0,
+        "number_str": "第９条",
+        "title": "休職",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "労働者が、次のいずれかに該当するときは、所定の期間休職とする。",
+            "items": [
+              {
+                "type": "item",
+                "number": 1,
+                "body": "業務外の傷病による欠勤が　　か月を超え、なお療養を継続する必要があるため勤務できないとき　　　　　　　　　　　　　　　　　　　　　　　　　年以内"
+              },
+              {
+                "type": "item",
+                "number": 2,
+                "body": "前号のほか、特別な事情があり休職させることが適当と認められるとき必要な期間"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "number": 2,
+            "body": "休職期間中に休職事由が消滅したときは、原則として元の職務に復帰させる。ただし、元の職務に復帰させることが困難又は不適当な場合には、他の職務に就かせることがある。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 3,
+            "body": "第１項第１号により休職し、休職期間が満了してもなお傷病が治癒せず就業が困難な場合は、休職期間の満了をもって退職とする。",
+            "items": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "chapter",
+    "number": 3,
+    "number_str": "第３章",
+    "title": "服務規律",
+    "articles": [
+      {
+        "type": "article",
+        "number": 10,
+        "branch": 0,
+        "number_str": "第10条",
+        "title": "服務",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "労働者は、職務上の責任を自覚し、誠実に職務を遂行するとともに、会社の指示命令に従い、職務能率の向上及び職場秩序の維持に努めなければならない。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 11,
+        "branch": 0,
+        "number_str": "第11条",
+        "title": "遵 守 事 項",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "労働者は、以下の事項を守らなければならない。1)　許可なく職務以外の目的で会社の施設、物品等を使用しないこと。2)　職務に関連して自己の利益を図り、又は他より不当に金品を借用し、若しくは贈与を受ける等不正な行為を行わないこと。3)　勤務中は職務に専念し、正当な理由なく勤務場所を離れないこと。4)　会社の名誉や信用を損なう行為をしないこと。5)　在職中及び退職後においても、業務上知り得た会社、取引先等の機密を漏洩しないこと。6)　酒気を帯びて就業しないこと。7)　その他労働者としてふさわしくない行為をしないこと。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 12,
+        "branch": 0,
+        "number_str": "第１２条",
+        "title": "職場のパワーハラスメントの禁止",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "職務上の地位や人間関係などの職場内の優越的な関係を背景とした、業務上必要かつ相当な範囲を超えた言動により、他の労働者の就業環境を害するようなことをしてはならない。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 13,
+        "branch": 0,
+        "number_str": "第１３条",
+        "title": "セクシュアルハラスメントの禁止",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "性的言動により、他の労働者に不利益や不快感を与えたり、就業環境を害するようなことをしてはならない。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 14,
+        "branch": 0,
+        "number_str": "第１４条",
+        "title": "妊娠・出産・育児休業・介護休業等に関するハラスメントの禁止",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "妊娠・出産等に関する言動及び妊娠・出産・育児・介護等に関する制度又は措置の利用に関する言動により、他の労働者の就業環境を害するようなことをしてはならない。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 15,
+        "branch": 0,
+        "number_str": "第15条",
+        "title": "その他あらゆるハラスメントの禁止",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "第１２条から前条までに規定するもののほか、性的指向・性自認に関する言動によるものなど職場におけるあらゆるハラスメントにより、他の労働者の就業環境を害するようなことをしてはならない。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 16,
+        "branch": 0,
+        "number_str": "第16条",
+        "title": "個 人 情 報 保 護",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "労働者は、会社及び取引先等に関する情報の管理に十分注意を払うとともに、自らの業務に関係のない情報を不当に取得してはならない。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 2,
+            "body": "労働者は、職場又は職種を異動あるいは退職するに際して、自らが管理していた会社及び取引先等に関するデータ・情報書類等を速やかに返却しなければならない。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 17,
+        "branch": 0,
+        "number_str": "第１７条",
+        "title": "始業及び終業時刻の記録",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "労働者は、始業及び終業時にタイムカードを自ら打刻し、始業及び終業の時刻を記録しなければならない。",
+            "items": []
+          }
+        ]
+      },
+      {
+        "type": "article",
+        "number": 18,
+        "branch": 0,
+        "number_str": "第１８条",
+        "title": "遅刻、早退、欠勤等",
+        "title_note": "",
+        "paragraphs": [
+          {
+            "type": "paragraph",
+            "number": 1,
+            "body": "労働者は遅刻、早退若しくは欠勤をし、又は勤務時間中に私用で事業場から外出する際は、事前に　　　　に対し申し出るとともに、承認を受けなければならない。ただし、やむを得ない理由で事前に申し出ることができなかった場合は、事後に速やかに届出をし、承認を得なければならない。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 2,
+            "body": "前項の場合は、第４５条に定めるところにより、原則として不就労分に対応する賃金は控除する。",
+            "items": []
+          },
+          {
+            "type": "paragraph",
+            "number": 3,
+            "body": "傷病のため継続して　　日以上欠勤するときは、医師の診断書を提出しなければならない。",
+            "items": []
+          }
+        ]
+      }
+    ]
+  }
+]
