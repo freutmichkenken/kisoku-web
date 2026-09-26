@@ -452,7 +452,7 @@ def merge_lines(items):
             # 次の行が番号で始まる場合は新しい段落
             stripped = line.lstrip('　 \t')
             is_new = bool(
-                re.match(r'^第[０-９0-9一二三四五六七八九十百千]+[章条]', stripped) or
+                re.match(r'^第[　\s]*[０-９0-9一二三四五六七八九十百千]+[　\s]*[章条]', stripped) or
                 re.match(r'^（[^）]+）[\s　]*([※＊*].*)?$', stripped) or  # 条タイトル
                 re.match(r'^\([^)]+\)\s*$', stripped) or
                 re.match(r'^[２-９2-9][０-９0-9]*[　 ．.]', stripped) or  # 第2項以降
@@ -487,14 +487,16 @@ def merge_lines(items):
 # ============================================================
 
 # 各パターン
-RE_CHAPTER = re.compile(r'^第([０-９0-9一二三四五六七八九十百千万]+)章[　\s]*(.*)$',
+# 「第 1 章」「第 24 条」のように番号の前後に空白が入った書き方も
+# 見出しとして認める（PDF変換や手打ちの文書で多い）。
+RE_CHAPTER = re.compile(r'^第[　\s]*([０-９0-9一二三四五六七八九十百千万]+)[　\s]*章[　\s]*(.*)$',
                         re.DOTALL)
 # 「第９条」「第９条の２」の両方に対応（枝番号 = branch）
 # 「第９条に定める…」のような本文中の条文参照を条見出しと
 # 誤判定しないよう、条番号の直後は「空白・括弧・行末」に限る。
 RE_ARTICLE = re.compile(
-    r'^第([０-９0-9一二三四五六七八九十百千万]+)条'
-    r'(?:の([０-９0-9一二三四五六七八九十]+))?'
+    r'^第[　\s]*([０-９0-9一二三四五六七八九十百千万]+)[　\s]*条'
+    r'(?:[　\s]*の[　\s]*([０-９0-9一二三四五六七八九十]+))?'
     r'(?=[　\s（(]|$)'
     r'[　\s]*(.*)$',
     re.DOTALL
@@ -1689,8 +1691,8 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
         else:  # 'text'
             node = classify_line(val, maru_is_sub=maru_is_sub, analyzer=analyzer)
             if node:
-                # 'body'（＝どのパターンにも該当せず本文扱い）は判定不能候補
-                if node.get('type') == 'body' and use_gemini:
+                # 'text'（＝どのパターンにも該当せず本文扱い）は判定不能候補
+                if node.get('type') == 'text' and use_gemini:
                     gemini_candidates.append((len(flat), val, text_cursor))
                 flat.append(node)
             text_cursor += 1
@@ -1706,7 +1708,9 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
                     before = merged_texts[max(0, tcur - 2):tcur]
                     after = merged_texts[tcur + 1:tcur + 3]
                     kind = classify_with_gemini(target, before, after)
-                    if kind and kind != 'body':
+                    # 番号の無い行を章・条にすると以降の条番号が全部ずれるため、
+                    # 章・条の判定は採用しない（番号付きの章・条は正規表現で拾える）
+                    if kind and kind not in ('body', 'chapter', 'article'):
                         # Geminiの判定で置き換える
                         new_node = classify_auto(kind, target)
                         if new_node:
