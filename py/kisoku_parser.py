@@ -1691,8 +1691,8 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
         else:  # 'text'
             node = classify_line(val, maru_is_sub=maru_is_sub, analyzer=analyzer)
             if node:
-                # 'body'（＝どのパターンにも該当せず本文扱い）は判定不能候補
-                if node.get('type') == 'body' and use_gemini:
+                # 'text'（＝どのパターンにも該当せず本文扱い）は判定不能候補
+                if node.get('type') == 'text' and use_gemini:
                     gemini_candidates.append((len(flat), val, text_cursor))
                 flat.append(node)
             text_cursor += 1
@@ -1708,7 +1708,9 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
                     before = merged_texts[max(0, tcur - 2):tcur]
                     after = merged_texts[tcur + 1:tcur + 3]
                     kind = classify_with_gemini(target, before, after)
-                    if kind and kind != 'body':
+                    # 番号の無い行を章・条にすると以降の条番号が全部ずれるため、
+                    # 章・条の判定は採用しない（番号付きの章・条は正規表現で拾える）
+                    if kind and kind not in ('body', 'chapter', 'article'):
                         # Geminiの判定で置き換える
                         new_node = classify_auto(kind, target)
                         if new_node:
