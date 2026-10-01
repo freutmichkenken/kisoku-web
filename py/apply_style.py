@@ -480,10 +480,90 @@ def _add_runs_with_spans(p, text, spans, out_runs=None):
         p.add_run(text[pos:])
 
 
+# Wordの丸数字（decimalEnclosedCircle）は⑳までで、㉑以降は普通の数字になる。
+# そのため㉑以降は自動番号をやめ、番号の文字（㉑〜㊿）を本文の先頭に直接書く。
+# ponytail: 21個目以降は手入力の番号になり、項目を足し引きしても振り直されない。
+#           必要になったら番号を自動に戻し、丸数字を使わない書式に変える。
+CIRCLE_AUTO_MAX = 20
+CIRCLE_NOTE = ("丸数字（①②…）の番号は、Wordの仕様で⑳までしか自動で表示できません。"
+               "㉑以降は番号を文字として直接入力しており、項目を追加・削除しても"
+               "自動では振り直されません。①②…を設定する場合は、㉑以降に不都合が"
+               "生じる可能性が高いため、ご注意ください。")
+
+
+def _circle_char(n):
+    """21〜50は㉑〜㊿。それより大きい数は丸数字が無いので普通の数字。"""
+    if 21 <= n <= 35:
+        return chr(0x3251 + n - 21)
+    if 36 <= n <= 50:
+        return chr(0x32B1 + n - 36)
+    return str(n)
+
+
+def _numbering_level(doc, num_id, ilvl):
+    """numbering.xml から該当する w:lvl 要素を返す。無ければ None。"""
+    try:
+        nel = doc.part.numbering_part.element
+    except Exception:
+        return None
+    abst = None
+    for num in nel.findall(qn('w:num')):
+        if num.get(qn('w:numId')) == str(num_id):
+            a = num.find(qn('w:abstractNumId'))
+            abst = a.get(qn('w:val')) if a is not None else None
+            break
+    for a in nel.findall(qn('w:abstractNum')):
+        if a.get(qn('w:abstractNumId')) == abst:
+            for lvl in a.findall(qn('w:lvl')):
+                if lvl.get(qn('w:ilvl')) == str(ilvl):
+                    return lvl
+    return None
+
+
+def _literal_circle_prefix(lvl, n):
+    """
+    丸数字の段のn番目（21以上）に、本文の先頭へ付ける番号文字列を作る。
+    lvlText の %N を番号の文字に置き換え、区切り（suff）も文字として足す。
+    """
+    lt = lvl.find(qn('w:lvlText')).get(qn('w:val'))
+    sf = lvl.find(qn('w:suff'))
+    sf = sf.get(qn('w:val')) if sf is not None else 'tab'
+    text = re.sub(r'%\d', _circle_char(n), lt)
+    return text + {'tab': '\t', 'space': ' ', 'nothing': ''}[sf]
+
+
+def _make_literal_number(paragraph, lvl):
+    """自動番号を外し、番号の段が持っていたインデントとタブ位置を段落へ写す。"""
+    pPr = paragraph._p.get_or_add_pPr()
+    for old in pPr.findall(qn('w:numPr')):
+        pPr.remove(old)
+    numPr = OxmlElement('w:numPr')
+    il = OxmlElement('w:ilvl')
+    il.set(qn('w:val'), '0')
+    ni = OxmlElement('w:numId')
+    ni.set(qn('w:val'), '0')
+    numPr.append(il)
+    numPr.append(ni)
+    pPr.append(numPr)
+    lp = lvl.find(qn('w:pPr'))
+    if lp is not None:
+        for tag in ('w:tabs', 'w:ind'):
+            src = lp.find(qn(tag))
+            if src is not None:
+                for old in pPr.findall(qn(tag)):
+                    pPr.remove(old)
+                pPr.append(copy.deepcopy(src))
+
+
 def _add_paragraph(doc, text, style_id, num_id, ilvl, spans=None,
-                   out_runs=None):
-    """指定スタイル(styleId)＋numPrで段落を1つ追加する。"""
+                   out_runs=None, literal_lvl=None, literal_n=None):
+    """
+    指定スタイル(styleId)＋numPrで段落を1つ追加する。
+    literal_lvl があれば自動番号の代わりに、literal_n 番目の番号を文字で書く。
+    """
     p = doc.add_paragraph()
+    if literal_lvl is not None:
+        text = _literal_circle_prefix(literal_lvl, literal_n) + (text or "")
     # スタイルは styleId で直接指定（表示名に依存しない）
     _set_pstyle_direct(p, style_id)
     if text:
@@ -491,7 +571,10 @@ def _add_paragraph(doc, text, style_id, num_id, ilvl, spans=None,
             _add_runs_with_spans(p, text, spans, out_runs)
         else:
             p.add_run(text)
-    _set_numbering(p, num_id, ilvl)
+    if literal_lvl is not None:
+        _make_literal_number(p, literal_lvl)
+    else:
+        _set_numbering(p, num_id, ilvl)
     return p
 
 
@@ -992,7 +1075,9 @@ def apply_style(json_path, template_path, template_key, output_path,
     n_hyoki_word = 0     # 青字にした語の数
     commented_gids = set()   # コメント済みの表記ゆれグループ
 
-    def _add_p(text, key):
+    circle_noted = False
+
+    def _add_p(text, key, idx=None):
         """
         テンプレのスタイルで段落を1つ追加する。
         表記ゆれチェックが有効なら、確定した文字列を再スキャンして
@@ -1000,16 +1085,29 @@ def apply_style(json_path, template_path, template_key, output_path,
         文書内で最初に出てきた箇所に付ける。
         （同じ段落が複数のゆれの初出になる場合は、ゆれごとに別コメント）
         """
-        nonlocal n_hyoki_comment, n_hyoki_word, n_comment
+        nonlocal n_hyoki_comment, n_hyoki_word, n_comment, circle_noted
         # テンプレの仕様で行頭を1字下げる（インデントで表現できないため
         # 全角スペースを文字として入れる）。JSONは常にスペース無しで保持し、
         # 出力時にだけ付けるので、二重付与にはならない。
         if text and key in M.get("lead_space", ()) \
                 and not text.startswith(LEAD_SPACE):
             text = LEAD_SPACE + text
-        spans = hyoki_report.scan(text) if (hyoki_report and text) else None
+        # 丸数字の㉑以降は自動番号が使えないので、番号を文字で書く
+        lit = None
+        if idx is not None and idx > CIRCLE_AUTO_MAX and M[key][1]:
+            lvl = _numbering_level(doc, M[key][1], M[key][2])
+            nf = lvl.find(qn('w:numFmt')) if lvl is not None else None
+            if nf is not None and nf.get(qn('w:val')) == 'decimalEnclosedCircle':
+                lit = lvl
+        spans = (hyoki_report.scan(text)
+                 if (hyoki_report and text and lit is None) else None)
         runs = [] if spans else None
-        p = _add_paragraph(doc, text, *M[key], spans=spans, out_runs=runs)
+        p = _add_paragraph(doc, text, *M[key], spans=spans, out_runs=runs,
+                           literal_lvl=lit, literal_n=idx)
+        if lit is not None and not circle_noted:
+            circle_noted = True
+            comment_mgr.add_comment_to_paragraph(p, CIRCLE_NOTE)
+            n_comment += 1
         if spans:
             n_hyoki_word += len(spans)
             for s, run in zip(spans, runs):
@@ -1088,9 +1186,9 @@ def apply_style(json_path, template_path, template_key, output_path,
                 n_comment += 1
             # 号
             items = para.get("items", [])
-            for it in items:
+            for it_no, it in enumerate(items, 1):
                 n_item += 1
-                it_obj = _add_p(it.get("body", ""), "item")
+                it_obj = _add_p(it.get("body", ""), "item", it_no)
                 # 号に紐づく表・図は、下位項目より前に出す
                 emit_tables(it)
                 emit_drawings(it)
@@ -1105,17 +1203,17 @@ def apply_style(json_path, template_path, template_key, output_path,
                     if sub_key not in M:
                         sub_key = "item_sub_multi"
                     if sub_key in M:
-                        for su in subs:
-                            _add_p(su.get("body", ""), sub_key)
+                        for su_no, su in enumerate(subs, 1):
+                            _add_p(su.get("body", ""), sub_key, su_no)
                             # 号の下位に紐づく表・図（さらに下より前）
                             emit_tables(su)
                             emit_drawings(su)
                             # 号の下位のさらに下（(ア)(イ)…）
-                            for su2 in (su.get("sub_items2") or []):
+                            for s2_no, su2 in enumerate(su.get("sub_items2") or [], 1):
                                 if "item_sub2" in M:
-                                    _add_p(su2.get("body", ""), "item_sub2")
+                                    _add_p(su2.get("body", ""), "item_sub2", s2_no)
                                 else:
-                                    _add_p(su2.get("body", ""), sub_key)
+                                    _add_p(su2.get("body", ""), sub_key, s2_no)
                                 # さらに下に紐づく表・図・数式
                                 emit_tables(su2)
                                 emit_drawings(su2)
