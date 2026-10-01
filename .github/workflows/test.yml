@@ -1,0 +1,21 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # ブラウザ版と同じ python-docx（wheels/ に固定した版）でテストする
+      - run: pip install wheels/python_docx-1.2.0-py3-none-any.whl
+      - run: python3 py/test_parser.py
+      - run: python3 py/test_custom_template.py
+      - run: python3 py/test_crossref.py
+      - run: python3 tests/regression.py
