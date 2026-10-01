@@ -11,9 +11,11 @@ PC にもスマホにも何もインストールする必要はありません�
 
 ```
 index.html      画面
+custom.js       カスタムテンプレートの設定画面とプレビュー
 worker.js       裏で Python を動かす処理
 py/             整形プログラム（Colab 版と同じもの）
   web_entry.py    ブラウザ版の入口（Colab 版の kisoku_app.py に相当）
+  custom_template.py  カスタムテンプレートの組み立て（設定は docx に埋め込む）
   gemini_helper.py  ブラウザからも Gemini を呼べるよう改修済み
 templates/      就業規則テンプレ1〜4.docx
 wheels/         python-docx 1.2.0（固定版）

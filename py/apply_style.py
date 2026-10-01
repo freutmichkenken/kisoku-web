@@ -884,14 +884,16 @@ def apply_style(json_path, template_path, template_key, output_path,
                 source_docx=None, show_notice=True,
                 check_hyoki=False, hyoki_options=None,
                 keep_crossref=True, insert_toc=False,
-                auto_update_fields=True, verify=True):
+                auto_update_fields=True, verify=True, template_map=None):
     """
     JSON構造をテンプレートに流し込んでスタイル適用済みdocxを生成する。
 
     json_path     : kisoku_parser.py が出力した JSON
     template_path : テンプレートdocxのパス
-    template_key  : "t1" / "t2" / "t3"
+    template_key  : "t1" / "t2" / "t3" / "t4"
     output_path   : 出力docxのパス
+    template_map  : TEMPLATE_MAP の代わりに使う対応表。カスタムテンプレート
+                    （custom_template.build の戻り値）を使うときに渡す
     source_docx   : 元docx。指定すると表を原本から複製し、セル結合や
                     セル内書式を保持できる（推奨）
     show_notice   : 整形前の注意事項を表示するか。アプリ側の画面で
@@ -921,9 +923,12 @@ def apply_style(json_path, template_path, template_key, output_path,
                                        "forms":["役職者","管理職"]}],
                      "exclude_forms": ["社員"]}
     """
-    if template_key not in TEMPLATE_MAP:
-        raise ValueError(f"template_key は t1/t2/t3 のいずれか。指定値: {template_key}")
-    M = TEMPLATE_MAP[template_key]
+    if template_map is not None:
+        M = template_map
+    elif template_key in TEMPLATE_MAP:
+        M = TEMPLATE_MAP[template_key]
+    else:
+        raise ValueError(f"template_key は t1〜t4 のいずれか。指定値: {template_key}")
 
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
