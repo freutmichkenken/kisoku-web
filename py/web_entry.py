@@ -15,6 +15,7 @@ import json
 from kisoku_parser import parse_kisoku
 from apply_style import apply_style, TEMPLATE_MAP  # noqa: F401
 import custom_template
+import settings_reader
 
 TEMPLATE_DIR = "/app/templates"
 
@@ -147,6 +148,9 @@ def make_sample(custom_json, tree_json, work_dir):
 
 
 def read_custom(docx_path):
-    """見本・整形済み docx に埋め込んだ書式の設定を JSON 文字列で返す。"""
-    return json.dumps(custom_template.read_settings(docx_path),
+    """
+    整形済み docx（テンプレ1〜4・カスタム。Word で手直ししたものを含む）から
+    書式の設定を読み取り、{"settings": 設定, "notes": 注意書き} の JSON 文字列で返す。
+    """
+    return json.dumps(settings_reader.read_from_docx(docx_path),
                       ensure_ascii=False)

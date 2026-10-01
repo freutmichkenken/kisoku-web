@@ -12,6 +12,7 @@ const PY_FILES = [
   "kisoku_parser.py",
   "apply_style.py",
   "custom_template.py",
+  "settings_reader.py",
   "marker_hierarchy.py",
   "hyoki_check.py",
   "crossref.py",

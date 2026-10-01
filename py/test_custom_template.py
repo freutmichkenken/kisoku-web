@@ -139,6 +139,88 @@ with tempfile.TemporaryDirectory() as work:
     assert re.search(r'w:styleId="KW-7".*?<w:ind w:left="1890" '
                      r'w:hanging="630"/>', sty, re.S)
 
+# --- 整形済み docx から見た目どおりの設定を読み取る（settings_reader） ---
+import settings_reader as sr
+from docx import Document
+from docx.oxml.ns import qn
+
+
+def _template_out(key, work):
+    jp = os.path.join(work, "tree.json")
+    with open(jp, "w", encoding="utf-8") as f:
+        json.dump(TREE, f, ensure_ascii=False)
+    out = os.path.join(work, f"out_{key}.docx")
+    with contextlib.redirect_stdout(io.StringIO()):
+        apply_style(json_path=jp, template_path=BASES[key], template_key=key,
+                    output_path=out, show_notice=False, keep_crossref=False,
+                    verify=False)
+    return out
+
+
+with tempfile.TemporaryDirectory() as work:
+    # カスタムで整形した docx は、設定がそのまま読み戻せる（1行型・分離型）
+    for s in (SETTINGS, sep):
+        _M, out = _run(s, work)
+        r = sr.read_from_docx(out)
+        assert r["settings"] == ct.normalize(s), r
+        assert r["notes"] == [], r["notes"]
+
+    # Word での手直し：スタイルの変更（号を12pt・番号定義の字下げ）と、
+    # 段落を直接変更（号を中央揃え）のどちらも見た目どおりに読む
+    _M, out = _run(SETTINGS, work)
+    d = Document(out)
+    st = next(x for x in d.styles.element.findall(qn("w:style"))
+              if x.get(qn("w:styleId")) == "KW-5")
+    st.find(qn("w:rPr") + "/" + qn("w:sz")).set(qn("w:val"), "24")
+    D = sr._Doc(d)
+    ind = D.lvl(_M["item"][1], 5).find(qn("w:pPr") + "/" + qn("w:ind"))
+    ind.set(qn("w:left"), "1260")          # 2行目以降 6字
+    for p in d.paragraphs:
+        if p.style.style_id == "KW-5":
+            p.paragraph_format.alignment = 1   # 中央揃え
+    edited = os.path.join(work, "edited.docx")
+    d.save(edited)
+    lv = sr.read_from_docx(edited)["settings"]["levels"]["item"]
+    assert (lv["size"], lv["left"], lv["first"], lv["align"]) \
+        == (12, 6, 4.5, "center"), lv
+
+    # テンプレ1〜4で整形した docx：どのテンプレかを見分け、番号の形を読む
+    for key, layout in (("t1", "inline"), ("t2", "separate"),
+                        ("t3", "separate"), ("t4", "inline")):
+        r = sr.read_from_docx(_template_out(key, work))
+        s = r["settings"]
+        assert (s["base"], s["layout"]) == (key, layout), (key, s)
+        art = s["levels"]["article"]
+        assert (art["pre"], art["suf"]) == ("第", "条"), (key, art)
+        it = s["levels"]["item"]
+        assert (it["fmt"], it["pre"], it["suf"]) == ("decimal", "(", ")"), it
+        assert s["levels"]["sub_single"]["pre"] == "……", key
+        assert "para1" not in s["levels"] or layout == "inline" \
+            or "fmt" not in s["levels"]["para1"], key
+
+# このアプリで整形していない docx（整形前の就業規則）は読み取れない
+try:
+    sr.read_from_docx(os.path.join(ROOT, "tests", "samples",
+                                   "messy_kisoku.docx"))
+except ValueError:
+    pass
+else:
+    raise AssertionError("整形していない docx を読み取った")
+
+# 番号定義の読み取り：上の段の番号を含む形式は読めない、全角スペースは sep
+from docx.oxml import parse_xml as _px
+_W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+_lv = lambda fmt, text: _px(  # noqa: E731
+    f'<w:lvl {_W} w:ilvl="5"><w:numFmt w:val="{fmt}"/>'
+    f'<w:lvlText w:val="{text}"/></w:lvl>')
+assert sr._numbering(_lv("decimal", "%5-%6"))[0] is None
+assert sr._numbering(_lv("decimal", "（%6）　"))[0] == {
+    "fmt": "decimal", "pre": "（", "suf": "）", "sep": "zen"}
+assert sr._numbering(_lv("bullet", "・"))[0] is None
+# Word で番号を「なし」にした段落（numId=0）は番号なし
+assert sr._numbering(None, num_id="0")[0] == {"fmt": "none"}
+assert sr._numbering(None, num_id="99")[0] is None
+
 # --- 号の下位その2 が無い古い設定は、その1と同じ字下げ・記号なしで補う ---
 old = copy.deepcopy(SETTINGS)
 del old["levels"]["sub_single"]
