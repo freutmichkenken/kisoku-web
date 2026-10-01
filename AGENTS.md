@@ -16,8 +16,10 @@
 ```
 python3 py/test_parser.py
 python3 py/test_custom_template.py
+python3 py/test_crossref.py
 python3 tests/regression.py
 ```
 
+- GitHub Actions（`.github/workflows/test.yml`）でも、PR と main への push のたびに同じテストを実行する。
 - `tests/samples/` の就業規則サンプル（`messy_kisoku.docx` は `tests/make_messy_sample.py` で作った書式の乱れたもの）を解析・整形（テンプレ t1〜t4）し、`tests/expected/` の基準と比べる。サンプルの記述内容そのものは検証しない。
 - 差分が出た場合、意図した変更かどうかをユーザーに確認し、了承を得てから `python3 tests/regression.py --update` で基準を更新する。
