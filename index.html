@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDPMincho:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDMincho:wght@400;700&family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDPMincho:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
   --paper: #F4F6F9;
@@ -151,6 +151,72 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .spec .i2 { padding-left: 2em; }
 .spec .h { font-weight: 700; }
 
+.tpl-custom { grid-column: 1 / -1; }
+
+/* カスタム：書式の設定とプレビュー */
+.custom { margin-top: 14px; }
+/* details の中は継承が途切れるので、box-sizing を直接指定する */
+.custom *, .custom *::before, .custom *::after { box-sizing: border-box; }
+.custom[hidden] { display: none; }
+.cf-tools { padding: 12px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; }
+.cf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cf-row + .hint + .cf-row { margin-top: 12px; }
+.cf-row > label:first-child { font-weight: 700; font-size: 14px; }
+.btn.small { min-height: 40px; padding: 0 14px; font-size: 14px; }
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.vh:focus-visible + .btn { outline: 3px solid var(--ai); outline-offset: 2px; }
+.custom select, .custom input[type="text"], .custom input[type="number"] {
+  width: 100%; min-height: 40px; padding: 4px 8px; font: inherit; font-size: 15px;
+  border: 1px solid var(--rule); border-radius: 5px; background: var(--surface); color: var(--ink);
+}
+.cf-row select { width: auto; }
+
+/* 設定を変えながら見られるよう、プレビューは画面上部に留める */
+.pv {
+  position: sticky; top: 0; z-index: 2; margin: 14px -4px 0; padding: 8px 4px 6px;
+  background: var(--paper);
+}
+.pv-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; margin-bottom: 4px; }
+.pv-head h3 { margin: 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.pv-head label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.pv-head input { width: 18px; height: 18px; margin: 0; accent-color: var(--ai); }
+.pv-scroll {
+  max-height: 42vh; overflow: auto; padding: 12px; background: #FFFFFF;
+  border: 1px solid var(--rule); border-radius: 4px; box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+}
+.pv-fit { position: relative; overflow: hidden; }
+.pv-page { transform-origin: 0 0; color: #000000; }
+.pv-page p { margin: 0; word-break: break-all; line-break: strict; }
+.pv-num[data-tab] { display: inline-block; text-indent: 0; white-space: pre; }
+.pv .hint { margin-top: 4px; font-size: 12.5px; }
+
+#cfGlobal { margin-top: 16px; }
+.cf-layout { border: 0; margin: 0 0 10px; padding: 0; }
+.cf-layout legend { font-weight: 700; font-size: 14px; padding: 0; margin-bottom: 4px; }
+.cf-radio { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; font-size: 14.5px; }
+.cf-radio input { width: 18px; height: 18px; margin: 4px 0 0; accent-color: var(--ai); flex: none; }
+.cf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.cf { min-width: 0; }
+.cf.wide { grid-column: 1 / -1; }
+.cf > label { display: block; font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-bottom: 2px; }
+.cf-check { display: flex; align-items: center; gap: 8px; padding-top: 18px; }
+.cf-check input { width: 20px; height: 20px; accent-color: var(--ai); }
+.cf-check label { font-size: 14.5px; color: var(--ink); margin: 0; }
+#cfLevels { margin-top: 14px; }
+.cf-level { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; }
+.cf-level + .cf-level { margin-top: 8px; }
+.cf-level summary {
+  display: flex; align-items: baseline; gap: 10px; min-height: 44px; padding: 10px 12px;
+  cursor: pointer; font-weight: 700; font-size: 15px;
+}
+.cf-level .cf-ex { font-family: var(--mincho); font-weight: 400; font-size: 14px; color: var(--muted); }
+.cf-level[open] summary { border-bottom: 1px dashed var(--rule); }
+.cf-level > :not(summary) { margin: 10px 12px; }
+.cf-level .cf-num { padding-bottom: 10px; border-bottom: 1px dashed var(--rule); }
+.cf-level .cf-num[hidden] { display: none; }
+.cf-note { font-size: 13px; color: var(--muted); }
+.cf-note[hidden] { display: none; }
+
 .result { margin-top: 14px; }
 .result .box { padding: 12px 14px; border-radius: 6px; font-size: 14px; }
 .result .box.ok { background: var(--surface); border: 1.5px solid var(--ok); }
@@ -284,6 +350,44 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
             <span class="spec" aria-hidden="true"><span class="h">第1条（目的）</span><span class="i1">この規則は、……</span><span>2.　前項の……</span></span>
           </label>
         </div>
+        <div class="tpl tpl-custom">
+          <input type="radio" name="tpl" id="custom" value="custom">
+          <label for="custom"><span class="t">カスタム</span><span class="s">番号の形・字下げ・文字の大きさなどを自分で決める</span></label>
+        </div>
+      </div>
+
+      <div class="custom" id="customPanel" hidden>
+        <div class="cf-tools">
+          <div class="cf-row">
+            <label for="cfPreset">テンプレから読み込む</label>
+            <select id="cfPreset">
+              <option value="t1">テンプレ1</option><option value="t2">テンプレ2</option>
+              <option value="t3">テンプレ3</option><option value="t4">テンプレ4</option>
+            </select>
+            <button type="button" class="btn small" id="cfPresetBtn">読み込む</button>
+          </div>
+          <p class="hint">テンプレ1〜4に近い設定を読み込みます。今の設定は上書きされます。用紙・余白などのページの設定は、最後に読み込んだテンプレのものを使います。</p>
+          <div class="cf-row">
+            <button type="button" class="btn small" id="cfSample">見本を docx で保存</button>
+            <input type="file" id="cfImport" class="vh" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+            <label for="cfImport" class="btn small" id="cfImportBtn">docx から設定を読み込む</label>
+          </div>
+          <p class="hint" id="cfHint" aria-live="polite">見本の docx には今の設定が保存されます。見本の docx と、カスタムで整形した docx から設定を読み込めます。</p>
+        </div>
+
+        <div class="pv">
+          <div class="pv-head">
+            <h3 id="pvHead">プレビュー</h3>
+            <label><input type="checkbox" id="pvActual">実際の大きさで表示</label>
+          </div>
+          <div class="pv-scroll" role="region" aria-labelledby="pvHead" tabindex="0">
+            <div class="pv-fit" id="cfFit"><div class="pv-page" id="cfPage"></div></div>
+          </div>
+          <p class="hint">Word で開いたときとは、1行の文字数や改ページの位置が異なる場合があります。</p>
+        </div>
+
+        <div id="cfGlobal"></div>
+        <div id="cfLevels"></div>
       </div>
     </div>
   </section>
@@ -308,6 +412,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   </footer>
 </main>
 
+<script src="custom.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -355,7 +460,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   $("optHyoki").checked = !!prefs.hyoki;
   $("optXref").checked = !!prefs.xref;
   $("optGemini").checked = !!prefs.gemini;
-  ($("t" + (prefs.tpl || "1").replace("t", "")) || $("t1")).checked = true;
+  ($(prefs.tpl || "t1") || $("t1")).checked = true;
   const savedKey = store.get(K.key);
   if (savedKey) { $("apiKey").value = savedKey; $("saveKey").checked = true; }
 
@@ -370,6 +475,15 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   // ---------- 画面の更新 ----------
   function refresh() {
     $("geminiBox").hidden = !$("optGemini").checked;
+    const custom = tplValue() === "custom";
+    if ($("customPanel").hidden === custom) {
+      $("customPanel").hidden = !custom;
+      if (custom) KisokuCustom.refresh();
+    }
+    // 見本の作成・読み込みは Python を使うので、準備ができるまで押せない
+    $("cfSample").disabled = busy || !engineReady;
+    $("cfImport").disabled = busy || !engineReady;
+    $("cfImportBtn").setAttribute("aria-disabled", busy || !engineReady ? "true" : "false");
     $("run").disabled = busy || !file;
     $("file").disabled = busy;
     $("fileBtn").setAttribute("aria-disabled", busy ? "true" : "false");
@@ -496,6 +610,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       type: "format", templateKey: tpl,
       checkHyoki: $("optHyoki").checked, insertToc: $("optToc").checked,
       keepCrossref: $("optXref").checked,
+      custom: tpl === "custom" ? JSON.stringify(KisokuCustom.get()) : "",
     });
     if (m.type === "error") {
       showResult("err", "整形できませんでした：" + esc(m.text) + "<span class=\"sub\">詳しくは「処理の記録」を開いてください。</span>");
@@ -504,8 +619,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       return;
     }
     urls.forEach((u) => URL.revokeObjectURL(u)); urls = [];
-    const docxUrl = URL.createObjectURL(new Blob([m.docx], {
-      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }));
+    const docxUrl = docxBlobUrl(m.docx);
     urls.push(docxUrl);
     let html = `整形が完了しました。<br><a class="dl" href="${docxUrl}" download="${esc(m.docxName)}">${esc(m.docxName)} を保存</a>`;
     if (m.reportText) {
@@ -516,14 +630,67 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     html += `<span class="sub">保存が始まらない場合は、上のリンクを押してください。</span>`;
     showResult("ok", html);
     // 自動で保存を開始
+    download(docxUrl, m.docxName);
+  }));
+
+  function docxBlobUrl(bytes) {
+    return URL.createObjectURL(new Blob([bytes], {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }));
+  }
+  function download(url, name) {
     const a = document.createElement("a");
-    a.href = docxUrl; a.download = m.docxName; document.body.appendChild(a); a.click(); a.remove();
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // ---------- カスタム ----------
+  KisokuCustom.init($("customPanel"));
+  const cfHint = (cls, text) => { $("cfHint").className = "hint " + cls; $("cfHint").textContent = text; };
+
+  $("cfPresetBtn").addEventListener("click", () => {
+    const key = $("cfPreset").value;
+    const name = $("cfPreset").selectedOptions[0].textContent;
+    if (!confirm(`今の設定は${name}の設定で上書きされます。読み込みますか？`)) return;
+    KisokuCustom.usePreset(key);
+    cfHint("ok", `${name}の設定を読み込みました。`);
+  });
+
+  let sampleUrl = null;
+  $("cfSample").addEventListener("click", () => withBusy(async () => {
+    cfHint("", "見本を作っています…");
+    const m = await call({
+      type: "sample", custom: JSON.stringify(KisokuCustom.get()),
+      tree: JSON.stringify(KisokuCustom.SAMPLE),
+    });
+    if (m.type === "error") {
+      cfHint("err", "見本を作れませんでした：" + m.text);
+      log(m.detail || m.text);
+      return;
+    }
+    if (sampleUrl) URL.revokeObjectURL(sampleUrl);
+    sampleUrl = docxBlobUrl(m.docx);
+    download(sampleUrl, m.docxName);
+    cfHint("ok", `${m.docxName} を保存しました。`);
+  }));
+
+  // ラベルは input が使えないときでもファイル選択を開くことがあるので止める
+  $("cfImportBtn").addEventListener("click", (e) => { if (busy || !engineReady) e.preventDefault(); });
+  $("cfImport").addEventListener("change", (e) => withBusy(async () => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!/\.docx$/i.test(f.name)) { cfHint("err", "docx 形式のファイルを選んでください。"); return; }
+    const bytes = await f.arrayBuffer();
+    const m = await call({ type: "readCustom", bytes }, [bytes]);
+    if (m.type === "error") { cfHint("err", "読み込めませんでした：" + m.text); return; }
+    let ok = false;
+    try { ok = KisokuCustom.set(JSON.parse(m.settings)); } catch { ok = false; }
+    cfHint(ok ? "ok" : "err", ok ? `${f.name} の設定を読み込みました。` : "設定の形式が正しくないため、読み込めませんでした。");
   }));
 
   // ---------- 入力の反映 ----------
   ["optLayout", "optToc", "optHyoki", "optXref", "optGemini"].forEach((id) =>
     $(id).addEventListener("change", () => { savePrefs(); refresh(); }));
-  document.querySelectorAll('input[name="tpl"]').forEach((r) => r.addEventListener("change", savePrefs));
+  document.querySelectorAll('input[name="tpl"]').forEach((r) => r.addEventListener("change", () => { savePrefs(); refresh(); }));
 
   $("apiKey").addEventListener("input", () => { if ($("saveKey").checked) store.set(K.key, $("apiKey").value.trim()); });
   $("saveKey").addEventListener("change", () => {

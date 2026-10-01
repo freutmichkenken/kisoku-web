@@ -15,6 +15,7 @@
 
 ```
 python3 py/test_parser.py
+python3 py/test_custom_template.py
 python3 tests/regression.py
 ```
 

@@ -11,6 +11,7 @@ const PY_FILES = [
   "web_entry.py",
   "kisoku_parser.py",
   "apply_style.py",
+  "custom_template.py",
   "marker_hierarchy.py",
   "hyoki_check.py",
   "crossref.py",
@@ -100,7 +101,7 @@ async function handleFormat(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
   const res = JSON.parse(entry.format_docx(current.srcPath, current.jsonPath,
     msg.templateKey, !!msg.checkHyoki, !!msg.insertToc,
-    !!msg.keepCrossref));
+    !!msg.keepCrossref, msg.custom || ""));
 
   const docx = readOut(res.output_path);
   const out = {
@@ -116,6 +117,24 @@ async function handleFormat(msg) {
   post(out, transfer);
 }
 
+async function handleSample(msg) {
+  runNo += 1;
+  const path = entry.make_sample(msg.custom || "", msg.tree || "[]", `/work/sample_${runNo}`);
+  const docx = readOut(path);
+  post({ type: "sample", id: msg.id, docxName: path.split("/").pop(), docx }, [docx]);
+}
+
+async function handleReadCustom(msg) {
+  runNo += 1;
+  const path = `/work/import_${runNo}.docx`;
+  py.FS.writeFile(path, new Uint8Array(msg.bytes));
+  try {
+    post({ type: "customRead", id: msg.id, settings: entry.read_custom(path) });
+  } finally {
+    py.FS.unlink(path);
+  }
+}
+
 const ready = init().catch((e) => {
   post({ type: "fatal", text: String(e && e.message ? e.message : e) });
   throw e;
@@ -127,6 +146,8 @@ self.onmessage = async (ev) => {
     await ready;
     if (msg.type === "parse") await handleParse(msg);
     else if (msg.type === "format") await handleFormat(msg);
+    else if (msg.type === "sample") await handleSample(msg);
+    else if (msg.type === "readCustom") await handleReadCustom(msg);
   } catch (e) {
     let text = String(e && e.message ? e.message : e);
     // Python の例外はトレースバック全体が来るので、最後の行を要約に使う
