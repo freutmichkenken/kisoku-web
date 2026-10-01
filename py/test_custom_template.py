@@ -207,6 +207,24 @@ except ValueError:
 else:
     raise AssertionError("整形していない docx を読み取った")
 
+    # --- 丸数字の号が21個以上 → ㉑以降は番号を文字で書き、自動番号を外す ---
+    circ = copy.deepcopy(SETTINGS)
+    circ["levels"]["item"]["fmt"] = "decimalEnclosedCircle"
+    circ["levels"]["item"]["pre"] = ""
+    circ["levels"]["item"]["suf"] = ""
+    circ["levels"]["item"]["sep"] = "zen"
+    TREE_BAK = copy.deepcopy(TREE)
+    TREE[0]["articles"][0]["paragraphs"][0]["items"] = [
+        {"body": f"項目{i}"} for i in range(1, 53)]
+    M, out = _run(circ, work)
+    doc = _xml(out, "word/document.xml")
+    assert "㉑\u3000項目21" in doc and "㊿\u3000項目50" in doc, "㉑〜㊿"
+    assert "51\u3000項目51" in doc, "51以降は普通の数字"
+    assert "⑳" not in doc, "⑳までは自動番号のまま"
+    assert "丸数字（①②…）の番号は" in _xml(out, "word/comments.xml")
+    TREE[:] = TREE_BAK
+
+
 # 番号定義の読み取り：上の段の番号を含む形式は読めない、全角スペースは sep
 from docx.oxml import parse_xml as _px
 _W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
