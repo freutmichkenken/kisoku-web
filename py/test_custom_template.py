@@ -37,6 +37,7 @@ SETTINGS = {
         "paraN": _lv("decimal", "", "", "tab", 0, 2),
         "item": _lv("decimal", "(", ")", "tab", 3.5, 5),
         "sub": _lv("decimal", "", ".", "tab", 5.5, 8),
+        "sub_single": _lv("none", "……", "", "zen", 6, 9),
         "sub2": _lv("aiueoFullWidth", "(", ")", "tab", 7.5, 10),
     },
 }
@@ -87,7 +88,7 @@ with tempfile.TemporaryDirectory() as work:
     num = _xml(out, "word/numbering.xml")
     texts = _lvl_texts(num)
     assert texts == ["", "第%2章　", "第%3条", "%4", "%5", "(%6)", "%7.",
-                     "", "(%9)"], texts
+                     "……\u3000", "(%9)"], texts
     sty = _xml(out, "word/styles.xml")
     for sid in ("KW-1", "KW-2", "KW-3", "KW-4", "KW-5", "KW-6", "KW-7",
                 "KW-8", "KW-9"):
@@ -133,6 +134,16 @@ with tempfile.TemporaryDirectory() as work:
     # docVars は settings.xml のスキーマ順（compat の後、rsids の前）
     st = _xml(out, "word/settings.xml")
     assert st.index("<w:compat") < st.index("<w:docVars") < st.index("<w:rsids")
+
+    # 号の下位その2 は独自の字下げ（1行目6字・2行目以降9字）
+    assert re.search(r'w:styleId="KW-7".*?<w:ind w:left="1890" '
+                     r'w:hanging="630"/>', sty, re.S)
+
+# --- 号の下位その2 が無い古い設定は、その1と同じ字下げ・記号なしで補う ---
+old = copy.deepcopy(SETTINGS)
+del old["levels"]["sub_single"]
+n = ct.normalize(old)["levels"]["sub_single"]
+assert n["pre"] == "" and n["left"] == 8 and n["first"] == 5.5, n
 
 # --- 不正な入力は ValueError ---
 for path, value in ((("levels", "item", "first"), -1),

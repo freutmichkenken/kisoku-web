@@ -37,10 +37,11 @@ NUM_FORMATS = ("decimalFullWidth", "decimal", "japaneseCounting",
                "none")
 SEPS = ("zen", "space", "tab", "none")  # 番号と本文の間
 ALIGNS = ("left", "center")
-LEVELS = ("chapter", "article", "para1", "paraN", "item", "sub", "sub2")
+LEVELS = ("chapter", "article", "para1", "paraN", "item", "sub",
+          "sub_single", "sub2")
 LEVEL_LABELS = {"chapter": "章", "article": "条", "para1": "第1項",
-                "paraN": "第2項以降", "item": "号", "sub": "号の下位",
-                "sub2": "号の下位の下"}
+                "paraN": "第2項以降", "item": "号", "sub": "号の下位その1",
+                "sub_single": "号の下位その2", "sub2": "号の下位の下"}
 
 # 段 → (スタイルID, スタイル名, ilvl)。名前にカンマを入れない（目次の \t で使う）
 STYLE_DEFS = {
@@ -49,8 +50,8 @@ STYLE_DEFS = {
     "para1":      ("KW-3", "KW-3 第1項", 3),
     "paraN":      ("KW-4", "KW-4 第2項以降", 4),
     "item":       ("KW-5", "KW-5 号", 5),
-    "sub":        ("KW-6", "KW-6 号の下位", 6),
-    "sub_single": ("KW-7", "KW-7 号の下位（単独）", 7),
+    "sub":        ("KW-6", "KW-6 号の下位その1", 6),
+    "sub_single": ("KW-7", "KW-7 号の下位その2", 7),
     "sub2":       ("KW-8", "KW-8 号の下位の下", 8),
 }
 TABLE_STYLE = ("KW-9", "KW-9 表")
@@ -122,6 +123,11 @@ def normalize(settings):
         "levels": {},
     }
     levels = _get(settings, "levels", "")
+    if isinstance(levels, dict) and "sub_single" not in levels \
+            and isinstance(levels.get("sub"), dict):
+        # 号の下位その2 を足す前の設定：その1と同じ字下げ・記号なし（従来の見た目）
+        levels = dict(levels)
+        levels["sub_single"] = dict(levels["sub"], fmt="none", pre="", suf="")
     for key in LEVELS:
         lv = _get(levels, key, "levels.")
         label = LEVEL_LABELS[key]
@@ -190,11 +196,19 @@ def _ind(first, left, u):
     return ind
 
 
-def _lvl_text(lv, ilvl):
-    """(lvlText, suff)。番号なしなら前後の文字も出さない。"""
-    if lv["fmt"] == "none":
+def _lvl_text(lv, ilvl, symbol=False):
+    """
+    (lvlText, suff)。番号なしなら前後の文字も出さない。
+    symbol=True は番号の代わりに記号（pre の文字）だけを出す段（号の下位その2）。
+    """
+    if symbol:
+        if not lv["pre"]:
+            return "", "nothing"
+        text = lv["pre"]
+    elif lv["fmt"] == "none":
         return "", "nothing"
-    text = f"{lv['pre']}%{ilvl + 1}{lv['suf']}"
+    else:
+        text = f"{lv['pre']}%{ilvl + 1}{lv['suf']}"
     if lv["sep"] == "zen":
         return text + "　", "nothing"
     return text, {"space": "space", "tab": "tab", "none": "nothing"}[lv["sep"]]
@@ -290,8 +304,9 @@ def _add_numbering(doc, s):
     ab.append(_make_lvl(5, L["item"]["fmt"], t, sf, L["item"], u))
     t, sf = _lvl_text(L["sub"], 6)
     ab.append(_make_lvl(6, L["sub"]["fmt"], t, sf, L["sub"], u))
-    # 号の下位が1つだけのときは番号を付けない（字下げは号の下位と同じ）
-    ab.append(_make_lvl(7, "none", "", "nothing", L["sub"], u))
+    # 号の下位が1つだけのとき（その2）は、番号の代わりに「……」などの記号
+    t, sf = _lvl_text(L["sub_single"], 7, symbol=True)
+    ab.append(_make_lvl(7, "none", t, sf, L["sub_single"], u))
     t, sf = _lvl_text(L["sub2"], 8)
     ab.append(_make_lvl(8, L["sub2"]["fmt"], t, sf, L["sub2"], u))
     return _insert_numbering(doc.part.numbering_part.element, ab, "4B570001")
@@ -376,7 +391,7 @@ def _add_styles(doc, s, num_id):
             raise ValueError(f"土台のテンプレートに同じスタイルID {sid} があります")
     L = s["levels"]
     for key, (sid, name, ilvl) in STYLE_DEFS.items():
-        lv = L["sub"] if key == "sub_single" else L[key]
+        lv = L[key]
         styles_el.append(_make_style(
             sid, name, lv, s, num_id, ilvl,
             outline={"chapter": 0, "article": 1}.get(key),

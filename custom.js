@@ -28,7 +28,7 @@
   const ALIGNS = [["left", "両端揃え"], ["center", "中央揃え"]];
   const LEVELS = [
     ["chapter", "章"], ["article", "条（見出し）"], ["para1", "第1項"], ["paraN", "第2項以降"],
-    ["item", "号"], ["sub", "号の下位"], ["sub2", "号の下位の下"],
+    ["item", "号"], ["sub", "号の下位その1"], ["sub_single", "号の下位その2"], ["sub2", "号の下位の下"],
   ];
 
   // ---------- テンプレ1〜4に近い設定 ----------
@@ -38,6 +38,8 @@
   const common = {
     item: lv("decimal", "(", ")", "tab", 3, 5),
     sub: lv("decimal", "", ".", "tab", 5.5, 8),
+    // 号の下位が1つだけのときは、番号の代わりに行頭へ記号を付ける（pre を記号として使う）
+    sub_single: lv("none", "……", "", "tab", 5.5, 8),
     sub2: lv("aiueoFullWidth", "(", ")", "tab", 7.5, 10),
   };
   const base = (b, layout, levels) => ({
@@ -89,6 +91,9 @@
         P("従業員として採用された者は、採用された日から２週間以内に、次の書類を提出しなければならない。", [
           { body: "履歴書" },
           { body: "住民票記載事項証明書" },
+          { body: "健康診断書", sub_items: [
+            { body: "採用前３か月以内に受診したものに限る" },
+          ] },
           { body: "その他会社が指定する書類", sub_items: [
             { body: "扶養家族がいる場合は、次の書類", sub_items2: [
               { body: "健康保険被扶養者（異動）届" },
@@ -159,7 +164,12 @@
     };
     for (const k of Object.keys(RANGES)) out[k] = clamp(s[k], RANGES[k], d[k]);
     for (const [k] of LEVELS) {
-      const src = s.levels[k] || {}, dl = d.levels[k];
+      let src = s.levels[k] || {};
+      const dl = d.levels[k];
+      // 号の下位その2 を足す前の設定：その1と同じ字下げ・記号なし（Python 側と同じ）
+      if (k === "sub_single" && !s.levels.sub_single && s.levels.sub) {
+        src = { ...s.levels.sub, fmt: "none", pre: "", suf: "" };
+      }
       const l = {
         fmt: pick(src.fmt, FORMATS, dl.fmt), pre: str(src.pre, dl.pre), suf: str(src.suf, dl.suf),
         sep: pick(src.sep, SEPS, dl.sep), bold: typeof src.bold === "boolean" ? src.bold : dl.bold,
@@ -280,8 +290,13 @@
     const pre = h("input", { type: "text", maxlength: 8, value: l.pre, autocomplete: "off" }); bindValue(pre, l, "pre");
     const suf = h("input", { type: "text", maxlength: 8, value: l.suf, autocomplete: "off" }); bindValue(suf, l, "suf");
     const sep = select(SEPS, l.sep); bindValue(sep, l, "sep");
-    num.push(field("番号の形式", fmt), field("番号と本文の間", sep),
-      field("番号の前の文字", pre), field("番号の後の文字", suf));
+    if (key === "sub_single") {
+      pre.placeholder = "例：……";
+      num.push(field("行頭の記号", pre), field("記号と本文の間", sep));
+    } else {
+      num.push(field("番号の形式", fmt), field("番号と本文の間", sep),
+        field("番号の前の文字", pre), field("番号の後の文字", suf));
+    }
     const first = number(l.first, LV_RANGES.first, 0.5); bindNumber(first, l, "first", LV_RANGES.first);
     const left = number(l.left, LV_RANGES.left, 0.5); bindNumber(left, l, "left", LV_RANGES.left);
     const size = number(l.size, LV_RANGES.size, 0.5); bindNumber(size, l, "size", LV_RANGES.size);
@@ -323,7 +338,8 @@
       const k = d.dataset.level;
       const src = k === "para1" && settings.layout === "separate" ? settings.levels.article : settings.levels[k];
       const n = k === "paraN" ? 2 : 1;
-      d.querySelector(".cf-ex").textContent = numberText(src, n) || "番号なし";
+      d.querySelector(".cf-ex").textContent = k === "sub_single"
+        ? (src.pre || "記号なし") : (numberText(src, n) || "番号なし");
     });
   }
 
@@ -341,7 +357,8 @@
     const out = [];
     let ch = 0, art = 0;
     const push = (lvKey, numLv, n, text) => {
-      const num = numLv ? numberText(numLv, n) : "";
+      // 号の下位その2 は番号の代わりに記号（pre）だけを出す
+      const num = !numLv ? "" : lvKey === "sub_single" ? numLv.pre : numberText(numLv, n);
       out.push({ lv: L[lvKey], num, sep: num ? numLv.sep : "none", text });
     };
     SAMPLE.forEach((c) => {
@@ -356,8 +373,9 @@
             push("item", L.item, m + 1, it.body);
             const subs = it.sub_items || [];
             subs.forEach((su, n) => {
-              // 号の下位が1つだけのときは番号を付けない（Python 側と同じ）
-              push("sub", subs.length >= 2 ? L.sub : null, n + 1, su.body);
+              // 号の下位が1つだけのときは「その2」（Python 側と同じ判定）
+              if (subs.length >= 2) push("sub", L.sub, n + 1, su.body);
+              else push("sub_single", L.sub_single, 1, su.body);
               (su.sub_items2 || []).forEach((s2, o) => push("sub2", L.sub2, o + 1, s2.body));
             });
           });
