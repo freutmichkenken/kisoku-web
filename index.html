@@ -495,11 +495,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     else hint.textContent = "";
   }
 
-  function parseKeyNow() {
-    const g = $("optGemini").checked;
+  function parseKey(g, apiKey) {
     return [file && file.name, file && file.size, file && file.lastModified,
-            $("optLayout").checked, g, g ? $("apiKey").value.trim() : ""].join("|");
+            $("optLayout").checked, g, g ? apiKey : ""].join("|");
   }
+  function parseKeyNow() { return parseKey($("optGemini").checked, $("apiKey").value.trim()); }
 
   function geminiKeyProblem() {
     if ($("optGemini").checked && !$("apiKey").value.trim()) {
@@ -512,19 +512,18 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   // ---------- 解析 ----------
-  async function parse() {
-    const problem = geminiKeyProblem();
-    if (problem) { $("parseHint").className = "hint err"; $("parseHint").textContent = problem; return false; }
-    const key = parseKeyNow();
+  async function parse(useGemini) {
+    const apiKey = useGemini ? $("apiKey").value.trim() : "";
+    const key = parseKey(useGemini, apiKey);
     const hint = $("parseHint");
     hint.className = "hint";
     hint.textContent = engineReady ? "構造を解析しています…" : "準備が終わり次第、構造を解析します…";
-    if ($("optGemini").checked) hint.textContent += "（Gemini 使用時は数分かかることがあります）";
+    if (useGemini) hint.textContent += "（Gemini 使用時は数分かかることがあります）";
     const bytes = await file.arrayBuffer();
     const m = await call({
       type: "parse", name: file.name, bytes,
       layoutAsFigure: $("optLayout").checked,
-      useGemini: $("optGemini").checked, apiKey: $("apiKey").value.trim(),
+      useGemini, apiKey,
     }, [bytes]);
     if (m.type === "error") {
       parsedKey = null;
@@ -537,6 +536,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     parsedInfo = m;
     hint.className = "hint ok";
     hint.textContent = `章 ${m.chapters} 件・条 ${m.articles} 件を読み取りました。`;
+    if (!useGemini && $("optGemini").checked) hint.textContent += "Gemini を使う場合は、整形するときに解析し直します。";
     return true;
   }
 
@@ -554,7 +554,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     file = f; parsedKey = null;
     $("fileName").textContent = f.name;
     $("result").innerHTML = ""; $("log").textContent = "";
-    await withBusy(parse);
+    await withBusy(() => parse(false));
   }
 
   $("file").addEventListener("change", async (e) => {
@@ -603,7 +603,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $("log").textContent = "";
     if (parsedKey !== parseKeyNow()) {
       showResult("busy", "オプションが変わったので、構造を解析し直しています…");
-      if (!(await parse())) { showResult("err", "解析に失敗しました。上の表示と「処理の記録」を確認してください。"); return; }
+      if (!(await parse($("optGemini").checked))) { showResult("err", "解析に失敗しました。上の表示と「処理の記録」を確認してください。"); return; }
     }
     const tpl = tplValue();
     const tplName = document.querySelector(`label[for="${tpl}"] .t`).textContent;
