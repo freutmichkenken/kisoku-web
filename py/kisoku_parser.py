@@ -496,8 +496,8 @@ def _chapter_title_continues(buf, line):
             ('及び', '並びに', '又は', '若しくは'))):
         return True
     s = line.strip()
-    return (bool(s) and len(s) <= 20 and '。' not in s
-            and not re.match(r'^[〔［【＜<（(※・]', s)
+    return (bool(s) and len(s) <= 30 and '。' not in s
+            and not re.match(r'^[〔［【＜<※・]', s)
             and not re.search(r'[ 　]{2,}', s))
 
 
@@ -549,9 +549,13 @@ def _starts_new_unit(stripped, buf):
                 # 前の行が同じ記号の続き番号の号（「（１）履歴書、／（２）より…」）なら号
                 if prev_t is not None and prev_t == cur_t and cur_n == prev_n + 1:
                     return True
-                # 前の行と違う記号の第1号は、号（号の細分）の列の始まり
-                # （「職務の遂行にあたり、／（１）のれん…」「（１）…に関し、／①のれん…」）
-                if prev_t != cur_t and cur_n == 1:
+                # 前の行と違う記号の号は、号の細分の始まりか、親の号への戻り
+                # （「（１）…に関し、／①のれん…」「②…しないこと、／（２）からかい…」）
+                if prev_t is not None and prev_t != cur_t:
+                    return True
+                # 前の行が号でなければ、第1号は号の列の始まり
+                # （「職務の遂行にあたり、／（１）のれんや看板を…」）
+                if prev_t is None and cur_n == 1:
                     return True
             except Exception:
                 pass
@@ -646,14 +650,30 @@ def _heading_is_reference(s):
 def _ends_mid_sentence(text, kanji=True):
     """行が文の途中で終わっているか（読点・助詞で終わる。PDF由来の折り返し）。
     「…とする」「…による」のように言い切る形や、句点・括弧で終わる行は含めない。
-    kanji=True なら漢字で終わる行も含める（「定年は満／60 歳」）。号の行は
-    「（２）健康診断書」のように名詞で終わることが多いので、次の行が見出しかを
-    見るときは kanji=False にする。"""
+    kanji=True なら漢字で終わる行も含める（「定年は満／60 歳」）。ただし号の行は
+    「（２）健康診断書」「（２）国民の祝日及び年末年始」のように名詞で終わるのが
+    ふつうなので、号の行では漢字を含めない。次の行が見出しかを見るときも
+    kanji=False にする。"""
     t = (text or '').rstrip('　 \t')
     if not t:
         return False
     c = t[-1]
-    return c in '、，のにをはがでとへやも' or (kanji and bool(re.match(r'[一-龯々]', c)))
+    if c in '、，のにをはがでとへやも':
+        return True
+    return kanji and bool(re.match(r'[一-龯々]', c)) and not _is_marker_line(t)
+
+
+def _is_marker_line(s):
+    """行頭に号の記号（（１）、①、ア 等）があるか。"""
+    s = s.lstrip('　 \t')
+    if re.match(r'^(?:[①-⑳㉑-㊿]|（[０-９0-9一二三四五六七八九十]+）|\([０-９0-9一二三四五六七八九十]+\))', s):
+        return True
+    if _HAS_MARKER_ANALYZER:
+        try:
+            return identify_symbol(s)[0] is not None
+        except Exception:
+            return False
+    return False
 
 
 # 数字の後ろがこれらの単位なら、項番号ではなく数量（「60 歳」「1 日」「6 割」）。
@@ -667,11 +687,11 @@ _KANJI_NEXT = r'(?=[^一-龯々]|$'
 _QUANTITY_UNIT = re.compile(
     r'^(?:歳|才|か月|ヶ月|ケ月|カ月|ヵ月|箇月|か年|か所|カ所|ヵ所|箇所|親等|万円|万人'
     r'|倍|円|[%％]|回(?![答収覧数線])|割(?![増引当合振])'
-    r'|年' + _KANJI_NEXT + r'|間(?![休所労カ計])|以|未満|前|後|目|毎|分|半|程度)'
+    r'|年' + _KANJI_NEXT + r'|間(?![休所労カ計総単])|以|未満|前|後|目|毎|分|半|程度)'
     r'|月' + _KANJI_NEXT + r'|以|未満|前|後|目|分|半|程度)'
-    r'|週' + _KANJI_NEXT + r'|間(?![休所労])|以|前|後|目)'
+    r'|週' + _KANJI_NEXT + r'|間(?![休所労単])|以|前|後|目)'
     r'|日' + _KANJI_NEXT + r'|間|以|未満|前|後|目|分|程度)'
-    r'|時' + _KANJI_NEXT + r'|間(?![外休所労カ計])|以|前|後|半)'
+    r'|時' + _KANJI_NEXT + r'|間(?![外休所労カ計単])|以|前|後|半)'
     r'|分' + _KANJI_NEXT + r'|間|以|未満|前|後|程度)'
     r'|秒|人' + _KANJI_NEXT + r'|以|未満|分|程度)'
     r'|名' + _KANJI_NEXT + r'|以|未満|程度)'
@@ -1173,7 +1193,8 @@ def build_tree(flat):
                 _orphan(node.get('raw') or node['body'])
             if node.get('marker') == 'num_dot' and node['number']:
                 last_dot = {'type': 'item', 'number': node['number']}
-            elif last_dot and last_dot['type'] == 'item':
+            else:
+                # 別の記号の号が来たら、「1.」形式の号（細分を含む）の続きは終わり
                 last_dot = None
 
         elif t == 'item_sub':
