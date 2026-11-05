@@ -30,6 +30,8 @@ Gemini 判定補助モジュール（任意・無料枠対応）
 import os
 import json
 import time
+import math
+import re
 
 # 返してよいラベル（想定外の値が返ってきたら None 扱いにする）
 VALID_KINDS = {
@@ -627,3 +629,327 @@ def restructure_article_with_gemini(article, reasons=None):
     except Exception as e:
         print(f"[gemini_helper] 条の再構成に失敗（元のまま使用）: {e}")
         return None
+
+
+# ============================================================
+# まとめて判定（Antigravity エージェント）
+#   判定不能な段落を1段落ずつ送る代わりに、本文全体（判定対象に * を付けた
+#   番号付きの行）を Interactions API のエージェントへ 1〜数回で送る。
+#   手本: sagy の google-ai-review.mjs（同じ API 呼び出しの Node 版）。
+# ============================================================
+
+_AGENT_NAME = "antigravity-preview-09-2026"
+_AGENT_MODEL = "gemini-4-argon"
+_AGENT_POLL_SEC = 5
+_AGENT_DEADLINE_SEC = 900          # 1回の interaction あたり
+_AGENT_CHUNK_CHARS = 30000         # 1チャンクの本文（番号付きの行）の上限
+_AGENT_PROMPT_MAX = 40000          # プロンプト全体の上限（超えたら送らない）
+_AGENT_CONTEXT_LINES = 3           # チャンクの前後に重ねて入れる文脈の行数
+_AGENT_POLL_FAILURES = 6           # 状態確認が続けて失敗したら諦める回数
+_AGENT_FINISHED = {"completed", "incomplete", "failed", "cancelled",
+                   "requires_action"}
+
+# interaction を開始して ID が分かったときに呼ばれる（画面の「中止」ボタン用）。
+agent_started_hook = None
+
+_AGENT_READ_ONLY_PREAMBLE = (
+    "ファイル探索、ファイル読み取り、シェル、コード実行、Web検索は使わないこと。"
+    "実行環境にこのリポジトリは存在しない。以下に貼ったテキストだけを読んで答えること。\n\n"
+)
+
+_AGENT_PROMPT_HEAD = """あなたは日本の就業規則の文書構造を判定する専門家です。
+以下は就業規則の本文です。各行は「番号: 本文」の形です。
+判定対象は行頭に * を付けた行だけです。判定対象の行それぞれについて、
+就業規則の構造上どの要素かを判定してください。* の無い行は文脈として読むだけで、判定しないこと。
+
+判定候補（この中から必ず1つだけ選ぶ）:
+- chapter        : 章見出し（例「第1章 総則」）
+- article        : 条見出し（例「第5条（採用時の提出書類）」）
+- article_title  : 条のタイトルだけの行（例「（目的）」）
+- paragraph      : 項（条の中の段落。例「2 前項の…」）
+- item           : 号（列挙項目。例「① 履歴書」「(1) 誓約書」）
+- item_sub       : 号の下位項目（例「1. …」「イ …」）
+- body           : 上記のどれでもない本文の続き
+
+出力は必ず次のJSON形式のみ。説明や前置きは一切書かないこと。
+キーは * を付けた行の番号（文字列）、値は候補のいずれか。判定対象の行を漏らさず、対象以外の番号は含めないこと:
+{"labels": {"番号": "kind", ...}}
+
+--- 本文 ---
+"""
+
+
+class _AgentError(RuntimeError):
+    def __init__(self, message, status=None):
+        super().__init__(message)
+        self.status = status
+
+
+def _estimate_input_tokens(text):
+    """execution.md の式：（ASCII÷3 ＋ 非ASCII×1.1 ＋ 5,600）× 2.5。"""
+    ascii_n = sum(1 for ch in text if ord(ch) < 128)
+    non_ascii = len(text) - ascii_n
+    return int((ascii_n / 3 + non_ascii * 1.1 + 5600) * 2.5) + 1
+
+
+def _agent_json(text):
+    try:
+        data = json.loads(text) if text else {}
+    except ValueError:
+        data = {}
+    return data if isinstance(data, dict) else {}
+
+
+def _agent_post(key, url, body):
+    """POST して JSON(dict) を返す。
+    送り直さない：1回目が受け付けられていた場合、その interaction の ID が分からず、
+    止めることも実行環境を消すこともできなくなるため（sagy の sources 付きの依頼と同じ）。"""
+    try:
+        status, text = _http("POST", url, key, body)
+    except Exception as e:
+        raise _AgentError(f"通信に失敗しました: {e}")
+    data = _agent_json(text)
+    if 200 <= status < 300:
+        return data
+    err = data.get("error")
+    msg = (err.get("message") if isinstance(err, dict) else None) or text[:300]
+    raise _AgentError(f"HTTP {status}: {msg}", status)
+
+
+def _agent_text(result):
+    """steps の model_output の text を連結する。"""
+    parts = []
+    for step in result.get("steps") or []:
+        if not isinstance(step, dict) or step.get("type") != "model_output":
+            continue
+        for part in step.get("content") or []:
+            if isinstance(part, dict) and part.get("type") == "text":
+                parts.append(part.get("text") or "")
+    return "\n".join(parts).strip()
+
+
+def _agent_cancel(key, interaction_id):
+    from urllib.parse import quote
+    url = f"{_API_BASE}/interactions/{quote(interaction_id, safe='')}/cancel"
+    try:
+        status, _ = _http("POST", url, key, timeout=60)
+        if not 200 <= status < 300:
+            print(f"[gemini_helper] 警告: interaction {interaction_id} を止められませんでした（HTTP {status}）。")
+    except Exception as e:
+        print(f"[gemini_helper] 警告: interaction {interaction_id} を止められませんでした（{e}）。")
+
+
+def _agent_delete_environment(key, environment_id):
+    from urllib.parse import quote
+    eid = str(environment_id)
+    if eid.startswith("environments/"):
+        eid = eid[len("environments/"):]
+    url = f"{_API_BASE}/environments/{quote(eid, safe='')}"
+    try:
+        status, _ = _http("DELETE", url, key, timeout=60)
+        if 200 <= status < 300:
+            return
+        reason = f"HTTP {status}"
+    except Exception as e:
+        reason = str(e)
+    print(f"[gemini_helper] 警告: 実行環境 {eid} を削除できませんでした（{reason}）。7日間残ります。")
+
+
+def _agent_wait(key, interaction_id, state):
+    """終わるまで状態を見に行く。state["latest"] に最新の応答を入れる。"""
+    from urllib.parse import quote
+    current = state["latest"]
+    url = f"{_API_BASE}/interactions/{quote(interaction_id, safe='')}"
+    deadline = time.time() + _AGENT_DEADLINE_SEC
+    failures = 0
+    while current.get("status") not in _AGENT_FINISHED:
+        if time.time() > deadline:
+            _agent_cancel(key, interaction_id)
+            raise _AgentError(f"{_AGENT_DEADLINE_SEC}秒たっても終わらないため打ち切りました")
+        # ponytail: ブラウザでは待つ間 CPU を使い続ける（_sleep が空ループを含む）。
+        # 直すなら Worker 側で Atomics.wait などの非ビジー待ちに差し替える。
+        _sleep(_AGENT_POLL_SEC)
+        try:
+            status, text = _http("GET", url, key, timeout=60)
+            if status != 200:
+                raise _AgentError(f"HTTP {status}: {text[:300]}", status)
+            data = json.loads(text)
+            if not isinstance(data, dict):
+                raise ValueError("応答がJSONオブジェクトではありません")
+            if "environment_id" not in data and "environment_id" in current:
+                data["environment_id"] = current["environment_id"]
+            current = data
+            state["latest"] = current
+            failures = 0
+        except Exception as e:
+            st = getattr(e, "status", None)
+            # 429・5xx・通信の切断は続けて見に行く。他の4xxは待っても直らない。
+            retryable = st is None or st == 429 or st >= 500
+            failures += 1
+            if not retryable or failures >= _AGENT_POLL_FAILURES:
+                _agent_cancel(key, interaction_id)
+                raise _AgentError(f"状態の確認に失敗したため打ち切りました（{failures}回目）: {e}")
+    return current
+
+
+def _agent_run(key, prompt, max_tokens):
+    """1回の interaction を実行し、終わった応答(dict)を返す。実行環境は必ず消す。"""
+    started = _agent_post(key, f"{_API_BASE}/interactions", {
+        "agent": _AGENT_NAME,
+        "input": prompt,
+        "background": True,
+        "environment": "remote",
+        "agent_config": {"type": "antigravity", "model": _AGENT_MODEL,
+                         "max_total_tokens": max_tokens},
+    })
+    state = {"latest": started}
+    try:
+        iid = started.get("id") or str(started.get("name") or "").replace("interactions/", "", 1)
+        if not iid:
+            raise _AgentError(f"応答にIDがありません（状態: {started.get('status', '不明')}）")
+        hook = agent_started_hook
+        if hook is not None:
+            try:
+                hook(iid)
+            except Exception as e:
+                print(f"[gemini_helper] agent_started_hook に失敗: {e}")
+        return _agent_wait(key, iid, state)
+    finally:
+        env_id = state["latest"].get("environment_id")
+        if env_id:
+            _agent_delete_environment(key, env_id)
+        else:
+            print("[gemini_helper] 警告: 応答に environment_id が無く、実行環境を削除できませんでした。7日間残ります。")
+
+
+_AGENT_FENCE = re.compile(r"^```[A-Za-z]*\s*(.*?)\s*```$", re.DOTALL)
+
+
+def _parse_agent_labels(text, expected):
+    """検証済みの {添字: kind} を返す。1つでも反すれば None。"""
+    text = (text or "").strip()
+    m = _AGENT_FENCE.match(text)
+    if m:
+        text = m.group(1)
+    try:
+        data = json.loads(text)
+    except ValueError as e:
+        # JSONの前後に説明文が付いた回答もあるので、{ の位置から順に読み、labels を持つものを使う
+        data = None
+        dec = json.JSONDecoder()
+        pos = text.find("{")
+        while pos >= 0:
+            try:
+                obj, _ = dec.raw_decode(text, pos)
+                if isinstance(obj, dict) and "labels" in obj:
+                    data = obj
+                    break
+            except ValueError:
+                pass
+            pos = text.find("{", pos + 1)
+        if data is None:
+            print(f"[gemini_helper] まとめて判定：JSONを読めませんでした（このチャンクは使いません）: {e}")
+            return None
+    labels = data.get("labels") if isinstance(data, dict) else None
+    if not isinstance(labels, dict):
+        print("[gemini_helper] まとめて判定：labels がありません（このチャンクは使いません）")
+        return None
+    out = {}
+    for k, v in labels.items():
+        try:
+            idx = int(k)
+        except (TypeError, ValueError):
+            print(f"[gemini_helper] まとめて判定：番号 {k!r} が数字ではありません（このチャンクは使いません）")
+            return None
+        if not isinstance(v, str) or v not in VALID_KINDS:
+            print(f"[gemini_helper] まとめて判定：{k} の判定 {v!r} が候補にありません（このチャンクは使いません）")
+            return None
+        out[idx] = v
+    if len(out) != len(labels) or set(out) != set(expected):
+        print("[gemini_helper] まとめて判定：判定した行が対象と一致しません（このチャンクは使いません）")
+        return None
+    return out
+
+
+def _agent_chunks(lines, targets):
+    """(core_start, core_end) の連続する塊に分ける。target を含む塊だけ返す。"""
+    entries = [f"{i}: {str(t).replace(chr(13), ' ').replace(chr(10), ' ')}"
+               for i, t in enumerate(lines)]
+    # ponytail: 章の境目ではなく行の境目で切っている。章の途中で切れて判定が落ちるなら章見出しで切る。
+    spans = []
+    start, size = 0, 0
+    for i, e in enumerate(entries):
+        if size and size + len(e) + 1 > _AGENT_CHUNK_CHARS:
+            spans.append((start, i))
+            start, size = i, 0
+        size += len(e) + 1
+    spans.append((start, len(entries)))
+    tset = set(targets)
+    return entries, [(s, e, sorted(tset & set(range(s, e)))) for s, e in spans
+                     if tset & set(range(s, e))]
+
+
+def classify_document_with_agent(lines, targets):
+    """
+    本文全体を Antigravity エージェントに送り、判定不能な行の種類をまとめて判定する。
+
+    lines  : 本文の全テキスト行（list[str]）
+    targets: 判定してほしい行の番号（lines の添字）のリスト
+
+    返り値: {添字: kind}（成功したチャンクの分だけ）。1つも成功しなければ None。
+            APIキーが無い場合も None。
+    """
+    key = _get_api_key()
+    if not key:
+        return None
+    try:
+        n = len(lines)
+        targets = sorted({int(t) for t in targets if 0 <= int(t) < n})
+        if not targets:
+            return None
+        entries, chunks = _agent_chunks(lines, targets)
+    except Exception as e:
+        print(f"[gemini_helper] まとめて判定の準備に失敗: {e}")
+        return None
+
+    results = {}
+    prev_tokens = None
+    for ci, (s, e, chunk_targets) in enumerate(chunks, 1):
+        try:
+            lo = max(0, s - _AGENT_CONTEXT_LINES)
+            hi = min(len(entries), e + _AGENT_CONTEXT_LINES)
+            tset = set(chunk_targets)
+            body = "\n".join(("*" if i in tset else "") + entries[i]
+                             for i in range(lo, hi))
+            prompt = _AGENT_READ_ONLY_PREAMBLE + _AGENT_PROMPT_HEAD + body
+            if len(prompt) > _AGENT_PROMPT_MAX:
+                print(f"[gemini_helper] まとめて判定：チャンク{ci}が{len(prompt)}文字あり上限"
+                      f"（{_AGENT_PROMPT_MAX}文字）を超えるため送りません")
+                continue
+            if prev_tokens is not None:
+                wait = math.ceil(60 * prev_tokens / 100000) + 1
+                print(f"[gemini_helper] 入力トークンの上限のため{wait}秒待ちます")
+                _sleep(wait)
+            est = _estimate_input_tokens(prompt)
+            prev_tokens = est
+            print(f"[gemini_helper] まとめて判定：チャンク{ci}/{len(chunks)}を送信"
+                  f"（対象{len(chunk_targets)}行・{len(prompt)}文字）")
+            result = _agent_run(key, prompt, min(100000, est))
+            status = result.get("status")
+            if status == "cancelled":
+                print("[gemini_helper] 中止しました")
+                break
+            if status not in ("completed", "incomplete"):
+                print(f"[gemini_helper] まとめて判定：チャンク{ci}は {status} で終わりました（ルールの判定のまま）")
+                continue
+            text = _agent_text(result)
+            if not text:
+                print(f"[gemini_helper] まとめて判定：チャンク{ci}の回答が空でした（ルールの判定のまま）")
+                continue
+            labels = _parse_agent_labels(text, chunk_targets)
+            if labels is None:
+                continue
+            results.update(labels)
+        except Exception as ex:
+            print(f"[gemini_helper] まとめて判定：チャンク{ci}に失敗（ルールの判定のまま）: {ex}")
+    return results or None
