@@ -175,6 +175,29 @@ assert c._pair_similar(olds, news, c._ratio) == [(0, None), (1, 0), (2, 1), (3, 
 assert c._pair_similar(["賞与は支給する", "賞与は支給する。ただし業績による"],
                        ["賞与は年2回支給する", "賞与は支給する。"], c._ratio) == [(0, 0), (1, 1)]
 
+# --- 本文を大きく書き換えても「削除＋新設」に分けず、内容変更にする ---
+rw = copy.deepcopy(BASE)
+rw[1]["articles"][1]["paragraphs"][0]["body"] = "まったく別の文章に書き換えた。"
+rows = c.compare(BASE, rw)
+assert [r["kind"] for r in rows] == ["changed"], [(r["kind"], r["old_heading"]) for r in rows]
+# 2つの条を続けて書き換えても、タイトルが同じなら対応する条どうしで内容変更
+rw2 = copy.deepcopy(BASE)
+rw2[1]["articles"][1]["paragraphs"][0]["body"] = "一つ目を書き換えた。"
+rw2[1]["articles"][2]["paragraphs"][0]["body"] = "二つ目も書き換えた。"
+rows = c.compare(BASE, rw2)
+assert [(r["kind"], r["new_heading"]) for r in rows] == [("changed", "第４条（休日）"), ("changed", "第５条（休暇）")], rows
+# タイトルも中身も違う条に入れ替えた（休日を廃止して副業を新設）ときは、削除＋新設のまま
+sw = copy.deepcopy(BASE)
+sw[1]["articles"][1] = art(4, "副業", "副業は届け出る。")
+rows = c.compare(BASE, sw)
+assert sorted(r["kind"] for r in rows) == ["added", "deleted"], rows
+# タイトルの無い条は、その位置で1対1に書き換えたら内容変更
+nt_old = [art(1, "", "最初の本文である。"), art(2, "", "二つ目の本文。")]
+nt_new = copy.deepcopy(nt_old)
+nt_new[0]["paragraphs"][0]["body"] = "まるごと書き換えた。"
+rows = c.compare(nt_old, nt_new)
+assert [r["kind"] for r in rows] == ["changed"], rows
+
 # --- 同じ見出しの行は id を分ける（備考が共有されないように）---
 twin = [art(1, "x", "同じ"), art(1, "x", "同じ"), art(1, "x", "同じ")]
 rows = c.compare(twin, twin)
