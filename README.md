@@ -12,6 +12,7 @@ PC にもスマホにも何もインストールする必要はありません�
 ```
 index.html      画面
 custom.js       カスタムテンプレートの設定画面とプレビュー
+editor.js       新旧対照表の右側（改正案）で条・章を編集する欄
 worker.js       裏で Python を動かす処理
 py/             整形プログラム（Colab 版と同じもの）
   web_entry.py    ブラウザ版の入口（Colab 版の kisoku_app.py に相当）

@@ -95,7 +95,8 @@ async function handleParse(msg) {
 
   const res = JSON.parse(entry.parse(srcPath, !!msg.useGemini,
     !!msg.layoutAsFigure, msg.apiKey || "", msg.geminiMode || "paragraph"));
-  current = { srcPath, jsonPath: res.json_path };
+  // jsonPath: 現行（比べる元）の木。parsedPath: この解析の結果。editedPath: 画面で編集した木
+  current = { srcPath, jsonPath: res.json_path, parsedPath: res.json_path, editedPath: null };
   post({ type: "parsed", id: msg.id, chapters: res.chapters, articles: res.articles });
 }
 
@@ -103,7 +104,7 @@ async function handleFormat(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
   const res = JSON.parse(entry.format_docx(current.srcPath, current.jsonPath,
     msg.templateKey, !!msg.checkHyoki, !!msg.insertToc,
-    !!msg.keepCrossref, msg.custom || ""));
+    !!msg.keepCrossref, msg.custom || "", current.editedPath || ""));
 
   const docx = readOut(res.output_path);
   const out = {
@@ -121,15 +122,31 @@ async function handleFormat(msg) {
 
 async function handleCompare(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
-  const v = JSON.parse(entry.compare_rows(current.jsonPath));
+  const v = JSON.parse(entry.compare_rows(current.jsonPath, current.editedPath || ""));
   post({ type: "compared", id: msg.id, rows: v.rows, blocks: v.blocks });
 }
 
 async function handleComparisonDocx(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
-  const path = entry.make_comparison(current.srcPath, current.jsonPath, msg.notes || "{}");
+  const path = entry.make_comparison(current.srcPath, current.jsonPath, msg.notes || "{}",
+    current.editedPath || "");
   const docx = readOut(path);
   post({ type: "comparisonDocx", id: msg.id, docxName: path.split("/").pop(), docx }, [docx]);
+}
+
+// 編集を始めるときの木（現行）を返す
+async function handleGetTree(msg) {
+  if (!current) throw new Error("先に docx を読み込んでください");
+  post({ type: "tree", id: msg.id, tree: entry.read_tree(current.jsonPath) });
+}
+
+// 画面の編集内容を受け取る。base: 下書きの現行の木（null ならこの解析の結果）、edited: 編集した木（null なら編集なし）
+async function handleUseTrees(msg) {
+  if (!current) throw new Error("先に docx を読み込んでください");
+  const dir = current.srcPath.slice(0, current.srcPath.lastIndexOf("/"));
+  current.jsonPath = msg.base ? entry.write_tree(`${dir}/_base.json`, msg.base) : current.parsedPath;
+  current.editedPath = msg.edited ? entry.write_tree(`${dir}/_edited.json`, msg.edited) : null;
+  post({ type: "treesUsed", id: msg.id });
 }
 
 async function handleSample(msg) {
@@ -163,6 +180,8 @@ self.onmessage = async (ev) => {
     else if (msg.type === "format") await handleFormat(msg);
     else if (msg.type === "sample") await handleSample(msg);
     else if (msg.type === "compare") await handleCompare(msg);
+    else if (msg.type === "getTree") await handleGetTree(msg);
+    else if (msg.type === "useTrees") await handleUseTrees(msg);
     else if (msg.type === "comparisonDocx") await handleComparisonDocx(msg);
     else if (msg.type === "readCustom") await handleReadCustom(msg);
   } catch (e) {

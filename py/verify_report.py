@@ -193,6 +193,63 @@ def compare(src_doc, out_doc):
     }
 
 
+_NUMS = r'[0-9〇一二三四五六七八九十百千]+'     # 全角の数字は normalize（NFKC）で半角になっている
+_HEAD_LABEL = re.compile(rf'^第{_NUMS}[章条節](の{_NUMS})*')
+_MIN_PARTIAL = 8
+
+
+def tree_texts(tree):
+    """解析済みの木から、本文の文章（条タイトル・項・号・その下）を正規化して集める。"""
+    out = set()
+
+    def walk(node):
+        if not isinstance(node, dict):
+            return
+        for key in ("title", "body"):
+            n = normalize(node.get(key) or "")
+            if n:
+                out.add(n)
+        for key in ("articles", "paragraphs", "items", "sub_items", "sub_items2"):
+            for child in node.get(key) or []:
+                walk(child)
+
+    for node in tree or []:
+        if node.get("type") in ("chapter", "article"):
+            walk(node)
+    return out
+
+
+def split_edited(result, base_tree, edited_tree):
+    """
+    画面で編集した文章を、欠落・増加から「編集で消した文章」「編集で足した文章」へ移す。
+    編集で変えた文章まで「整形で落ちた」と報告しないため。
+    原本の1段落が木では行の結合で長くなることがあるので、含まれていれば編集の分とみなす。
+    """
+    base, edited = tree_texts(base_tree), tree_texts(edited_tree)
+    removed, added = base - edited, edited - base
+
+    def hit(norm, pool, other):
+        """
+        pool（編集で消えた／足した文章）に当たり、other（反対側の木の文章）には無いか。
+        - 反対側の木にまだ含まれている文章は、編集で消した／足したものではない（本当の欠落・増加）
+        - 一部が含まれるだけで編集の分とみなすのは、短い語句が偶然含まれるのを避けるため8文字以上に限る
+        """
+        # 原本の段落は「第1条この規則は…」のように番号と本文が続いていることがある（木の本文には番号が無い）
+        norm = _HEAD_LABEL.sub("", norm)
+        if not norm or any(norm in o for o in other):
+            return False
+        return norm in pool or (len(norm) >= _MIN_PARTIAL and any(norm in p for p in pool))
+
+    def take(items, pool, other):
+        ok = [it for it in items if hit(it[1], pool, other)]
+        rest = [it for it in items if not hit(it[1], pool, other)]
+        return ok, rest
+
+    result["edit_removed"], result["missing"] = take(result["missing"], removed, edited)
+    result["edit_added"], result["added"] = take(result["added"], added, base)
+    return result
+
+
 # ============================================================
 # 出力
 # ============================================================
@@ -205,9 +262,14 @@ def summary_lines(result, limit=5):
                  f"出力 {result['out_chars']:,}文字（差 {d:+,}）")
     n_m, n_a, n_d = (len(result["missing"]), len(result["added"]),
                      len(result["duplicated"]))
+    edited = _edited_summary(result)
     if not (n_m or n_a or n_d):
         lines.append("  ★ 欠落・増加ともに検出されませんでした")
+        if edited:
+            lines.append(edited)
         return lines
+    if edited:
+        lines.append(edited)
     if n_m:
         lines.append(f"  ★ 原本にあって出力に無い文章: {n_m}件")
         for raw, _ in result["missing"][:limit]:
@@ -228,6 +290,11 @@ def summary_lines(result, limit=5):
             lines.append(f"      …ほか {n_d - limit}件")
     lines.append("  → 詳細は照合レポートをご確認ください")
     return lines
+
+
+def _edited_summary(result):
+    n_r, n_a = len(result.get("edit_removed") or []), len(result.get("edit_added") or [])
+    return f"  （画面での編集による変更: 消した文章 {n_r}件・足した文章 {n_a}件）" if n_r or n_a else ""
 
 
 def write_report(result, path, src_name="", out_name=""):
@@ -269,6 +336,13 @@ def write_report(result, path, src_name="", out_name=""):
                        f"（原本 {it[1]}回 → 出力 {it[2]}回）",
             "同じ文章が原本より多く出ています。"
             "図表の複製が重複した可能性があります。")
+    if "edit_removed" in result:
+        section("画面の編集で消した文章", result["edit_removed"],
+                lambda it: f"- {it[0].strip()}",
+                "画面で編集・削除した文章です。上の「出力に無い文章」には数えていません。")
+        section("画面の編集で足した文章", result["edit_added"],
+                lambda it: f"- {it[0].strip()}",
+                "画面で編集・追加した文章です。上の「原本に無い文章」には数えていません。")
 
     L.append("---\n")
     L.append("## この照合について\n")
