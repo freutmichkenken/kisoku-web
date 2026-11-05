@@ -497,6 +497,19 @@ def merge_lines(items):
     """
     merged = []
     buf = ''
+    # いまの条番号と項番号（次に来るはずの条・項の番号を見るため）
+    ctx = {'article': None, 'para': 1}
+
+    def count_unit(line):
+        s = line.lstrip('　 \t')
+        m = match_article(s)
+        if m:
+            ctx['article'] = zenkaku_to_int(m.group(1))
+            ctx['para'] = 1
+            return
+        m = RE_PARA.match(s)
+        if m:
+            ctx['para'] = zenkaku_to_int(m.group('num'))
 
     def flush():
         nonlocal buf
@@ -509,6 +522,8 @@ def merge_lines(items):
             # 表・自動番号段落は結合対象外。それまでのテキストを確定してから追加
             flush()
             merged.append((kind, val))
+            if kind == 'auto':
+                count_unit(val[1])
             continue
 
         line = val
@@ -516,6 +531,7 @@ def merge_lines(items):
             continue
         if buf == '':
             buf = line
+            count_unit(line)
         else:
             stripped = line.lstrip('　 \t')
             head = _heading_state(buf)
@@ -524,7 +540,7 @@ def merge_lines(items):
                 # 見出しだけの条の次の「１　」「１．」は第1項の番号
                 is_new = False
             else:
-                is_new = _starts_new_unit(stripped, buf)
+                is_new = _starts_new_unit(stripped, buf, ctx)
             if (not is_new and head == 'chapter_titled'
                     and not _chapter_title_continues(buf, stripped)):
                 # 章タイトルのあとの本文（章の前文など）は章タイトルに混ぜない
@@ -537,6 +553,7 @@ def merge_lines(items):
             if is_new:
                 merged.append(('text', buf))
                 buf = line
+                count_unit(line)
             else:
                 # 段落内の折り返しとして結合する。見出しだけの行と本文を
                 # 結合するときは、間に空白を入れる（「第1条この規則は」のように
@@ -598,30 +615,67 @@ def _chapter_title_continues(buf, line):
             and not re.search(r'[ 　]{2,}', s))
 
 
-def _para_num_is_continuation(buf, m):
+def _para_num_is_continuation(buf, m, next_para=None):
     """RE_PARA に一致した行が、項の始まりではなく前の文の続きか。
     「満／60 歳とし」「契約期間は、／2 年以内」のように、前の行が文の途中で終わり、
-    次の行が半角空白＋単位（PDF由来）のときだけ続きとみなす。"""
+    次の行が半角空白＋単位（PDF由来）のときだけ続きとみなす。
+    番号が次に来るはずの項番号（next_para）と同じで、前の行が助詞で終わっていなければ
+    （名詞＋読点の列挙など）、項の始まりとみなす
+    （「（２）特殊健康診断、／2 年に1回以上…」の 2 は第2項。
+    「契約期間は、／2 年以内」は助詞で終わるので数量）。"""
+    tb = buf.rstrip('　 \t').rstrip('、，')
+    if (next_para is not None and zenkaku_to_int(m.group('num')) == next_para
+            and not (tb and tb[-1] in 'のにをはがでとへやも')):
+        return False
     return (_ends_mid_sentence(buf) and m.group('ws') == ' '
             and bool(_QUANTITY_UNIT.match(m.group('body'))))
 
 
-def _starts_new_unit(stripped, buf):
-    """行頭が章・条・条タイトル・第2項以降・号の記号で、新しい段落の始まりか。"""
-    if match_chapter(stripped) or match_article(stripped):
+def _has_inline_prev_marker(buf, cur_t, cur_n):
+    """前の行の途中（読点・空白の後ろ）に、同じ記号で1つ前の番号の号があるか
+    （「従業員は、（１）職場の整理整頓に努め、／（２）のれんや…」）。"""
+    for i in range(1, len(buf)):
+        if buf[i - 1] not in '、，　 ':
+            continue
+        try:
+            t, n, _b = identify_symbol(buf[i:])
+        except Exception:
+            return False
+        if t == cur_t and n == cur_n - 1:
+            return True
+    return False
+
+
+def _starts_new_unit(stripped, buf, ctx=None):
+    """行頭が章・条・条タイトル・第2項以降・号の記号で、新しい段落の始まりか。
+    ctx: merge_lines が数える、いまの条番号（'article'）と項番号（'para'）。
+    番号が次に来るはずの条・項と同じかを、言葉の規則より先に見る。"""
+    ctx = ctx or {}
+    next_art = ctx['article'] + 1 if ctx.get('article') is not None else None
+    next_para = ctx.get('para', 1) + 1
+    ma = match_article(stripped)
+    if match_chapter(stripped) or ma:
         # 「…その後30日間は、／第10条（解雇）の規定にかかわらず」:
         # 文の途中で折り返した行の先頭に来た参照は、見出しにしない
-        return not (_ends_mid_sentence(buf, kanji=False) and _heading_is_reference(stripped))
+        if not (_ends_mid_sentence(buf, kanji=False) and _heading_is_reference(stripped)):
+            return True
+        # 次に来るはずの条番号の見出しは、助詞が直接続く参照（「第11条（解雇）の規定」）
+        # でなければ見出し（「…証明書、／第11条（準用）　第1項の規定は…」）
+        return bool(ma and not ma.group(2) and next_art is not None
+                    and zenkaku_to_int(ma.group(1)) == next_art
+                    and not _heading_is_reference(stripped, particle_only=True))
     # 「通常の賃金の／1.25倍とする」: 文の途中で小数が行頭に来た
-    if (re.match(r'^[０-９0-9]+[．.][０-９0-9]', stripped)
-            and _ends_mid_sentence(buf)):
+    # 「…休憩は1時間／2.1か月単位の」のように、整数部が次の項番号なら第2項
+    md = re.match(r'^([０-９0-9]+)[．.][０-９0-9]', stripped)
+    if md and (_ends_mid_sentence(buf, kanji=False)
+               or (_ends_mid_sentence(buf) and zenkaku_to_int(md.group(1)) != next_para)):
         return False
     if (re.match(r'^（[^）]+）[\s　]*([※＊*].*)?$', stripped)    # 条タイトル
             or re.match(r'^\([^)]+\)\s*$', stripped)):
         return True
     m = RE_PARA.match(stripped)                                  # 第2項以降
     if m:
-        return not _para_num_is_continuation(buf, m)
+        return not _para_num_is_continuation(buf, m, next_para)
     # 号の記号（上のパターンに無い ア．イ．／a)／一、 なども含む）
     m = _RE_MARK_HEAD.match(stripped)
     body = stripped[m.end():] if m else None
@@ -653,6 +707,9 @@ def _starts_new_unit(stripped, buf):
                 # 前の行が号でなければ、第1号は号の列の始まり
                 # （「職務の遂行にあたり、／（１）のれんや看板を…」）
                 if prev_t is None and cur_n == 1:
+                    return True
+                # 前の行の途中に1つ前の番号の号がある（本文の途中から号が始まる）
+                if prev_t is None and _has_inline_prev_marker(buf, cur_t, cur_n):
                     return True
             except Exception:
                 pass
@@ -727,21 +784,27 @@ def match_article(s):
     return RE_ARTICLE.match(s)
 
 
-def _heading_is_reference(s):
+def _heading_is_reference(s, particle_only=False):
     """章・条の見出しの形の行で、番号の後ろ（括弧書きを除く）が助詞・読点か
     （「第3章の規定」「第10条（解雇）の規定」）。見出しの本文が「第1項の規定は…」
     「のべ5日…」で始まることもあるので、前の行が文の途中で終わっている
-    （行の折り返し）ときにだけ使う（merge_lines）。"""
+    （行の折り返し）ときにだけ使う（merge_lines）。
+    particle_only=True なら、「第1項」のような項・号の参照が続く形は数えない。"""
+    pat = _REF_AFTER_HEADING
     m = RE_CHAPTER.match(s)
     if m:
-        return bool(_REF_AFTER_HEADING.match(m.group(2).strip()))
-    m = RE_ARTICLE.match(s)
-    if m:
+        after = m.group(2).strip()
+    else:
+        m = RE_ARTICLE.match(s)
+        if not m:
+            return False
         rest = m.group(3)
         tm = re.match(r'^[（(][^）)]*[）)]', rest)
-        after = rest[tm.end():] if tm else rest
-        return bool(_REF_AFTER_HEADING.match(after.lstrip('　 \t')))
-    return False
+        after = (rest[tm.end():] if tm else rest).lstrip('　 \t')
+    hit = pat.match(after)
+    if hit and particle_only and hit.group(0).startswith('第'):
+        return False
+    return bool(hit)
 
 
 def _ends_mid_sentence(text, kanji=True):
@@ -816,9 +879,14 @@ def _strip_para1_number(body):
 # 「（パートタイマーを除く）」のような行は、条タイトル（「（管理監督者を除く）」）と
 # 見分けられないので、ここでは注記にしない。タイトルとして保留し、次に条が
 # 来なければ build_tree が本文に戻す。
+# 日付は、すぐ後に改定・施行などが続くとき（「（令和６年４月１日一部改定）」）だけ注記とする。
+# 「（令和6年4月1日以後に採用された者の特例）」のような日付入りの条タイトルは注記にしない。
+_D = r'[元０-９0-9一二三四五六七八九十]+'
 _RE_NOTE_PAREN = re.compile(
-    r'(?:令和|平成|昭和)[　\s]*[元０-９0-9一二三四五六七八九十]+[　\s]*年'
-    r'|[０-９0-9]{4}[　\s]*年'
+    r'(?:(?:令和|平成|昭和)[　\s]*' + _D + r'|[０-９0-9]{4})[　\s]*年'
+    r'(?:[　\s]*' + _D + r'[　\s]*月)?(?:[　\s]*' + _D + r'[　\s]*日)?'
+    r'[　\s]*(?:から|より|付け?)?[　\s]*(?:一部|全部|全面)?[　\s]*'
+    r'(?:改定|改正|改訂|施行|制定|追加|削除|新設|変更|実施|適用)'
     r'|^ただし')
 
 
