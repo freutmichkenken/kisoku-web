@@ -1,16 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-記号階層の動的判定モジュール
+号の記号（①②、（１）、ア、一、a) 等）の種類と番号の判定
 
-就業規則の項・号・その下位に使われる記号（①②、（１）、ア、一、a) 等）は
-文書ごとにまちまちだが、「同一文書内では記号と階層が一貫する」という前提のもと、
-記号の初出順序と字下げの深さから、各記号がどの階層かを動的に決定する。
-
-使い方:
-    from marker_hierarchy import MarkerAnalyzer
-    analyzer = MarkerAnalyzer()
-    analyzer.learn(list_of_(text, indent_width))   # 文書全体を学習
-    kind = analyzer.classify(text)  # 'item' / 'item_sub' / 'item_sub2' / None
+就業規則の項・号・その下位に使われる記号は文書ごとにまちまちなので、
+行頭の記号の種類・番号・後ろの本文を判定する（identify_symbol）。
+どの記号が号・号の細分かは、kisoku_parser.marker_depths が項ごとの入れ子で決める
+（条ごとに記号の使い方が違う文書があるため、文書全体の表にはしない）。
 """
 
 import re
@@ -141,110 +136,3 @@ def identify_symbol(text):
             num, body = extractor(m)
             return type_name, num, body.strip()
     return None, 0, s
-
-
-# ------------------------------------------------------------
-# 階層アナライザ
-# ------------------------------------------------------------
-
-class MarkerAnalyzer:
-    """
-    文書全体を学習し、各記号タイプが階層のどの深さかを決定する。
-
-    深さの決め方:
-      1. 記号タイプごとの平均字下げ幅を集計
-      2. 字下げが浅い順に「号(item) → 号の下位(item_sub) → item_sub2 ...」を割り当て
-      3. 字下げが同じ/取れない場合は、初出順を使う
-    """
-
-    def __init__(self):
-        self.type_depth = {}   # type_name -> 深さ(0=号, 1=号の下位, 2=...)
-        self._learned = False
-
-    def learn(self, lines):
-        """
-        lines: [(text, indent_width), ...]
-               text が None の要素は「条の切れ目」を表し、
-               そこで入れ子の状態をリセットする。
-               （別々の条で ① と （１） が同じ号レベルに使われる場合に、
-                 それらを親子と誤解しないため）
-
-        階層の決め方（ネスト検出）:
-          文書を上から読み、記号タイプの入れ子関係で深さを決める。
-          - 番号が1で始まる新タイプ → 現在のスタックの一段深い子
-          - 既にスタックにあるタイプに戻る → そのタイプまでスタックを巻き戻す
-          - 番号2以上で初出のタイプ → 既存系列の途中とみなし、その時点の深さで登録
-        字下げは補助的に使う（同深さの曖昧性解消）。
-        """
-        first_seen = {}
-        seq = []
-        for idx, (text, indent) in enumerate(lines):
-            if text is None:          # 条の切れ目
-                seq.append((None, 0, 0))
-                continue
-            tname, num, _ = identify_symbol(text)
-            if tname is not None and tname not in first_seen:
-                first_seen[tname] = idx
-            seq.append((tname, num, indent))
-
-        if not first_seen:
-            self._learned = True
-            return
-
-        depth = {}
-        active_stack = []   # 現在開いている記号タイプ（浅い→深い）
-
-        for tname, num, indent in seq:
-            if tname is None:
-                # 条が変わったので入れ子状態をリセット
-                active_stack = []
-                continue
-
-            if tname in active_stack:
-                # 既出タイプに戻った → そのタイプより深い子を閉じる
-                while active_stack and active_stack[-1] != tname:
-                    active_stack.pop()
-                # 深さは既に確定済み
-                continue
-
-            # 新しいタイプ
-            if num <= 1:
-                # 新系列の開始 → 現在の最深の一段下に積む
-                active_stack.append(tname)
-                depth[tname] = len(active_stack) - 1
-            else:
-                # 番号2以上で初出 → 既存系列の途中。現在のスタック末尾と同じ深さに置く
-                # （新たな子ではなく、既存の深さレベルの別記法とみなさない方が安全なので
-                #   スタックに積んで現在深さで登録する）
-                active_stack.append(tname)
-                depth[tname] = len(active_stack) - 1
-
-        # 未登録タイプを初出順で補完
-        nxt = (max(depth.values()) + 1) if depth else 0
-        for tname in sorted(first_seen, key=lambda t: first_seen[t]):
-            if tname not in depth:
-                depth[tname] = nxt
-                nxt += 1
-
-        self.type_depth = depth
-        self._learned = True
-
-    def depth_to_kind(self, depth):
-        """深さを種別名に変換。0=item, 1=item_sub, 2=item_sub2, ..."""
-        if depth <= 0:
-            return 'item'
-        if depth == 1:
-            return 'item_sub'
-        return f'item_sub{depth}'
-
-    def classify(self, text):
-        """
-        行を分類。
-        返り値: (kind, number, body) または (None, 0, text)
-          kind: 'item' / 'item_sub' / 'item_sub2' / ...
-        """
-        tname, num, body = identify_symbol(text)
-        if tname is None:
-            return None, 0, text
-        depth = self.type_depth.get(tname, 0)
-        return self.depth_to_kind(depth), num, body

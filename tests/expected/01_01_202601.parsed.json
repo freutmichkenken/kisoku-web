@@ -934,11 +934,6 @@
                     "type": "drawing",
                     "index": 190,
                     "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 191,
-                    "text": "（時間外及び休日労働等）"
                   }
                 ]
               }
@@ -951,7 +946,7 @@
         "number": 21,
         "branch": 0,
         "number_str": "第２１条",
-        "title": "",
+        "title": "時間外及び休日労働等",
         "title_note": "",
         "paragraphs": [
           {
@@ -1002,11 +997,6 @@
                 "type": "drawing",
                 "index": 201,
                 "text": ""
-              },
-              {
-                "type": "drawing",
-                "index": 202,
-                "text": "（勤務間インターバル）"
               }
             ]
           }
@@ -1017,7 +1007,7 @@
         "number": 22,
         "branch": 0,
         "number_str": "第２２条",
-        "title": "",
+        "title": "勤務間インターバル",
         "title_note": "",
         "paragraphs": [
           {
@@ -1056,11 +1046,6 @@
                 "type": "drawing",
                 "index": 210,
                 "text": ""
-              },
-              {
-                "type": "drawing",
-                "index": 211,
-                "text": "（勤務間インターバル）"
               }
             ]
           }
@@ -1071,7 +1056,7 @@
         "number": 22,
         "branch": 0,
         "number_str": "第２２条",
-        "title": "",
+        "title": "勤務間インターバル",
         "title_note": "",
         "paragraphs": [
           {
@@ -1302,46 +1287,44 @@
               {
                 "type": "item",
                 "number": 1,
-                "body": "時間単位年休付与の対象者は、すべての労働者とする。",
-                "_promoted": true
+                "body": "時間単位年休付与の対象者は、すべての労働者とする。"
               },
               {
                 "type": "item",
                 "number": 2,
                 "body": "時間単位年休を取得する場合の、１日の年次有給休暇に相当する時間数は、以下のとおりとする。",
-                "_promoted": true
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "所定労働時間が５　時間を超え６　時間以下の者…６　時間"
-              },
-              {
-                "type": "item",
-                "number": 2,
-                "body": "所定労働時間が６　時間を超え７　時間以下の者…７　時間"
+                "sub_items": [
+                  {
+                    "type": "item_sub",
+                    "number": 1,
+                    "body": "所定労働時間が５　時間を超え６　時間以下の者…６　時間"
+                  },
+                  {
+                    "type": "item_sub",
+                    "number": 2,
+                    "body": "所定労働時間が６　時間を超え７　時間以下の者…７　時間"
+                  },
+                  {
+                    "type": "item_sub",
+                    "number": 3,
+                    "body": "所定労働時間が７　時間を超え８　時間以下の者…８　時間"
+                  }
+                ]
               },
               {
                 "type": "item",
                 "number": 3,
-                "body": "所定労働時間が７　時間を超え８　時間以下の者…８　時間",
-                "sub_items": [
-                  {
-                    "type": "item_sub",
-                    "number": 3,
-                    "body": "時間単位年休は１時間単位で付与する。"
-                  },
-                  {
-                    "type": "item_sub",
-                    "number": 4,
-                    "body": "本条の時間単位年休に支払われる賃金額は、所定労働時間労働した場合に支払われる通常の賃金の１時間当たりの額に、取得した時間単位年休の時間数を乗じた額とする。"
-                  },
-                  {
-                    "type": "item_sub",
-                    "number": 5,
-                    "body": "時間単位年休には、前条第４項及び第５項の規定は適用しない。"
-                  }
-                ]
+                "body": "時間単位年休は１時間単位で付与する。"
+              },
+              {
+                "type": "item",
+                "number": 4,
+                "body": "本条の時間単位年休に支払われる賃金額は、所定労働時間労働した場合に支払われる通常の賃金の１時間当たりの額に、取得した時間単位年休の時間数を乗じた額とする。"
+              },
+              {
+                "type": "item",
+                "number": 5,
+                "body": "時間単位年休には、前条第４項及び第５項の規定は適用しない。"
               }
             ]
           }
@@ -1652,11 +1635,6 @@
                 "type": "drawing",
                 "index": 311,
                 "text": ""
-              },
-              {
-                "type": "drawing",
-                "index": 312,
-                "text": "（基本給）"
               }
             ]
           }
@@ -1667,7 +1645,7 @@
         "number": 34,
         "branch": 0,
         "number_str": "第３４条",
-        "title": "",
+        "title": "基本給",
         "title_note": "",
         "paragraphs": [
           {
@@ -1832,39 +1810,38 @@
                 "type": "item",
                 "number": 1,
                 "body": "１か月の時間外労働の時間数に応じた割増賃金率は、次のとおりとする。この場合の１か月は毎月　　日を起算日とする。",
-                "_promoted": true
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "時間外労働４５時間以下・・・２５％"
-              },
-              {
-                "type": "item",
-                "number": 2,
-                "body": "時間外労働４５時間超～６０時間以下・・３５％"
-              },
-              {
-                "type": "item",
-                "number": 3,
-                "body": "時間外労働６０時間超・・・・・５０％"
-              },
-              {
-                "type": "item",
-                "number": 4,
-                "body": "③の時間外労働のうち代替休暇を取得した時間・・・３５％（残り１５％の割増賃金は代替休暇に充当する。）",
                 "sub_items": [
                   {
                     "type": "item_sub",
+                    "number": 1,
+                    "body": "時間外労働４５時間以下・・・２５％"
+                  },
+                  {
+                    "type": "item_sub",
                     "number": 2,
-                    "body": "１年間の時間外労働の時間数が３６０時間を超えた部分については、４０％とする。この場合の１年は毎年　　月　　日を起算日とする。"
+                    "body": "時間外労働４５時間超～６０時間以下・・３５％"
                   },
                   {
                     "type": "item_sub",
                     "number": 3,
-                    "body": "時間外労働に対する割増賃金の計算において、上記（１）及び（２）のいずれにも該当する時間外労働の時間数については、いずれか高い率で計算することとする。"
+                    "body": "時間外労働６０時間超・・・・・５０％"
+                  },
+                  {
+                    "type": "item_sub",
+                    "number": 4,
+                    "body": "③の時間外労働のうち代替休暇を取得した時間・・・３５％（残り１５％の割増賃金は代替休暇に充当する。）"
                   }
                 ]
+              },
+              {
+                "type": "item",
+                "number": 2,
+                "body": "１年間の時間外労働の時間数が３６０時間を超えた部分については、４０％とする。この場合の１年は毎年　　月　　日を起算日とする。"
+              },
+              {
+                "type": "item",
+                "number": 3,
+                "body": "時間外労働に対する割増賃金の計算において、上記（１）及び（２）のいずれにも該当する時間外労働の時間数については、いずれか高い率で計算することとする。"
               }
             ]
           },
@@ -1877,702 +1854,703 @@
                 "type": "item",
                 "number": 1,
                 "body": "月給制の場合",
-                "_promoted": true
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "時間外労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 362,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 363,
-                    "text": "（時間外労働が1か月45時間以下の部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 364,
-                    "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 365,
-                    "text": "×1.25×時間外労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 366,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 367,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 368,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 369,
-                    "text": "（時間外労働が1か月45時間超～60時間以下の部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 370,
-                    "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 371,
-                    "text": "×1.35×時間外労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 372,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 373,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 374,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 375,
-                    "text": "（時間外労働が1か月60時間を超える部分)"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 376,
-                    "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 377,
-                    "text": "×1.50×時間外労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 378,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 379,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 380,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 381,
-                    "text": "（時間外労働が1年360時間を超える部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 382,
-                    "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 383,
-                    "text": "×1.40×時間外労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 384,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 385,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 386,
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 2,
-                "body": "休日労働の割増賃金（法定休日に労働させた場合）",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 388,
-                    "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 389,
-                    "text": "×1.35×休日労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 390,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 391,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 392,
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 3,
-                "body": "深夜労働の割増賃金（午後１０時から午前５時までの間に労働させた場合）",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 394,
-                    "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 395,
-                    "text": "×0.25×深夜労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 396,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 397,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 398,
-                    "text": ""
-                  }
-                ],
                 "sub_items": [
+                  {
+                    "type": "item_sub",
+                    "number": 1,
+                    "body": "時間外労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 362,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 363,
+                        "text": "（時間外労働が1か月45時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 364,
+                        "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 365,
+                        "text": "×1.25×時間外労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 366,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 367,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 368,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 369,
+                        "text": "（時間外労働が1か月45時間超～60時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 370,
+                        "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 371,
+                        "text": "×1.35×時間外労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 372,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 373,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 374,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 375,
+                        "text": "（時間外労働が1か月60時間を超える部分)"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 376,
+                        "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 377,
+                        "text": "×1.50×時間外労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 378,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 379,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 380,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 381,
+                        "text": "（時間外労働が1年360時間を超える部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 382,
+                        "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 383,
+                        "text": "×1.40×時間外労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 384,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 385,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 386,
+                        "text": ""
+                      }
+                    ]
+                  },
                   {
                     "type": "item_sub",
                     "number": 2,
-                    "body": "日給制の場合"
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "時間外労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 401,
-                    "text": "（時間外労働が1か月45時間以下の部分）"
+                    "body": "休日労働の割増賃金（法定休日に労働させた場合）",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 388,
+                        "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 389,
+                        "text": "×1.35×休日労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 390,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 391,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 392,
+                        "text": ""
+                      }
+                    ]
                   },
-                  {
-                    "type": "drawing",
-                    "index": 402,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 403,
-                    "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 404,
-                    "text": "＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 405,
-                    "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 406,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 407,
-                    "text": "×　1.25　×　時間外労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 408,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 409,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 410,
-                    "text": "(時間外労働が1か月45時間超～60時間以下の部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 411,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 412,
-                    "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 413,
-                    "text": "＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 414,
-                    "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 415,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 416,
-                    "text": "×　1.35　×　時間外労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 417,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 418,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 419,
-                    "text": "（時間外労働が1か月60時間を超える部分)"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 420,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 421,
-                    "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 422,
-                    "text": "＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 423,
-                    "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 424,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 425,
-                    "text": "×　1.50　×　時間外労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 426,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 427,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 428,
-                    "text": "(時間外労働が1年360時間を超える部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 429,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 430,
-                    "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 431,
-                    "text": "＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 432,
-                    "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 433,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 434,
-                    "text": "×　1.40　×　時間外労働の時間数"
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 2,
-                "body": "休日労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 437,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 438,
-                    "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 439,
-                    "text": "＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 440,
-                    "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 441,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 442,
-                    "text": "×　1.35　×　休日労働の時間数"
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 3,
-                "body": "深夜労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 445,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 446,
-                    "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 447,
-                    "text": "＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 448,
-                    "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 449,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 450,
-                    "text": "×　0.25　×　深夜労働の時間数"
-                  }
-                ],
-                "sub_items": [
                   {
                     "type": "item_sub",
                     "number": 3,
-                    "body": "時間給制の場合"
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "時間外労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 454,
-                    "text": "（時間外労働が1か月45時間以下の部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 455,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 456,
-                    "text": "役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 457,
-                    "text": "時間給　＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 458,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 459,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 460,
-                    "text": "×　1.25　×　時間外労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 461,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 462,
-                    "text": "（時間外労働が1か月45時間超～60時間以下の部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 463,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 464,
-                    "text": "役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 465,
-                    "text": "時間給　＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 466,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 467,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 468,
-                    "text": "×　1.35　×　時間外労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 469,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 470,
-                    "text": "（時間外労働が1か月60時間を超える部分)"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 471,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 472,
-                    "text": "役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 473,
-                    "text": "時間給　＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 474,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 475,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 476,
-                    "text": "×　1.50　×　時間外労働の時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 477,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 478,
-                    "text": "（時間外労働が1年360時間を超える部分)"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 479,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 480,
-                    "text": "役付手当＋技能・資格手当＋精勤手当"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 481,
-                    "text": "時間給　＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 482,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 483,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 484,
-                    "text": "×　1.40　×　時間外労働の時間数"
+                    "body": "深夜労働の割増賃金（午後１０時から午前５時までの間に労働させた場合）",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 394,
+                        "text": "基本給＋役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 395,
+                        "text": "×0.25×深夜労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 396,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 397,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 398,
+                        "text": ""
+                      }
+                    ]
                   }
                 ]
               },
               {
                 "type": "item",
                 "number": 2,
-                "body": "休日労働の割増賃金",
-                "drawings": [
+                "body": "日給制の場合",
+                "sub_items": [
                   {
-                    "type": "drawing",
-                    "index": 487,
-                    "text": ""
+                    "type": "item_sub",
+                    "number": 1,
+                    "body": "時間外労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 401,
+                        "text": "（時間外労働が1か月45時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 402,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 403,
+                        "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 404,
+                        "text": "＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 405,
+                        "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 406,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 407,
+                        "text": "×　1.25　×　時間外労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 408,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 409,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 410,
+                        "text": "(時間外労働が1か月45時間超～60時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 411,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 412,
+                        "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 413,
+                        "text": "＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 414,
+                        "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 415,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 416,
+                        "text": "×　1.35　×　時間外労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 417,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 418,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 419,
+                        "text": "（時間外労働が1か月60時間を超える部分)"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 420,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 421,
+                        "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 422,
+                        "text": "＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 423,
+                        "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 424,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 425,
+                        "text": "×　1.50　×　時間外労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 426,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 427,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 428,
+                        "text": "(時間外労働が1年360時間を超える部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 429,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 430,
+                        "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 431,
+                        "text": "＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 432,
+                        "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 433,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 434,
+                        "text": "×　1.40　×　時間外労働の時間数"
+                      }
+                    ]
                   },
                   {
-                    "type": "drawing",
-                    "index": 488,
-                    "text": "役付手当＋技能・資格手当＋精勤手当"
+                    "type": "item_sub",
+                    "number": 2,
+                    "body": "休日労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 437,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 438,
+                        "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 439,
+                        "text": "＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 440,
+                        "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 441,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 442,
+                        "text": "×　1.35　×　休日労働の時間数"
+                      }
+                    ]
                   },
                   {
-                    "type": "drawing",
-                    "index": 489,
-                    "text": "時間給　＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 490,
-                    "text": "１か月平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 491,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 492,
-                    "text": "×　1.35　×　休日労働の時間数"
+                    "type": "item_sub",
+                    "number": 3,
+                    "body": "深夜労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 445,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 446,
+                        "text": "日給　　　　　　　　役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 447,
+                        "text": "＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 448,
+                        "text": "１日の所定労働時間数　　　　　　１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 449,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 450,
+                        "text": "×　0.25　×　深夜労働の時間数"
+                      }
+                    ]
                   }
                 ]
               },
               {
                 "type": "item",
                 "number": 3,
-                "body": "深夜労働の割増賃金",
-                "drawings": [
+                "body": "時間給制の場合",
+                "sub_items": [
                   {
-                    "type": "drawing",
-                    "index": 495,
-                    "text": ""
+                    "type": "item_sub",
+                    "number": 1,
+                    "body": "時間外労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 454,
+                        "text": "（時間外労働が1か月45時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 455,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 456,
+                        "text": "役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 457,
+                        "text": "時間給　＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 458,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 459,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 460,
+                        "text": "×　1.25　×　時間外労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 461,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 462,
+                        "text": "（時間外労働が1か月45時間超～60時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 463,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 464,
+                        "text": "役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 465,
+                        "text": "時間給　＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 466,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 467,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 468,
+                        "text": "×　1.35　×　時間外労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 469,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 470,
+                        "text": "（時間外労働が1か月60時間を超える部分)"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 471,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 472,
+                        "text": "役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 473,
+                        "text": "時間給　＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 474,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 475,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 476,
+                        "text": "×　1.50　×　時間外労働の時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 477,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 478,
+                        "text": "（時間外労働が1年360時間を超える部分)"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 479,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 480,
+                        "text": "役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 481,
+                        "text": "時間給　＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 482,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 483,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 484,
+                        "text": "×　1.40　×　時間外労働の時間数"
+                      }
+                    ]
                   },
                   {
-                    "type": "drawing",
-                    "index": 496,
-                    "text": "役付手当＋技能・資格手当＋精勤手当"
+                    "type": "item_sub",
+                    "number": 2,
+                    "body": "休日労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 487,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 488,
+                        "text": "役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 489,
+                        "text": "時間給　＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 490,
+                        "text": "１か月平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 491,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 492,
+                        "text": "×　1.35　×　休日労働の時間数"
+                      }
+                    ]
                   },
                   {
-                    "type": "drawing",
-                    "index": 497,
-                    "text": "時間給　＋"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 498,
-                    "text": "１か月の平均所定労働時間数"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 499,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 500,
-                    "text": "×　0.25　×　深夜労働の時間数"
+                    "type": "item_sub",
+                    "number": 3,
+                    "body": "深夜労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 495,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 496,
+                        "text": "役付手当＋技能・資格手当＋精勤手当"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 497,
+                        "text": "時間給　＋"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 498,
+                        "text": "１か月の平均所定労働時間数"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 499,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 500,
+                        "text": "×　0.25　×　深夜労働の時間数"
+                      }
+                    ]
                   }
                 ]
               }
@@ -2603,11 +2581,6 @@
                 "type": "drawing",
                 "index": 507,
                 "text": ""
-              },
-              {
-                "type": "drawing",
-                "index": 508,
-                "text": "（１年単位の変形労働時間制に関する賃金の精算）"
               }
             ]
           }
@@ -2618,7 +2591,7 @@
         "number": 41,
         "branch": 0,
         "number_str": "第４１条",
-        "title": "",
+        "title": "１年単位の変形労働時間制に関する賃金の精算",
         "title_note": "",
         "paragraphs": [
           {
@@ -3077,44 +3050,45 @@
                 "type": "item",
                 "number": 1,
                 "body": "○○業務においては、次のいずれの基準にも該当する者",
-                "_promoted": true
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "過去　　年間の人事考課が　　以上である者"
-              },
-              {
-                "type": "item",
-                "number": 2,
-                "body": "当該業務に必要な　　の資格を有している者",
                 "sub_items": [
                   {
                     "type": "item_sub",
+                    "number": 1,
+                    "body": "過去　　年間の人事考課が　　以上である者"
+                  },
+                  {
+                    "type": "item_sub",
                     "number": 2,
-                    "body": "△△業務においては、次のいずれの基準にも該当する者"
+                    "body": "当該業務に必要な　　の資格を有している者"
                   }
                 ]
               },
               {
                 "type": "item",
-                "number": 1,
-                "body": "過去　　年間の人事考課が　　以上である者"
-              },
-              {
-                "type": "item",
                 "number": 2,
-                "body": "定年前に当該業務に　　年以上従事した経験及び当該業務を遂行する能力があるとして以下に該当する者",
+                "body": "△△業務においては、次のいずれの基準にも該当する者",
                 "sub_items": [
                   {
                     "type": "item_sub",
                     "number": 1,
-                    "body": "○○○○"
+                    "body": "過去　　年間の人事考課が　　以上である者"
                   },
                   {
                     "type": "item_sub",
                     "number": 2,
-                    "body": "△△△△"
+                    "body": "定年前に当該業務に　　年以上従事した経験及び当該業務を遂行する能力があるとして以下に該当する者",
+                    "sub_items2": [
+                      {
+                        "type": "item_sub2",
+                        "number": 1,
+                        "body": "○○○○"
+                      },
+                      {
+                        "type": "item_sub2",
+                        "number": 2,
+                        "body": "△△△△"
+                      }
+                    ]
                   }
                 ]
               }

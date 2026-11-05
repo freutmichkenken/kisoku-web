@@ -47,7 +47,7 @@ from docx.oxml.ns import qn
 import functools
 
 # 記号階層の動的判定（ブラウザ版でも必ず読み込む。worker.js の PY_FILES）
-from marker_hierarchy import (MarkerAnalyzer, identify_symbol, _SYMBOL_TYPES,
+from marker_hierarchy import (identify_symbol, _SYMBOL_TYPES,
                               REF_AFTER_MARKER as _REF_AFTER_MARKER)
 
 
@@ -588,9 +588,11 @@ def merge_lines(items):
     buf = None
     # いまの条番号と項番号（次に来るはずの条・項の番号を見るため）
     # prev_items: いまの条の、前の項までに出てきた号の (記号の種類, 番号)
-    # （「前項に定める書類のうち／（１）の書類は」の号の参照を見分けるため）
+    # cur_last:   いまの項で、記号の種類ごとに最後に出てきた号の番号
+    # （「前項に定める書類のうち／（１）の書類は」「…上記（１）及び／（２）の」の
+    #   号の参照を見分けるため）
     ctx = {'chapter': None, 'article': None, 'para': 1,
-           'prev_items': set(), 'cur_items': set()}
+           'prev_items': set(), 'cur_items': set(), 'cur_last': {}}
 
     def count_unit(ln):
         if ln.chapter:
@@ -598,13 +600,14 @@ def merge_lines(items):
         elif ln.article:
             ctx['article'] = zenkaku_to_int(ln.article.group(1))
             ctx['para'] = 1
-            ctx['prev_items'], ctx['cur_items'] = set(), set()
+            ctx['prev_items'], ctx['cur_items'], ctx['cur_last'] = set(), set(), {}
         elif ln.para:
             ctx['para'] = zenkaku_to_int(ln.para.group('num'))
             ctx['prev_items'] |= ctx['cur_items']
-            ctx['cur_items'] = set()
+            ctx['cur_items'], ctx['cur_last'] = set(), {}
         elif ln.sym_type is not None:
             ctx['cur_items'].add((ln.sym_type, ln.sym_num))
+            ctx['cur_last'][ln.sym_type] = ln.sym_num
 
     def flush():
         nonlocal buf
@@ -790,10 +793,14 @@ def _starts_new_unit(ln, buf, ctx=None):
         body = ln.sym_body
     else:
         return False
-    # 「前項に定める書類のうち／（１）の書類は…」: 記号の直後が助詞で、同じ条の前の項に
-    # 同じ番号の号がもう出ていれば、新しい号ではなく、その号を指す本文中の参照
-    if (ln.sym_type is not None and (ln.sym_type, ln.sym_num) in ctx.get('prev_items', ())
-            and _REF_AFTER_MARKER.match(body.lstrip('　 \t'))):
+    # 記号の直後が助詞で、次のどちらかなら、新しい号ではなく、出てきた号を指す本文中の参照
+    #  - 同じ条の前の項に、同じ番号の号がもう出ている
+    #    （「前項に定める書類のうち／（１）の書類は…」）
+    #  - 同じ項の中で、同じ記号の号の番号が戻っている
+    #    （「（３）…上記（１）及び／（２）のいずれにも…」）
+    if (ln.sym_type is not None and _REF_AFTER_MARKER.match(body.lstrip('　 \t'))
+            and ((ln.sym_type, ln.sym_num) in ctx.get('prev_items', ())
+                 or ln.sym_num < ctx.get('cur_last', {}).get(ln.sym_type, 0))):
         return False
     # 「…にかかわらず、／（１）に掲げる場合は」: 読点で終わった文の続きで、
     # 記号の直後が助詞なら号ではなく本文中の参照。読点で終わっていなければ、
@@ -1028,12 +1035,12 @@ def zenkaku_to_int(s):
                     tmp += k
         return val + tmp or 1
 
-def classify_line(text, analyzer=None):
+def classify_line(text, depth=None):
     """
     1つの単位（merge_lines の Unit、または1行の文字列）を分類してdictを返す。
     先頭の行の判定結果（Line）と、2行目以降をつないだ文字列から作る。
-    analyzer:  MarkerAnalyzer。号系記号（①（１）ア 等）の階層判定に使う。
-               None なら記号はすべて号とする。
+    depth: 号の記号の深さ（marker_depths が項ごとの入れ子で決めたもの。
+           0=号、1=号の細分、2以上=さらに下）。None なら号とする。
     keys: type, number, title/body
     """
     unit = _as_unit(text)
@@ -1054,8 +1061,9 @@ def classify_line(text, analyzer=None):
     if tt:
         if _is_note_paren(tt[0]):
             return {'type':'text', 'body': stripped, 'note': True}
+        # _raw: 次が条見出しでなかったときに、本文として戻す元の行（parse_kisoku）
         return {'type':'article_title', 'title': tt[0].strip(),
-                'title_note': (tt[1] or '').strip()}
+                'title_note': (tt[1] or '').strip(), '_raw': stripped}
 
     # 条（+本文が同行にある場合も）。枝番号「第X条のY」にも対応
     m = f.article
@@ -1091,16 +1099,9 @@ def classify_line(text, analyzer=None):
                     'body': unit.rest(m, 'body', skip='　 \t\n．.').strip(),
                     'sep': 'dot' if m.group('dot') else 'ws', 'raw': stripped}
 
-    # --- 号系記号の判定（階層は analyzer が文書全体から学習したもの）---
+    # --- 号系記号の判定（深さは marker_depths が項ごとの入れ子で決めたもの）---
     if f.sym_type is not None:
-        kind = (analyzer.depth_to_kind(analyzer.type_depth.get(f.sym_type, 0))
-                if analyzer is not None else 'item')
-        if kind.startswith('item_sub2'):
-            t = 'item_sub2'
-        elif kind.startswith('item_sub'):
-            t = 'item_sub'
-        else:
-            t = 'item'
+        t = ('item' if not depth else 'item_sub' if depth == 1 else 'item_sub2')
         return {'type': t, 'number': f.sym_num,
                 'body': (f.sym_body + unit.tail).strip(),
                 'marker': f.sym_type, 'raw': stripped}
@@ -1111,6 +1112,43 @@ def classify_line(text, analyzer=None):
     if len(stripped) >= 2 and stripped[0] in '（(' and stripped[-1] in '）)':
         return {'type':'text', 'body': stripped, 'note': True}
     return {'type':'text', 'body': stripped}
+
+
+def marker_depths(merged):
+    """
+    号の記号（（１）①ア 等）の深さ（0=号、1=号の細分、2=さらに下）を、
+    merge_lines の結果の単位ごとに決めて {id(Unit): 深さ} で返す。
+
+    就業規則では、条や項ごとに記号の使い方が違うことがある
+    （第1条は（１）の下に①、第2条は①を号に直接使う）。文書全体で記号ごとに
+    1つの深さを決めると崩れるので、項ごとに、上から読んだ入れ子で決める。
+      - 章・条・条タイトル・第2項以降の行（スタイルで分かるものを含む）で入れ子を戻す
+      - その項で初めて出た記号は、いま開いている記号の一段下（項の最初の記号は号）
+      - 開いている記号に戻ったら、それより深い記号を閉じる
+      - 記号の無い行（号の折り返し・注記）では入れ子を戻さない
+    """
+    depths = {}
+    stack = []
+    for k, val in merged:
+        if k == 'auto':
+            if val[0] in ('chapter', 'article', 'paragraph', 'paragraph_1', 'body_plain'):
+                stack = []
+            continue
+        if k != 'text':
+            continue
+        f = val.first
+        if (f.chapter or f.article or _unit_title(val)
+                or (f.para and zenkaku_to_int(f.para.group('num')) >= 2)):
+            stack = []
+            continue
+        if f.sym_type is None:
+            continue
+        if f.sym_type in stack:
+            del stack[stack.index(f.sym_type) + 1:]
+        else:
+            stack.append(f.sym_type)
+        depths[id(val)] = stack.index(f.sym_type)
+    return depths
 
 
 # 条タイトルの括弧の後ろ（空白と「※注釈」だけ）
@@ -1575,8 +1613,8 @@ def build_tree(flat):
                 # 括弧書きの注記は、直前のいちばん深い項目（号の細分など）の末尾に付ける
                 _deepest_container(cur_paragraph)['body'] += body
             elif cur_paragraph and cur_paragraph.get('items'):
-                # 直前が号 → 号の本文に追記
-                cur_paragraph['items'][-1]['body'] += body
+                # 直前が号 → いちばん深い項目（号の細分の続きなら、その細分）の本文に追記
+                _deepest_container(cur_paragraph)['body'] += body
             elif cur_paragraph:
                 cur_paragraph['body'] += body
             elif cur_article:
@@ -2084,6 +2122,14 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
         _order = [i for i, c in _all]
         _pos = {v: k for k, v in enumerate(_order)}
 
+        def _next_line(idx):
+            """idx の次の、空でない段落の Line。"""
+            for j in range(_pos[idx] + 1, len(_order)):
+                t = _texts[_order[j]]
+                if t.strip():
+                    return line_info(t)
+            return line_info('')
+
         def _fig_like(idx):
             ln = line_info(_texts.get(idx, ''))
             if not ln.s:
@@ -2091,6 +2137,9 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             if ln.s.endswith(('。', '、')):
                 return False
             if ln.chapter or ln.article or ln.para or ln.sym_type is not None:
+                return False
+            # 次が条見出しの括弧だけの行は、図の一部ではなく次の条のタイトル
+            if ln.title and _next_line(idx).article:
                 return False
             return True
 
@@ -2267,30 +2316,8 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
     units = [val for k, val in merged if k == 'text']
     merged_texts = [u.text for u in units]
 
-    # 記号階層を動的に学習する
-    analyzer = MarkerAnalyzer()
-    # 字下げ量は簡易に「行頭空白の視覚幅」で近似（Wordインデントは結合後に
-    # 失われることがあるため、テキストの行頭空白を主に使う）
-    learn_lines = []
-    for u in units:
-        f = u.first
-        # 章・条・条タイトル・項（2以降）の番号は「号の記号」ではないので
-        # 記号階層の学習から除外する。
-        # （例:「２．前項各号の…」の "２．" を号の記号と誤学習するのを防ぐ）
-        if f.chapter or f.article or _unit_title(u):
-            # 条が変わる位置に番兵を入れ、記号の入れ子状態をリセットさせる
-            learn_lines.append((None, 0))
-            continue
-        if f.para and zenkaku_to_int(f.para.group(1)) >= 2:
-            continue
-        # 記号の種類と番号は先頭の行で決まるので、先頭の行を渡す
-        learn_lines.append((f.text, f.indent))
-    analyzer.learn(learn_lines)
-    if analyzer.type_depth:
-        depth_str = ", ".join(
-            f"{t}→{analyzer.depth_to_kind(d)}"
-            for t, d in sorted(analyzer.type_depth.items(), key=lambda x: x[1]))
-        print(f"記号階層を学習: {depth_str}")
+    # 号の記号の深さ（号・号の細分…）を決める
+    depths = marker_depths(merged)
 
     text_cursor = 0
     for k, val in merged:
@@ -2305,7 +2332,7 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             if node:
                 flat.append(node)
         else:  # 'text'
-            node = classify_line(val, analyzer=analyzer)
+            node = classify_line(val, depth=depths.get(id(val)))
             if node:
                 # 'text'（＝どのパターンにも該当せず本文扱い）は判定不能候補。
                 # 括弧書きの注記（「（中途採用者を除く）」）は本文と分かっているので除く
@@ -2313,6 +2340,13 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
                     gemini_candidates.append((len(flat), val.text, text_cursor))
                 flat.append(node)
             text_cursor += 1
+
+    # 括弧だけの行は、次の単位が条見出しのときだけ条タイトルにする。
+    # それ以外（注記・補足）は、直前の項目の本文に付ける（⑤ 図の直後でも同じ）
+    for i, node in enumerate(flat):
+        if node['type'] == 'article_title' and node.get('_raw') and (
+                i + 1 >= len(flat) or flat[i + 1]['type'] != 'article'):
+            flat[i] = {'type': 'text', 'body': node['_raw'], 'note': True}
 
     # --- Gemini による判定不能段落の再判定 ---
     if use_gemini and gemini_candidates:
