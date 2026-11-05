@@ -121,10 +121,12 @@ def _katakana_index(c):
     return 0
 
 
-# 記号の後ろがこれらで始まる行は、号ではなく本文中の参照
-#   例:「（１）に掲げる場合」「①の場合を除き」「（２）又は（３）」
+# 記号の後ろがこれらで始まり、かつ前の行が読点で終わっていれば、
+# 号ではなく本文中の参照（kisoku_parser.merge_lines で使う）
+#   例:「…にかかわらず、／（１）に掲げる場合」「…のうち、／（１）は」
+# 平仮名で始まる号（「（５）より良い職場…」）もあるので、記号の判定そのものには使わない
 REF_AFTER_MARKER = re.compile(
-    r'^(?:の|に|を|で(?!き)|から|まで|より|及び|又は|並びに|若しくは|ないし|乃至|[、，])')
+    r'^(?:の|に|を|は|が|で(?!き)|から|まで|より|及び|又は|並びに|若しくは|ないし|乃至|[、，])')
 
 
 def identify_symbol(text):
@@ -137,8 +139,6 @@ def identify_symbol(text):
         m = pat.match(s)
         if m:
             num, body = extractor(m)
-            if REF_AFTER_MARKER.match(body.lstrip('　 \t')):
-                return None, 0, s
             return type_name, num, body.strip()
     return None, 0, s
 
