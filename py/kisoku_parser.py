@@ -389,39 +389,8 @@ def get_paragraph_numpr(para, doc):
 # STEP 1: 生テキストの取得と途中改行の結合
 # ============================================================
 
-# 末尾が「続き」と判断する条件
+# 行末がこれなら文が終わっている（次の行頭の数字を数量・小数とみなさない）
 COMPLETE_ENDINGS = set('。」）)．…')
-COMPLETE_WORDS = (
-    'もの','こと','とき','ため','ない','ある','なる','れる','いる',
-    'おく','くる','いく','みる','いう','できる','よる','ける','せる',
-    'める','てる','でる','場合','期間','時間','以上','以下','以内',
-    '以外','業務','事項','規定','条件','事由','義務','権利','方法',
-    '手続','基準','措置','期日','日数',
-)
-INCOMPLETE_KANA = set('てでにをがはもしたとのなくけれせすつぬふむゆるわばへだ')
-KANJI_COMPLETE = set('等他者時中内上下前後')
-
-def is_continuation(text):
-    """この行が次の行と結合すべき「途中改行」かどうか"""
-    t = text.rstrip('　 \t')
-    if not t or len(t) < 2:
-        return False
-    last = t[-1]
-    if last in COMPLETE_ENDINGS:
-        return False
-    if any(t.endswith(w) for w in COMPLETE_WORDS):
-        return False
-    if last in ('―','─','‐','–'):
-        return True
-    if last == '、':
-        return True
-    if last in INCOMPLETE_KANA:
-        return True
-    # 漢字で終わるが完結語でない
-    if re.search(r'[一-龯]$', last) and last not in KANJI_COMPLETE:
-        if len(t) >= 2 and not re.match(r'[一-龯]', t[-2]):
-            return True
-    return False
 
 def merge_lines(items):
     """
@@ -1981,8 +1950,9 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
         else:  # 'text'
             node = classify_line(val, maru_is_sub=maru_is_sub, analyzer=analyzer)
             if node:
-                # 'text'（＝どのパターンにも該当せず本文扱い）は判定不能候補
-                if node.get('type') == 'text' and use_gemini:
+                # 'text'（＝どのパターンにも該当せず本文扱い）は判定不能候補。
+                # 括弧書きの注記（「（中途採用者を除く）」）は本文と分かっているので除く
+                if node.get('type') == 'text' and not node.get('note') and use_gemini:
                     gemini_candidates.append((len(flat), val, text_cursor))
                 flat.append(node)
             text_cursor += 1

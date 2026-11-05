@@ -149,6 +149,7 @@ _d = Document()
 _d.add_paragraph('第1条 (目的)')
 _d.add_table(rows=1, cols=1)     # 表の直後の行は前の行と結合されない
 _d.add_paragraph('【火曜日】')
+_d.add_paragraph('（中途採用者を除く）')   # 注記は本文と分かっているので問い合わせない
 _d.save(_path)
 _calls = []
 gemini_helper.is_available = lambda: True
