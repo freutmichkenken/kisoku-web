@@ -32,6 +32,51 @@
     b.addEventListener("click", onClick);
     return b;
   }
+  // 「…」のメニュー（同時に開くのは1つだけ）
+  let openMenu = null;     // { menu, btn, tools }
+  function closeMenu() {
+    if (!openMenu) return;
+    openMenu.menu.hidden = true;
+    openMenu.btn.setAttribute("aria-expanded", "false");
+    openMenu.tools.classList.remove("open");
+    openMenu = null;
+  }
+  document.addEventListener("pointerdown", (e) => {
+    if (openMenu && !openMenu.tools.contains(e.target)) closeMenu();
+  });
+  // tools に「…」ボタンとメニューを足す。items: [[文言, 処理], ...]
+  const withTitle = (b, t) => { b.title = t; return b; };   // ショートカットをツールチップで示す
+  function moreMenu(tools, items, aria) {
+    const b = button("…", () => {
+      const wasOpen = openMenu && openMenu.menu === menu;
+      closeMenu();
+      if (wasOpen) return;
+      menu.hidden = false;
+      b.setAttribute("aria-expanded", "true");
+      tools.classList.add("open");
+      openMenu = { menu, btn: b, tools };
+      menu.firstChild.focus();
+    }, "btn small", aria || "その他の操作");
+    b.setAttribute("aria-haspopup", "menu");
+    b.setAttribute("aria-expanded", "false");
+    const menu = el("div", "ed-menu");
+    menu.setAttribute("role", "menu");
+    menu.hidden = true;
+    items.forEach(([text, fn]) => {
+      // 閉じる前に「…」へフォーカスを戻す（描き直し後に同じ欄へ入力位置を戻すため）
+      const m = button(text, () => { closeMenu(); b.focus(); fn(); }, "");
+      m.setAttribute("role", "menuitem");
+      menu.appendChild(m);
+    });
+    tools.appendChild(b);
+    tools.appendChild(menu);
+  }
+  // textarea の高さを中身に合わせる
+  function fit(ta) {
+    ta.style.height = "auto";
+    ta.style.height = (ta.scrollHeight + ta.offsetHeight - ta.clientHeight) + "px";
+  }
+
   // 中に号・表・図があるか（削除の確認に使う）
   const hasInside = (node) => {
     const key = CHILD[kindOf(node)];
@@ -78,11 +123,11 @@
     const what = key === "tables" ? "表" : f.type === "image" ? "画像" : "図";
     tools.appendChild(button("↑", () => ctx.move(node, key, idx, -1), "btn small", "前の項・号へ移動")).disabled = at <= 0;
     tools.appendChild(button("↓", () => ctx.move(node, key, idx, 1), "btn small", "次の項・号へ移動")).disabled = at < 0 || at >= ctx.units.length - 1;
-    tools.appendChild(button("削除", () => {
+    moreMenu(tools, [["削除", () => {
       if (!confirm(`${what}を削除しますか？`)) return;
       node[key].splice(idx, 1);
       ctx.redraw();
-    }, "btn small"));
+    }]], `${what}の操作`);
     row.appendChild(tools);
     return row;
   }
@@ -166,37 +211,51 @@
     const redraw = ctx.redraw;
     const node = list[i];
     const box = el("div", "ed-unit ed-" + kind);
-    const head = el("div", "ed-unit-head");
-    head.appendChild(el("span", "ed-label", label(kind, i + 1)));
+    const row = el("div", "ed-unit-row");
+    row.appendChild(el("span", "ed-label", label(kind, i + 1)));
+    const ta = el("textarea", "ed-text");
+    ta.value = node.body || "";
+    ta.rows = 1;
+    ta.setAttribute("aria-label", label(kind, i + 1));
+    ta.addEventListener("input", () => { node.body = ta.value; fit(ta); });
+    // Ctrl+Enter（Cmd+Enter）：同じ階層の、この欄のすぐ後ろに新しい欄を足す
+    ta.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey) || e.isComposing) return;
+      e.preventDefault();
+      const added = NEW[kind]();
+      list.splice(i + 1, 0, added);
+      ctx.focusNext(added);
+      redraw();
+    });
+    row.appendChild(ta);
+    ctx.reg(node, box, ta);
     const tools = el("span", "ed-tools");
-    tools.appendChild(button("↑", () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; redraw(); },
-      "btn small", "上へ")).disabled = i === 0;
-    tools.appendChild(button("↓", () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; redraw(); },
-      "btn small", "下へ")).disabled = i === list.length - 1;
-    tools.appendChild(button("削除", () => {
+    const up = tools.appendChild(button("↑", () => { [list[i - 1], list[i]] = [list[i], list[i - 1]]; redraw(); },
+      "btn small", "上へ"));
+    up.disabled = i === 0; up.dataset.act = "up";
+    const down = tools.appendChild(button("↓", () => { [list[i + 1], list[i]] = [list[i], list[i + 1]]; redraw(); },
+      "btn small", "下へ"));
+    down.disabled = i === list.length - 1; down.dataset.act = "down";
+    const childKey = CHILD[kind];
+    const items = [];
+    if (ADD_LABEL[kind]) {
+      items.push([ADD_LABEL[kind], () => {
+        node[childKey] = node[childKey] || [];
+        node[childKey].push(NEW[CHILD_KIND[kind]]());
+        redraw();
+      }]);
+    }
+    items.push(["画像を追加", () => pickImage(node, ctx)]);
+    items.push(["削除", () => {
       const what = label(kind, i + 1);
       const msg = hasInside(node) ? `${what}を削除しますか？中の${INSIDE[kind]}も消えます。` : `${what}を削除しますか？`;
       if (!confirm(msg)) return;
       list.splice(i, 1);
       redraw();
-    }, "btn small"));
-    const childKey = CHILD[kind];
-    if (ADD_LABEL[kind]) {
-      tools.appendChild(button(ADD_LABEL[kind], () => {
-        node[childKey] = node[childKey] || [];
-        node[childKey].push(NEW[CHILD_KIND[kind]]());
-        redraw();
-      }, "btn small"));
-    }
-    tools.appendChild(button("画像を追加", () => pickImage(node, ctx), "btn small"));
-    head.appendChild(tools);
-    box.appendChild(head);
-    const ta = el("textarea", "ed-text");
-    ta.value = node.body || "";
-    ta.rows = Math.min(8, Math.max(2, Math.ceil((ta.value.length || 1) / 40)));
-    ta.setAttribute("aria-label", label(kind, i + 1));
-    ta.addEventListener("input", () => { node.body = ta.value; });
-    box.appendChild(ta);
+    }]);
+    moreMenu(tools, items, `${label(kind, i + 1)}の操作`);
+    row.appendChild(tools);
+    box.appendChild(row);
     figureRows(node, ctx).forEach((r) => box.appendChild(r));
     if (childKey) {
       (node[childKey] || []).forEach((_, j) => box.appendChild(unitEditor(node[childKey], j, CHILD_KIND[kind], ctx)));
@@ -210,11 +269,43 @@
     return f;
   }
 
+  // Ctrl+S（Cmd+S）で確定、Esc で取消（メニューが開いていればメニューを閉じるだけ）
+  function shortcuts(form, h, getNode) {
+    form.addEventListener("keydown", (e) => {
+      // 日本語の変換中のキー（変換の取消の Esc など）は拾わない。拾うと取消で入力が消える
+      if (e.isComposing || e.keyCode === 229) return;
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (e.repeat) return;                 // 押しっぱなしで何度も確定しない
+        h.commit(h.prepare ? h.prepare(getNode()) : getNode());
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        if (openMenu) { const b = openMenu.btn; closeMenu(); b.focus(); }
+        else h.cancel();
+      }
+    });
+  }
+
   // 条の編集欄。h: { commit(art), cancel(), insertAfter(art), remove() }
   function articleForm(article, h) {
+    closeMenu();                 // 前の編集欄で開いたままのメニューを閉じる
     const art = clone(article);
     const form = el("div", "ed-form");
+    let pendingFocus = null;     // 描き直し後に入力位置を移す node（Ctrl+Enter で足した欄）
     const redraw = () => {
+      closeMenu();
+      // 描き直しの前にフォーカスしていた欄を覚える
+      let focusNode = pendingFocus, wasTitle = false;
+      pendingFocus = null;
+      const act = document.activeElement;
+      // ↑↓で動かしたときは、描き直し後も同じボタンに戻す（続けて押せるように）
+      const actName = act && act.dataset && act.dataset.act && form.contains(act) ? act.dataset.act : null;
+      if (!focusNode && act && form.contains(act)) {
+        if (act.classList.contains("ed-title")) wasTitle = true;
+        else { const u = act.closest(".ed-unit"); focusNode = u ? boxNode.get(u) : null; }
+      }
+      boxNode = new WeakMap();
+      const taOf = new Map();
       form.textContent = "";
       const t = el("label", "ed-field");
       t.appendChild(el("span", "ed-label", "条タイトル"));
@@ -225,6 +316,8 @@
       form.appendChild(t);
       const ctx = {
         redraw,
+        focusNext: (n) => { pendingFocus = n; },
+        reg: (n, box, ta) => { boxNode.set(box, n); taOf.set(n, ta); },
         units: unitsOf(art),
         // 表・図・画像を前（dir=-1、その項・号の末尾へ）か次（dir=1、先頭へ）の項・号へ移す
         move(node, key, idx, dir) {
@@ -243,19 +336,36 @@
         art.paragraphs.push(NEW.paragraph());
         redraw();
       }));
+      form.appendChild(el("p", "ed-keys", "Ctrl+Enter：次の欄を追加"));
       form.appendChild(footer([
-        button("確定", () => h.commit(renumber(art)), "btn small primary"),
-        button("取消", () => h.cancel()),
+        withTitle(button("確定", () => h.commit(renumber(art)), "btn small primary"), "Ctrl+S"),
+        withTitle(button("取消", () => h.cancel()), "Esc"),
         button("下に条を追加", () => h.insertAfter(renumber(art))),
         button("条を削除", () => { if (confirm("この条を削除しますか？")) h.remove(); }),
       ]));
+      let target = focusNode ? taOf.get(focusNode) : wasTitle ? inp : null;
+      if (target && actName) {
+        const b = target.closest(".ed-unit").querySelector(`[data-act="${actName}"]`);
+        if (b && !b.disabled) target = b;
+      }
+      // 画面に出ていれば高さをすぐ合わせる（次の描画まで待つと一瞬縮んでがたつく）
+      if (form.isConnected) form.querySelectorAll(".ed-text").forEach(fit);
+      else requestAnimationFrame(() => form.querySelectorAll(".ed-text").forEach(fit));
+      if (target) {
+        target.focus();
+        if (target.setSelectionRange) { const n = target.value.length; target.setSelectionRange(n, n); }
+      }
     };
+    let boxNode = new WeakMap();
+    shortcuts(form, { commit: h.commit, cancel: h.cancel, prepare: renumber }, () => art);
+    if (window.ResizeObserver) new ResizeObserver(() => form.querySelectorAll(".ed-text").forEach(fit)).observe(form);
     redraw();
     return form;
   }
 
   // 章の編集欄。h: { commit(ch), cancel(), insertArticle(ch), insertAfter(ch), remove() }
   function chapterForm(chapter, h) {
+    closeMenu();
     const ch = clone(chapter);
     const form = el("div", "ed-form");
     const t = el("label", "ed-field");
@@ -265,9 +375,10 @@
     inp.addEventListener("input", () => { ch.title = inp.value; });
     t.appendChild(inp);
     form.appendChild(t);
+    shortcuts(form, h, () => ch);
     form.appendChild(footer([
-      button("確定", () => h.commit(ch), "btn small primary"),
-      button("取消", () => h.cancel()),
+      withTitle(button("確定", () => h.commit(ch), "btn small primary"), "Ctrl+S"),
+      withTitle(button("取消", () => h.cancel()), "Esc"),
       button("先頭に条を追加", () => h.insertArticle(ch)),
       button("下に章を追加", () => h.insertAfter(ch)),
       button("章を削除", () => {
