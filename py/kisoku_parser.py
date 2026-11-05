@@ -259,12 +259,14 @@ def is_manual_toc_line(text):
 
 
 def _toc_heading_number(st):
-    """章・条の見出しなら ('chapter'|'article', 番号)、それ以外は None。"""
+    """章・条の見出しなら ('chapter'|'article', (番号, 枝番))、それ以外は None。
+    枝番まで比べるので、目次の「第2条」のあとの「第2条の2」は番号が戻ったとみなさない。"""
     ln = line_info(st)
     if ln.chapter:
-        return 'chapter', zenkaku_to_int(ln.chapter.group(1))
+        return 'chapter', (zenkaku_to_int(ln.chapter.group(1)), 0)
     if ln.article:
-        return 'article', zenkaku_to_int(ln.article.group(1))
+        br = ln.article.group('branch')
+        return 'article', (zenkaku_to_int(ln.article.group('num')), zenkaku_to_int(br) if br else 0)
     return None
 
 
@@ -484,7 +486,8 @@ class Line:
     1行（段落、または段落内の改行で分けた1行）の見た目の判定結果。
     行頭の章・条・条タイトル・項・号の記号とその番号、行末の文字、字下げを、
     line_info() で行ごとに一度だけ求める。結合・分類・記号の学習・図の判定は
-    これを使い、結合した文字列に正規表現をかけ直さない。
+    これを使い、結合した文字列に見出し・記号の正規表現をかけ直さない
+    （結合後は、先頭の行の判定結果と、後ろの行をつないだ文字列から作る）。
     """
     __slots__ = ('text', 's', 'indent', 'chapter', 'article', 'title', 'para',
                  'decimal', 'paren_only', 'sym_type', 'sym_num', 'sym_body', 'sym_char',
@@ -603,15 +606,26 @@ def merge_lines(items):
         elif ln.article:
             # 範囲の条（「第５条～第７条　削除」）は終わりの番号
             ctx['article'] = zenkaku_to_int(ln.article.group('to') or ln.article.group('num'))
+            _br = ln.article.group('branch')
+            ctx['branch'] = zenkaku_to_int(_br) if _br else 0
             ctx['para'] = 1
             ctx['prev_items'], ctx['cur_items'], ctx['cur_last'] = set(), set(), {}
+            count_inline(ln.s)
         elif ln.para:
             ctx['para'] = zenkaku_to_int(ln.para.group('num'))
             ctx['prev_items'] |= ctx['cur_items']
             ctx['cur_items'], ctx['cur_last'] = set(), {}
+            count_inline(ln.s)
         elif ln.sym_type is not None:
             ctx['cur_items'].add((ln.sym_type, ln.sym_num))
             ctx['cur_last'][ln.sym_type] = ln.sym_num
+
+    def count_inline(s):
+        """条・項の行の途中（読点の後ろ）に書かれた号（「従業員は、（１）…に努め、」）も数える。"""
+        for mm in re.finditer(r'[、，]（([０-９0-9]+)）', s):
+            n = zenkaku_to_int(mm.group(1))
+            ctx['cur_items'].add(('paren_zen_num', n))
+            ctx['cur_last']['paren_zen_num'] = n
 
     def flush():
         nonlocal buf
@@ -696,6 +710,8 @@ def _heading_state(unit):
       'chapter_bare'   : 「第1章」だけ（章タイトルは次の行）
       'chapter_titled' : 「第1章　総則」
       'article_bare'   : 「第1条」「第1条（目的）」だけで本文が無い
+      'section'        : 「第1節　労働時間」（節の行）
+      'article_short'  : 「第1条　目的」（括弧の無い条タイトルになりうる短い語句だけ。S2）
       None             : それ以外（条見出しに本文が続く行も含む）
     """
     f = unit.first
@@ -769,12 +785,22 @@ def _para_num_is_continuation(buf, m, next_para=None):
         ただし前の行が助詞で終わるときは、半角空白＋単位なら数量
         （「契約期間は、／2 年以内」）
       - 番号が次の項番号と違い、前の行が文の途中で終わっていて、半角空白で区切られて
-        いれば数量（PDF由来の「満／60 歳」「…のうち／5 項目」）"""
+        いれば数量（PDF由来の「満／60 歳」「…のうち／5 項目」）
+      - 番号が次の項番号と違い、前の行が句点や名詞（漢字・カタカナ）で終わっておらず、
+        番号の後ろが単位の語なら、全角空白でも数量（「（１）…連続する／５　日以内の休暇」
+        「…以下の者…／６　時間」）。前の行が名詞で終わる
+        （「（２）その他会社が認めた場合／３　日以上の…」）なら項
+      - 「ただし助詞で終わるとき」の助詞には、接続の語（「から」「及び」「につき」など。
+        行末の読点は除いて見る）も含む"""
+    num = zenkaku_to_int(m.group('num'))
+    if (next_para is not None and num != next_para
+            and buf.last not in '。．」）)' and not re.match(r'[一-龯々ァ-ヶー]', buf.last)
+            and _QUANTITY_UNIT.match(m.group('body'))):
+        return True
     if not _ends_mid_sentence(buf) or m.group('ws') != ' ':
         return False
-    if next_para is not None and zenkaku_to_int(m.group('num')) == next_para:
-        tb = buf.text.rstrip('　 \t').rstrip('、，')
-        if not (tb and tb[-1] in 'のにをはがでとへやも'):
+    if next_para is not None and num == next_para:
+        if not _ends_with_connective(buf.text):
             return False
         return bool(_QUANTITY_UNIT.match(m.group('body')))
     # 「2 . 前項の…」のように番号の後ろに「.」があれば項番号の書き方
@@ -1020,8 +1046,10 @@ def _is_next_heading(ln, ctx):
     cur = ctx.get('article')
     if cur is None:
         return False
-    n = zenkaku_to_int(ln.article.group(1))
-    return n == cur + 1 or (bool(ln.article.group(2)) and n == cur)
+    n = zenkaku_to_int(ln.article.group('num'))
+    br = ln.article.group('branch')
+    # 枝番は、いまの条の枝番より大きいときだけ次の条（「第9条の2」の中の「第9条の2は」は参照）
+    return n == cur + 1 or (bool(br) and n == cur and zenkaku_to_int(br) > ctx.get('branch', 0))
 
 
 def _ends_mid_sentence(x, kanji=True):
@@ -1033,19 +1061,33 @@ def _ends_mid_sentence(x, kanji=True):
     ふつうなので、号の行では漢字を含めない。次の行が見出しかを見るときも
     kanji=False にする。"""
     if isinstance(x, Unit):
-        c, head = x.last, x.first
+        c, head, text = x.last, x.first, x.text
     else:
         head = x if isinstance(x, Line) else line_info(x or '')
-        c = head.last
+        c, text = head.last, head.text
     if not c:
         return False
-    if c in '、，のにをはがでとへやも':
+    if c in '、，のにをはがでとへやも×＋':
+        return True
+    if _ends_with_connective(text):
         return True
     return kanji and bool(re.match(r'[一-龯々]', c)) and not head.is_marker
 
 
+# 行末がこれらの語なら、文の途中（「採用の日から／2 か月」「第10条及び／第11条の規定」）
+_MID_ENDINGS = ('から', 'より', 'まで', 'につき', 'として', 'について', 'において', 'あたり',
+                '及び', '並びに', '又は', '若しくは', 'ないし', '乃至', 'または', 'および')
+
+
+def _ends_with_connective(text):
+    """行末（読点を除く）が助詞・接続の語（「から」「及び」「につき」など）か。"""
+    t = (text or '').rstrip('　 \t').rstrip('、，')
+    return bool(t) and (t[-1] in 'のにをはがでとへやも' or t.endswith(_MID_ENDINGS))
+
+
 # 数字の後ろがこれらの単位なら、項番号ではなく数量（「60 歳」「1 日」「6 割」）。
-# 半角空白で区切られているときだけ使う（PDF由来の文書）。本文が単位の字で
+# 主に半角空白で区切られているときに使う（PDF由来の文書）。全角空白でも、番号が次の
+# 項番号と違い前の行が文の途中なら使う（_para_num_is_continuation）。本文が単位の字で
 # 始まる項（「2 年次有給休暇は」「2 年間休日は」「2 時間外労働は」）と
 # 区別するため、そうした語は除く。
 # 1字の単位（年・日・時・分 など）は、後ろに漢字が続くと別の語になる
@@ -1192,7 +1234,7 @@ def marker_depths(merged):
     就業規則では、条や項ごとに記号の使い方が違うことがある
     （第1条は（１）の下に①、第2条は①を号に直接使う）。文書全体で記号ごとに
     1つの深さを決めると崩れるので、項ごとに、上から読んだ入れ子で決める。
-      - 章・条・条タイトル・第2項以降の行（スタイルで分かるものを含む）で入れ子を戻す
+      - 章・節・条・条タイトル・第2項以降の行（スタイルで分かるものを含む）で入れ子を戻す
       - その項で初めて出た記号は、いま開いている記号の一段下（項の最初の記号は号）
       - 開いている記号に戻ったら、それより深い記号を閉じる
       - 記号の無い行（号の折り返し・注記）では入れ子を戻さない
@@ -1789,6 +1831,10 @@ def build_tree(flat):
     return result
 
 
+# 句点で終わる文か（後ろに括弧書きの注記「（ただし、…を除く）」が付いていてもよい）
+_RE_ENDS_SENTENCE = re.compile(r'。[　 \t]*(?:[（(]' + _PAREN_INNER + r'[）)][　 \t]*)*$')
+
+
 def _maru_items_to_paragraphs(article):
     """
     柱書の無い条で、①②…を項として書いた規則（S1）を項に直す。
@@ -1805,7 +1851,7 @@ def _maru_items_to_paragraphs(article):
     items = paras[0].get('items', [])
     if (len(items) < 2 or any(it.get('_marker') != 'maru' for it in items)
             or [it['number'] for it in items] != list(range(1, len(items) + 1))
-            or not all(it['body'].rstrip('　 \t').endswith('。') for it in items)
+            or not all(_RE_ENDS_SENTENCE.search(it['body']) for it in items)
             or paras[0].get('tables') or paras[0].get('drawings')):
         return
     new = []
