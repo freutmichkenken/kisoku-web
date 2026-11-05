@@ -1763,22 +1763,24 @@
               {
                 "type": "item",
                 "number": 2,
-                "body": "時間単位年休を取得する場合の、１日の年次有給休暇に相当する時間数は、以下のとおりとする。"
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "所定労働時間が５　時間を超え６　時間以下の者…６　時間"
-              },
-              {
-                "type": "item",
-                "number": 2,
-                "body": "所定労働時間が６　時間を超え７　時間以下の者…７　時間"
-              },
-              {
-                "type": "item",
-                "number": 3,
-                "body": "所定労働時間が７　時間を超え８　時間以下の者…８　時間"
+                "body": "時間単位年休を取得する場合の、１日の年次有給休暇に相当する時間数は、以下のとおりとする。",
+                "sub_items": [
+                  {
+                    "type": "item_sub",
+                    "number": 1,
+                    "body": "所定労働時間が５　時間を超え６　時間以下の者…６　時間"
+                  },
+                  {
+                    "type": "item_sub",
+                    "number": 2,
+                    "body": "所定労働時間が６　時間を超え７　時間以下の者…７　時間"
+                  },
+                  {
+                    "type": "item_sub",
+                    "number": 3,
+                    "body": "所定労働時間が７　時間を超え８　時間以下の者…８　時間"
+                  }
+                ]
               },
               {
                 "type": "item",
@@ -2235,27 +2237,29 @@
               {
                 "type": "item",
                 "number": 1,
-                "body": "１カ月の時間外労働の時間数に応じた割増賃金率は、次のとおりとする。この場合の１カ月は毎月　　日を起算日とする。"
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "時間外労働45時間以下……25％"
-              },
-              {
-                "type": "item",
-                "number": 2,
-                "body": "時間外労働45時間超～60時間以下……　　％"
-              },
-              {
-                "type": "item",
-                "number": 3,
-                "body": "時間外労働60時間超・……50％"
-              },
-              {
-                "type": "item",
-                "number": 4,
-                "body": "③の時間外労働のうち代替休暇を取得した時間……　　％（残り　　％の割増賃金は代替休暇に充当する）"
+                "body": "１カ月の時間外労働の時間数に応じた割増賃金率は、次のとおりとする。この場合の１カ月は毎月　　日を起算日とする。",
+                "sub_items": [
+                  {
+                    "type": "item_sub",
+                    "number": 1,
+                    "body": "時間外労働45時間以下……25％"
+                  },
+                  {
+                    "type": "item_sub",
+                    "number": 2,
+                    "body": "時間外労働45時間超～60時間以下……　　％"
+                  },
+                  {
+                    "type": "item_sub",
+                    "number": 3,
+                    "body": "時間外労働60時間超・……50％"
+                  },
+                  {
+                    "type": "item_sub",
+                    "number": 4,
+                    "body": "③の時間外労働のうち代替休暇を取得した時間……　　％（残り　　％の割増賃金は代替休暇に充当する）"
+                  }
+                ]
               },
               {
                 "type": "item",
@@ -2277,318 +2281,324 @@
               {
                 "type": "item",
                 "number": 1,
-                "body": "月給制の場合"
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "時間外労働の割増賃金",
-                "drawings": [
+                "body": "月給制の場合",
+                "sub_items": [
                   {
-                    "type": "drawing",
-                    "index": 502,
-                    "text": "（時間外労働が1カ月45時間以下の部分）"
+                    "type": "item_sub",
+                    "number": 1,
+                    "body": "時間外労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 502,
+                        "text": "（時間外労働が1カ月45時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 503,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 504,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 505,
+                        "text": "（時間外労働が１カ月45時間超～60時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 506,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 507,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 508,
+                        "text": "（時間外労働が１カ月60時間を超える部分)"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 509,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 510,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 511,
+                        "text": "（時間外労働が１年360時間を超える部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 512,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 513,
+                        "text": ""
+                      }
+                    ]
                   },
                   {
-                    "type": "drawing",
-                    "index": 503,
-                    "text": ""
+                    "type": "item_sub",
+                    "number": 2,
+                    "body": "休日労働の割増賃金（法定休日に労働させた場合）",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 515,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 516,
+                        "text": ""
+                      }
+                    ]
                   },
                   {
-                    "type": "drawing",
-                    "index": 504,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 505,
-                    "text": "（時間外労働が１カ月45時間超～60時間以下の部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 506,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 507,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 508,
-                    "text": "（時間外労働が１カ月60時間を超える部分)"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 509,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 510,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 511,
-                    "text": "（時間外労働が１年360時間を超える部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 512,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 513,
-                    "text": ""
+                    "type": "item_sub",
+                    "number": 3,
+                    "body": "深夜労働の割増賃金（午後10時から午前５時までの間に労働させた場合）",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 518,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 519,
+                        "text": ""
+                      }
+                    ]
                   }
                 ]
               },
               {
                 "type": "item",
                 "number": 2,
-                "body": "休日労働の割増賃金（法定休日に労働させた場合）",
-                "drawings": [
+                "body": "日給制の場合",
+                "sub_items": [
                   {
-                    "type": "drawing",
-                    "index": 515,
-                    "text": ""
+                    "type": "item_sub",
+                    "number": 1,
+                    "body": "時間外労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 522,
+                        "text": "（時間外労働が1カ月45時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 523,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 524,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 525,
+                        "text": "（時間外労働が1カ月45時間超～60時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 526,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 527,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 528,
+                        "text": "（時間外労働が1カ月60時間を超える部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 529,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 530,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 531,
+                        "text": "（時間外労働が1年360時間を超える部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 532,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 533,
+                        "text": ""
+                      }
+                    ]
                   },
                   {
-                    "type": "drawing",
-                    "index": 516,
-                    "text": ""
+                    "type": "item_sub",
+                    "number": 2,
+                    "body": "休日労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 535,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 536,
+                        "text": ""
+                      }
+                    ]
+                  },
+                  {
+                    "type": "item_sub",
+                    "number": 3,
+                    "body": "深夜労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 538,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 539,
+                        "text": ""
+                      }
+                    ]
                   }
                 ]
               },
               {
                 "type": "item",
                 "number": 3,
-                "body": "深夜労働の割増賃金（午後10時から午前５時までの間に労働させた場合）",
-                "drawings": [
+                "body": "時間給制の場合",
+                "sub_items": [
                   {
-                    "type": "drawing",
-                    "index": 518,
-                    "text": ""
+                    "type": "item_sub",
+                    "number": 1,
+                    "body": "時間外労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 542,
+                        "text": "（時間外労働が1カ月45時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 543,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 544,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 545,
+                        "text": "（時間外労働が1カ月45時間超～60時間以下の部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 546,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 547,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 548,
+                        "text": "（時間外労働が1カ月60時間を超える部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 549,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 550,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 551,
+                        "text": "（時間外労働が1年360時間を超える部分）"
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 552,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 553,
+                        "text": ""
+                      }
+                    ]
                   },
                   {
-                    "type": "drawing",
-                    "index": 519,
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 2,
-                "body": "日給制の場合"
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "時間外労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 522,
-                    "text": "（時間外労働が1カ月45時間以下の部分）"
+                    "type": "item_sub",
+                    "number": 2,
+                    "body": "休日労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 555,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 556,
+                        "text": ""
+                      }
+                    ]
                   },
                   {
-                    "type": "drawing",
-                    "index": 523,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 524,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 525,
-                    "text": "（時間外労働が1カ月45時間超～60時間以下の部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 526,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 527,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 528,
-                    "text": "（時間外労働が1カ月60時間を超える部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 529,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 530,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 531,
-                    "text": "（時間外労働が1年360時間を超える部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 532,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 533,
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 2,
-                "body": "休日労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 535,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 536,
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 3,
-                "body": "深夜労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 538,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 539,
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 3,
-                "body": "時間給制の場合"
-              },
-              {
-                "type": "item",
-                "number": 1,
-                "body": "時間外労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 542,
-                    "text": "（時間外労働が1カ月45時間以下の部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 543,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 544,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 545,
-                    "text": "（時間外労働が1カ月45時間超～60時間以下の部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 546,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 547,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 548,
-                    "text": "（時間外労働が1カ月60時間を超える部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 549,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 550,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 551,
-                    "text": "（時間外労働が1年360時間を超える部分）"
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 552,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 553,
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 2,
-                "body": "休日労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 555,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 556,
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "type": "item",
-                "number": 3,
-                "body": "深夜労働の割増賃金",
-                "drawings": [
-                  {
-                    "type": "drawing",
-                    "index": 558,
-                    "text": ""
-                  },
-                  {
-                    "type": "drawing",
-                    "index": 559,
-                    "text": ""
+                    "type": "item_sub",
+                    "number": 3,
+                    "body": "深夜労働の割増賃金",
+                    "drawings": [
+                      {
+                        "type": "drawing",
+                        "index": 558,
+                        "text": ""
+                      },
+                      {
+                        "type": "drawing",
+                        "index": 559,
+                        "text": ""
+                      }
+                    ]
                   }
                 ]
               }
@@ -2609,11 +2619,6 @@
                 "type": "drawing",
                 "index": 562,
                 "text": ""
-              },
-              {
-                "type": "drawing",
-                "index": 563,
-                "text": "（１年単位の変形労働時間制に関する賃金の精算）"
               }
             ]
           }
@@ -2624,7 +2629,7 @@
         "number": 52,
         "branch": 0,
         "number_str": "第52条",
-        "title": "",
+        "title": "１年単位の変形労働時間制に関する賃金の精算",
         "title_note": "",
         "paragraphs": [
           {

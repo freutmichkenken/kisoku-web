@@ -255,6 +255,35 @@ assert _front_texts(['目次', '第１章　総則 …………… 1', '附則 �
     == ['目次', '第１章　総則 …………… 1', '附則 …………… 30']
 
 
+# 図の直後の括弧だけの行も、次が条見出しなら条タイトル（図に取り込まない）
+import struct, zlib
+
+
+def _png_1px():
+    def chunk(t, d):
+        return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 0, 0, 0, 0))
+            + chunk(b'IDAT', zlib.compress(b'\x00\x00')) + chunk(b'IEND', b''))
+
+
+with tempfile.TemporaryDirectory() as _w:
+    _img = os.path.join(_w, 'x.png')
+    with open(_img, 'wb') as _f:
+        _f.write(_png_1px())
+    _src = os.path.join(_w, 'fig.docx')
+    _d = Document()
+    _d.add_paragraph('第1条（賃金）　賃金は次の式で計算する。')
+    _d.add_paragraph().add_run().add_picture(_img)
+    _d.add_paragraph('（目的）')
+    _d.add_paragraph('第2条　この規則は…。')
+    _d.save(_src)
+    with contextlib.redirect_stdout(io.StringIO()):
+        _tree = kisoku_parser.parse_kisoku(_src, use_gemini=False)
+    _arts = [n for n in _tree if n['type'] == 'article']
+    assert [a['title'] for a in _arts] == ['賃金', '目的'], [a['title'] for a in _arts]
+print("OK (figure)")
+
+
 # 章の前文（条に属さない本文）が整形後の docx に残る
 from apply_style import apply_style
 import json
