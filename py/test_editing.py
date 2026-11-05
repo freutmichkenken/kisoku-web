@@ -42,7 +42,8 @@ with tempfile.TemporaryDirectory() as d:
     p = web_entry.write_tree(os.path.join(d, "ok.json"), json.dumps(tree, ensure_ascii=False))
     with open(p, encoding="utf-8") as f:
         assert json.load(f) == tree
-    for bad in ("not json", "{}", "[1]", '[{"type": "x"}]',
+    # 知らない種類の要素（{"type": "x"}）は、整形が読み飛ばすので受け付ける（下の「章・条の外」の検証を参照）
+    for bad in ("not json", "{}", "[1]",
                 '[{"type": "chapter", "title": 1, "articles": []}]',
                 '[{"type": "chapter", "title": "a", "articles": [{"type": "paragraph"}]}]',
                 '[{"type": "article", "title": "a", "paragraphs": [{"body": 3}]}]',
@@ -240,6 +241,35 @@ with tempfile.TemporaryDirectory() as d:
     deleted[ti]["articles"][ai]["paragraphs"][pi]["tables"] = []
     n_del = len(ttree[ti]["articles"][ai]["paragraphs"][pi]["tables"])
     assert body_order(deleted).count("T") == before.count("T") - n_del
+
+# --- 章・条の外にある本文・表・図（木の一番上の段）があっても、編集した木を受け付ける ---
+# 節の行（第1節）のあとに条が来ないまま章が変わると、節の行は章の外の本文（plain）になる
+with tempfile.TemporaryDirectory() as d:
+    src = os.path.join(d, "plain.docx")
+    pd = Document()
+    for line in ("就業規則", "第1章　総則", "（目的）", "第1条　この規則は、従業員の就業に関する事項を定める。",
+                 "第1節　補則", "第2章　勤務", "（労働時間）", "第2条　所定労働時間は8時間とする。"):
+        pd.add_paragraph(line)
+    pd.save(src)
+    ptree = quiet(parse_kisoku, src)
+    assert "plain" in [n["type"] for n in ptree], [n["type"] for n in ptree]
+    pedit = copy.deepcopy(ptree)
+    next(n for n in pedit if n["type"] == "chapter")["articles"][0]["paragraphs"][0]["body"] = "編集した本文。"
+    path = web_entry.write_tree(os.path.join(d, "e.json"), json.dumps(pedit, ensure_ascii=False))
+    quiet(apply_style, json_path=path, template_path=TEMPLATE, template_key="t1",
+          output_path=os.path.join(d, "o.docx"), source_docx=src, show_notice=False)
+    assert "編集した本文。" in [p.text for p in Document(os.path.join(d, "o.docx")).paragraphs]
+    # 一番上の段の表・図、解析で今後増えるかもしれない種類も受け付ける
+    extra = [{"type": "plain", "body": "章の外の文"}, {"type": "table", "index": 2, "rows": [["a", "b"]]},
+             {"type": "drawing", "index": 3, "text": ""}, {"type": "future_kind", "x": 1}] + pedit
+    web_entry.write_tree(os.path.join(d, "x.json"), json.dumps(extra, ensure_ascii=False))
+    for bad in ({"type": "plain", "body": 3}, {"type": "table", "index": 1, "rows": "x"},
+                {"type": "drawing", "index": -2}, "文字列", {"body": "種類が無い"}, {"type": 5}):
+        try:
+            web_entry.write_tree(os.path.join(d, "bad.json"), json.dumps([bad] + pedit, ensure_ascii=False))
+        except ValueError:
+            continue
+        raise AssertionError(f"壊れた要素を保存した: {bad}")
 
 # --- 照合レポートの切り分け：本当の欠落は編集の分に入れない ---
 import verify_report as vr  # noqa: E402

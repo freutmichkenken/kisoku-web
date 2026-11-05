@@ -261,8 +261,20 @@ def _check_tree(tree):
             raise ValueError(f"{where}：{e}") from e
 
     for ti, node in enumerate(tree, 1):
-        if not isinstance(node, dict) or node.get("type") not in _TREE_TYPES:
+        if not isinstance(node, dict):
+            raise ValueError(f"先頭から{ti}番目の要素の形式が正しくありません")
+        kind = node.get("type")
+        if not isinstance(kind, str) or not kind:
             raise ValueError(f"先頭から{ti}番目の要素の種類が正しくありません")
+        if kind not in _TREE_TYPES:
+            # 章・条の外にある本文（節の行など）・表・図。画面では編集しないので形だけ確かめる。
+            # それ以外の種類も、整形は読み飛ばすので止めない（解析で種類が増えても編集できなくならないように）
+            if kind == "plain" and not text(node.get("body")):
+                raise ValueError(f"先頭から{ti}番目の本文の形式が正しくありません")
+            if kind in ("table", "drawing"):
+                located(lambda node=node, kind=kind: _check_figures({kind + "s": [node]}, used),
+                        f"先頭から{ti}番目の{'表' if kind == 'table' else '図'}")
+            continue
         if node["type"] == "chapter":
             where = f"{_s(node.get('number_str'))}{_s(node.get('title'))}".strip() or f"{ti}番目の章"
 
