@@ -22,7 +22,27 @@ _MARU_MAP.update({chr(0x32b1 + i): i + 36 for i in range(15)})  # ㊱-㊿
 
 _MARU_CHARS = ''.join(_MARU_MAP.keys())
 
-_KANJI_NUM = {'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10}
+_KANJI_DIGIT = {'〇':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9}
+_KANJI_UNIT = {'十':10,'百':100,'千':1000}
+
+
+def kanji_to_int(s):
+    """漢数字を int に（「十一」=11、「百十」=110、「千二百」=1200、「二〇」=20）。
+    「〇」を含み「十百千万」を含まない漢数字は位取りの数字として読む。
+    漢数字として読めない文字は無視する（何も読めなければ 0）。"""
+    if s and all(c in _KANJI_DIGIT for c in s) and '〇' in s:
+        return int(''.join(str(_KANJI_DIGIT[c]) for c in s))
+    total = section = digit = 0
+    for c in s:
+        if c in _KANJI_DIGIT:
+            digit = _KANJI_DIGIT[c]
+        elif c in _KANJI_UNIT:
+            section += (digit or 1) * _KANJI_UNIT[c]
+            digit = 0
+        elif c == '万':
+            total += (section + digit or 1) * 10000
+            section = digit = 0
+    return total + section + digit
 
 _KATAKANA_AIUEO = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ'
 _KATAKANA_IROHA = 'イロハニホヘトチリヌルヲワカヨタレソツネナラム'
@@ -47,8 +67,16 @@ _SYMBOL_TYPES = [
      lambda m: (_z2i(m.group(1)), m.group(2))),
     # 半角括弧数字 (1)
     ("paren_han_num",
-     re.compile(r'^\(([0-9]+)\)[　\s\t]*(.*)$'),
+     re.compile(r'^\(([０-９0-9]+)\)[　\s\t]*(.*)$'),
      lambda m: (_z2i(m.group(1)), m.group(2))),
+    # 全角括弧漢数字 （一）（十一）。「（一般職）」のように漢数字以外を含むものは除く
+    ("paren_zen_kanji",
+     re.compile(r'^（([一二三四五六七八九十]+)）[　\s\t]*(.*)$'),
+     lambda m: (kanji_to_int(m.group(1)), m.group(2))),
+    # 半角括弧漢数字 (一)
+    ("paren_han_kanji",
+     re.compile(r'^\(([一二三四五六七八九十]+)\)[　\s\t]*(.*)$'),
+     lambda m: (kanji_to_int(m.group(1)), m.group(2))),
     # 丸数字 ①〜㊿
     ("maru",
      re.compile(r'^([①-⑳㉑-㉟㊱-㊿])[　\s\t]*(.*)$'),
@@ -60,8 +88,8 @@ _SYMBOL_TYPES = [
     # 漢数字＋区切り 一、二、 一　（スペース区切りも許容）
     ("kanji",
      re.compile(r'^([一二三四五六七八九十]+)[、，)）.．]\s*(.*)$|'
-                r'^([一二三四五六七八九十])[　\s]+(.*)$'),
-     lambda m: (_KANJI_NUM.get(m.group(1) or m.group(3), 0),
+                r'^([一二三四五六七八九十]+)[　\s]+(.*)$'),
+     lambda m: (kanji_to_int(m.group(1) or m.group(3)),
                 m.group(2) if m.group(2) is not None else m.group(4))),
     # 全角括弧カタカナ （ア）（イ）
     ("paren_zen_kana",
