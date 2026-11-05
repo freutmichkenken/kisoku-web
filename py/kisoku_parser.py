@@ -488,7 +488,7 @@ class Line:
     """
     __slots__ = ('text', 's', 'indent', 'chapter', 'article', 'title', 'para',
                  'decimal', 'paren_only', 'sym_type', 'sym_num', 'sym_body', 'sym_char',
-                 'mark_head', 'is_marker', 'last')
+                 'mark_head', 'is_marker', 'last', 'section')
 
     def __init__(self, text):
         self.text = text
@@ -507,11 +507,12 @@ class Line:
         self.indent = w                           # 行頭空白の視覚幅
         self.chapter = RE_CHAPTER.match(s)        # 「第1章　総則」
         self.article = RE_ARTICLE.match(s)        # 「第1条（目的）　本文」
+        self.section = RE_SECTION.match(s)        # 「第1節　労働時間」
         self.title = RE_TITLE.match(s)            # 「（目的）」だけの行
         self.para = RE_PARA.match(text)           # 第2項以降「２　本文」
         self.decimal = _RE_DECIMAL_HEAD.match(s)  # 「1.25倍」
         # 括弧だけの行（結合の区切りに使う。RE_TITLE より広い）
-        self.paren_only = bool(_RE_PAREN_ONLY_ZEN.match(s) or _RE_PAREN_ONLY_HAN.match(s))
+        self.paren_only = bool(_RE_PAREN_ONLY.match(s))
         # 号の記号（marker_hierarchy の記号の種類・番号・後ろの本文。本文は前後の空白込み）
         self.sym_type, self.sym_num, self.sym_body, self.sym_char = None, 0, s, ''
         for type_name, pat, extractor in _SYMBOL_TYPES:
@@ -600,7 +601,8 @@ def merge_lines(items):
         if ln.chapter:
             ctx['chapter'] = zenkaku_to_int(ln.chapter.group(1))
         elif ln.article:
-            ctx['article'] = zenkaku_to_int(ln.article.group(1))
+            # 範囲の条（「第５条～第７条　削除」）は終わりの番号
+            ctx['article'] = zenkaku_to_int(ln.article.group('to') or ln.article.group('num'))
             ctx['para'] = 1
             ctx['prev_items'], ctx['cur_items'], ctx['cur_last'] = set(), set(), {}
         elif ln.para:
@@ -617,7 +619,17 @@ def merge_lines(items):
             merged.append(('text', buf))
             buf = None
 
-    for kind, val in items:
+    def next_line(i):
+        """items[i] より後ろの、空でないテキストの行（Line）。表・自動番号段落が先なら None。"""
+        for kind2, val2 in items[i + 1:]:
+            if kind2 != 'text':
+                return None
+            ln2 = val2 if isinstance(val2, Line) else line_info(val2)
+            if ln2.s.strip():
+                return ln2
+        return None
+
+    for i, (kind, val) in enumerate(items):
         if kind in ('table', 'auto', 'drawing'):
             # 表・自動番号段落は結合対象外。それまでのテキストを確定してから追加
             flush()
@@ -639,12 +651,28 @@ def merge_lines(items):
                     and not _is_short_dot_item(stripped)):
                 # 見出しだけの条の次の「１　」「１．」は第1項の番号
                 is_new = False
+            elif (head == 'article_bare' and ln.title and not _is_note_paren(ln.title.group(1))
+                  and not _split_article_title(buf.first.article.group('rest').strip())[0]
+                  and len(buf.lines) == 1 and not (next_line(i) and next_line(i).article)):
+                # タイトルの無い「第1条」だけの行の次の「（目的）」は、この条のタイトル
+                # （次の行が条見出しなら、次の条のタイトルなので結合しない）
+                is_new = False
             else:
                 is_new = _starts_new_unit(ln, buf, ctx)
-            if (not is_new and head == 'chapter_titled'
+            if (not is_new and head in ('chapter_titled', 'section')
                     and not _chapter_title_continues(buf.text, stripped)):
-                # 章タイトルのあとの本文（章の前文など）は章タイトルに混ぜない
+                # 章・節のタイトルのあとの本文（章の前文など）はタイトルに混ぜない
                 is_new = True
+            if (not is_new and head == 'article_short' and not _RE_REF_START.match(stripped)
+                    and not (merged and merged[-1][0] == 'text' and _unit_title(merged[-1][1]))):
+                # 括弧の無い条タイトル（S2）：「第1条　目的」の次の行から本文が始まるなら、
+                # 「目的」を条タイトルにする（「第1条（目的）」として結合する）。
+                # 直前の行が括弧の条タイトルなら、その条はタイトルを持つので使わない
+                f = buf.first
+                phrase = f.article.group('rest').strip()
+                head_text = f.text[:f.text.rindex(phrase)].rstrip('　 \t')
+                buf = Unit(line_info(f'{head_text}（{phrase}）'))
+                head = 'article_bare'
             if not is_new and head == 'chapter_bare' and ln.last == '。':
                 # 「第2章」だけの行の次の文は、章タイトルではなく前文
                 # （結合すると句点で終わる章タイトルになり、章と判定できなくなる）
@@ -673,20 +701,36 @@ def _heading_state(unit):
     f = unit.first
     if f.chapter:
         return 'chapter_titled' if unit.rest(f.chapter, 2).strip() else 'chapter_bare'
+    if f.section:
+        return 'section'
     if f.article:
-        rest = re.sub(r'^[（(][^）)]*[）)]', '', unit.rest(f.article, 3).strip()).strip()
+        title, rest = _split_article_title(unit.rest(f.article, 'rest').strip())
         if not rest:
             return 'article_bare'
+        if not title and len(unit.lines) == 1 and _is_bare_title_phrase(rest):
+            return 'article_short'
     return None
+
+
+def _is_bare_title_phrase(s):
+    """括弧の無い条タイトル（S2）になりうる語句か。「第1条　目的」の「目的」。
+    句読点・「は・が・を」の無い15字以内で、漢字・カタカナ・括弧で終わり、「削除」でないもの。
+    （「第3条　従業員は」のような文の始まりや、PDFのように25〜40字で折り返した
+    本文の1行目（「第12条　職務上の地位や人間関係などの職場内の優越」）を除くため、
+    仕様の20字より短くしている）"""
+    return (len(s) <= 15 and not re.search(r'[、。，．,.　 はがを]', s)
+            and bool(re.search(r'[一-龯々ァ-ヶー）)]$', s))
+            and not _RE_DELETED.match(s))
+
+
+# 次の行が助詞・読点で始まるなら、前の行の続き（括弧の無い条タイトルにしない）
+_RE_REF_START = re.compile(r'^(?:の|に|を|は|が|と|で|へ|も|や|から|まで|より|及び|又は|並びに|若しくは|[、，。])')
 
 
 _RE_MARK_HEAD = re.compile(
     r'^(?:[①-⑳㉑-㊿]|（[０-９0-9一二三四五六七八九十]+）|\([０-９0-9一二三四五六七八九十]+\))[　\s]*')
 # 行頭の小数（「1.25倍」）
 _RE_DECIMAL_HEAD = re.compile(r'^([０-９0-9]+)[．.][０-９0-9]')
-# 括弧だけの行（結合の区切り）。「（目的）　※注釈」「(目的)」
-_RE_PAREN_ONLY_ZEN = re.compile(r'^（[^）]+）[\s　]*([※＊*].*)?$')
-_RE_PAREN_ONLY_HAN = re.compile(r'^\([^)]+\)\s*$')
 
 
 def _is_short_dot_item(s):
@@ -761,6 +805,11 @@ def _starts_new_unit(ln, buf, ctx=None):
     番号が次に来るはずの条・項と同じかを、言葉の規則より先に見る。"""
     ctx = ctx or {}
     next_para = ctx.get('para', 1) + 1
+    if ln.section:
+        # 節（「第1節　労働時間」）。文の途中の行のあとの「第1節の規定」などは参照
+        return not (_ends_mid_sentence(buf, kanji=False)
+                    and (_REF_AFTER_HEADING.match(ln.section.group(2).strip())
+                         or _RE_WEAK_REF_AFTER_HEADING.match(ln.section.group(2).strip())))
     if ln.chapter or ln.article:
         # 前の行が文として終わっていれば見出し
         if not _ends_mid_sentence(buf, kanji=False):
@@ -835,24 +884,72 @@ def _starts_new_unit(ln, buf, ctx=None):
 # 各パターン
 # 「第 1 章」「第 24 条」のように番号の前後に空白が入った書き方も
 # 見出しとして認める（PDF変換や手打ちの文書で多い）。
-RE_CHAPTER = re.compile(r'^第[　\s]*([０-９0-9一二三四五六七八九十百千万]+)[　\s]*章[　\s]*(.*)$',
+_NUM_K = r'[０-９0-9〇一二三四五六七八九十百千万]+'
+RE_CHAPTER = re.compile(r'^第[　\s]*(' + _NUM_K + r')[　\s]*章[　\s]*(.*)$',
                         re.DOTALL)
-# 「第９条」「第９条の２」の両方に対応（枝番号 = branch）
+# 節（章と条の間の見出し）。整形では見出しにせず、元の文字のまま段落として残す（S4）
+RE_SECTION = re.compile(r'^第[　\s]*(' + _NUM_K + r')[　\s]*節(?=[　\s]|$)[　\s]*(.*)$',
+                        re.DOTALL)
+# 「第９条」「第９条の２」「第４条の２の２」（枝番号 = branch、2つ目以降 = branch2）、
+# 「第５条～第７条　削除」（範囲の終わり = to）に対応する。
 # 「第９条に定める…」のような本文中の条文参照を条見出しと
-# 誤判定しないよう、条番号の直後は「空白・括弧・行末」に限る。
+# 誤判定しないよう、条番号の直後は「空白・括弧（（【［）・コロン・行末」に限る。
 RE_ARTICLE = re.compile(
-    r'^第[　\s]*([０-９0-9一二三四五六七八九十百千万]+)[　\s]*条'
-    r'(?:[　\s]*の[　\s]*([０-９0-9一二三四五六七八九十]+))?'
-    r'(?=[　\s（(]|$)'
-    r'[　\s]*(.*)$',
+    r'^第[　\s]*(?P<num>' + _NUM_K + r')[　\s]*条'
+    r'(?:[　\s]*の[　\s]*(?P<branch>' + _NUM_K + r')'
+    r'(?P<branch2>(?:[　\s]*の[　\s]*' + _NUM_K + r')*))?'
+    r'(?:[　\s]*[～〜~][　\s]*第[　\s]*(?P<to>' + _NUM_K + r')[　\s]*条)?'
+    r'(?=[　\s（(【［\[：:]|$)'
+    r'[　\s]*(?P<rest>.*)$',
     re.DOTALL
 )
+# 括弧の中身（1段の入れ子まで。「（出向（在籍出向・転籍出向））」）
+_PAREN_INNER = r'(?:[^（()）]|[（(][^（()）]*[）)])+'
 # 条タイトル。「（目的）」のほか、モデル就業規則等でよくある
 # 「（目的）　※〇〇パターン」のような末尾注釈も許容する。
+# 全角・半角の括弧の混在（「（遵守義務)」）と、1段の入れ子も許す。
 # 括弧内が句点で終わるもの（例:「（…により計算する。）」）は
 # 条タイトルではなく注記なので除外する
-RE_TITLE   = re.compile(r'^[（(]([^）)]*[^）)。．])[）)][\s　]*([※＊*].*)?$',
+RE_TITLE   = re.compile(r'^[（(](' + _PAREN_INNER + r')(?<![。．])[）)][\s　]*([※＊*].*)?$',
                         re.DOTALL)
+# 括弧だけの行（結合の区切りに使う。RE_TITLE と違い、句点で終わる注記も含む）。
+# 「（目的）　※注釈」「(目的)」「（遵守義務)」「（休職（私傷病等によるもの））」
+_RE_PAREN_ONLY = re.compile(r'^[（(]' + _PAREN_INNER + r'[）)][\s　]*([※＊*].*)?$')
+# 条番号の後ろの条タイトル：「（目的）」「【目的】」「：目的」
+_RE_ART_TITLE_PAREN = re.compile(r'^[（(](' + _PAREN_INNER + r')[）)][　\s]*(.*)$', re.DOTALL)
+_RE_ART_TITLE_BRACKET = re.compile(r'^[【［\[]([^】］\]]+)[】］\]][　\s]*(.*)$', re.DOTALL)
+_RE_ART_TITLE_COLON = re.compile(r'^[：:][　\s]*([^　\s、。，．]{1,20})(?:[　\s]+(.*))?$', re.DOTALL)
+
+
+def _split_article_title(rest):
+    """条番号の後ろ（rest）を (条タイトル, タイトルの後ろの本文) に分ける。
+    タイトルが無ければ ('', rest)。"""
+    for pat in (_RE_ART_TITLE_PAREN, _RE_ART_TITLE_BRACKET, _RE_ART_TITLE_COLON):
+        m = pat.match(rest)
+        if m:
+            return m.group(1).strip(), (m.group(2) or '').strip()
+    return '', rest
+
+
+def _article_number_str(m):
+    """RE_ARTICLE の match から、空白を除いた条番号の文字列（「第４条の２の２」「第５条～第７条」）。"""
+    return re.sub(r'[　\s]', '', m.string[:m.start('rest')])
+
+
+def _article_node(m, rest):
+    """RE_ARTICLE の match と、番号の後ろの文字列（rest）から条のノードを作る。
+    「第1条（目的）本文…」「第2条【目的】本文」「第3条：目的　本文」のタイトルを取り出し、
+    条の直後に続く「１　」（第1項の番号）を取り除く。
+    範囲の条（「第５条～第７条　削除」）は range_to に終わりの番号を入れる（build_tree が展開する）。"""
+    branch = m.group('branch')          # 「の２」の "２" 部分（なければ None）
+    title, body = _split_article_title(rest)
+    node = {'type': 'article', 'number_str': _article_number_str(m),
+            'number': zenkaku_to_int(m.group('num')),
+            'branch': zenkaku_to_int(branch) if branch else 0,
+            'title': title, 'body': _strip_para1_number(body)}
+    if m.group('to'):
+        node['range_to'] = zenkaku_to_int(m.group('to'))
+    return node
 # 第2項以降（先頭インデント + 2以上の数字 + 区切り）。タブ区切りにも対応。
 # 「１０　」以降の項も認める。
 # 「３．１ヶ月および…」のように本文が数字で始まる項もあるので、ここでは
@@ -910,9 +1007,7 @@ def _heading_after(ln):
     """章・条の見出しの形の行（Line）の、番号の後ろ（条は括弧書きを除く）の文字列。"""
     if ln.chapter:
         return ln.chapter.group(2).strip()
-    rest = ln.article.group(3)
-    tm = re.match(r'^[（(][^）)]*[）)]', rest)
-    return (rest[tm.end():] if tm else rest).lstrip('　 \t')
+    return _split_article_title(ln.article.group('rest'))[1]
 
 
 def _is_next_heading(ln, ctx):
@@ -1046,6 +1141,10 @@ def classify_line(text, depth=None, number=None):
         return {'type':'chapter', 'number_str':f'第{m.group(1)}章',
                 'number': zenkaku_to_int(m.group(1)), 'title': unit.rest(m, 2).strip()}
 
+    # 節（「第1節　労働時間」）。見出しにせず、元の文字のまま残す（S4）
+    if f.section:
+        return {'type': 'section', 'body': stripped}
+
     # 条タイトル（括弧のみの行）。「（中途採用者を除く）」のような注記は本文
     tt = _unit_title(unit)
     if tt:
@@ -1058,26 +1157,7 @@ def classify_line(text, depth=None, number=None):
     # 条（+本文が同行にある場合も）。枝番号「第X条のY」にも対応
     m = f.article
     if m:
-        art_num = zenkaku_to_int(m.group(1))
-        branch = m.group(2)          # 「の２」の "２" 部分（なければ None）
-        body = unit.rest(m, 3).strip()
-        if branch:
-            branch_num = zenkaku_to_int(branch)
-            number_str = f'第{m.group(1)}条の{branch}'
-        else:
-            branch_num = 0
-            number_str = f'第{m.group(1)}条'
-        # 「第1条（目的）本文…」のように括弧タイトルが続く場合は抽出
-        title = ''
-        tm = re.match(r'^[（(]([^）)]+)[）)]\s*(.*)$', body, re.DOTALL)
-        if tm:
-            title = tm.group(1).strip()
-            body = tm.group(2).strip()
-        # 条の直後に続く「１　」は第1項の番号なので取り除く
-        body = _strip_para1_number(body)
-        return {'type':'article', 'number_str': number_str,
-                'number': art_num, 'branch': branch_num,
-                'title': title, 'body': body}
+        return _article_node(m, unit.rest(m, 'rest').strip())
 
     # 第2項以降（先頭インデント+数字）
     # raw は、build_tree が項ではないと判断したときに本文として戻すための元の行
@@ -1127,7 +1207,7 @@ def marker_depths(merged):
         if k != 'text':
             continue
         f = val.first
-        if (f.chapter or f.article or _unit_title(val)
+        if (f.chapter or f.article or f.section or _unit_title(val)
                 or (f.para and zenkaku_to_int(f.para.group('num')) >= 2)):
             stack = []
             continue
@@ -1164,7 +1244,7 @@ def kana_numbers(merged):
         if k != 'text':
             continue
         f = val.first
-        if (f.chapter or f.article or _unit_title(val)
+        if (f.chapter or f.article or f.section or _unit_title(val)
                 or (f.para and zenkaku_to_int(f.para.group('num')) >= 2)):
             stack = []
             continue
@@ -1215,7 +1295,7 @@ def classify_auto(kind, text):
     # --- スタイル/自動番号で「号」「項」と確定している場合は、
     #     テキストが「第９条に定める…」のような条文参照で始まっていても
     #     条見出しとは扱わない（誤判定防止）---
-    if kind in ('item', 'item_sub', 'paragraph', 'paragraph_1', 'body_plain'):
+    if kind in ('item', 'item_sub', 'paragraph', 'paragraph_1', 'body_plain', 'list_number'):
         pass   # 下の種別ごとの処理へ進む
     else:
         # --- 章・条が期待される文脈でのみ、テキストの手打ち番号を見る ---
@@ -1225,21 +1305,7 @@ def classify_auto(kind, text):
                     'number': zenkaku_to_int(m.group(1)), 'title': m.group(2).strip()}
         m = ln.article
         if m:
-            branch = m.group(2)
-            rest = m.group(3).strip()
-            # 「第1条（目的）」のように残りが括弧だけならタイトルとして扱う
-            title = ''
-            tm = re.match(r'^[（(]([^）)]+)[）)]\s*(.*)$', rest, re.DOTALL)
-            if tm:
-                title = tm.group(1).strip()
-                rest = tm.group(2).strip()
-            rest = _strip_para1_number(rest)
-            return {'type':'article',
-                    'number_str': f'第{m.group(1)}条' + (f'の{branch}' if branch else ''),
-                    'number': zenkaku_to_int(m.group(1)),
-                    'branch': zenkaku_to_int(branch) if branch else 0,
-                    'title': title,
-                    'body': rest}
+            return _article_node(m, m.group('rest').strip())
 
     # --- スタイル/自動番号で「条」と分かっている場合 ---
     # 「(目的)」のように括弧だけの行は、条見出し（番号は自動採番）
@@ -1253,7 +1319,7 @@ def classify_auto(kind, text):
                 'title':'', 'body': body}
 
     # 括弧だけの行は条タイトル（スタイル情報が無い場合）
-    if kind not in ('item', 'item_sub', 'paragraph', 'paragraph_1', 'body_plain'):
+    if kind not in ('item', 'item_sub', 'paragraph', 'paragraph_1', 'body_plain', 'list_number'):
         m = ln.title
         if m:
             return {'type':'article_title', 'title': m.group(1).strip(),
@@ -1270,6 +1336,10 @@ def classify_auto(kind, text):
                     'body': m.group(2).strip()}
         # 番号なし = 自動採番（build_tree側で連番付与）
         return {'type':'paragraph', 'number': 0, 'body': body}
+
+    if kind == 'list_number':
+        # Word の段落番号。項か号かは、直前の項の予告文を見て build_tree が決める
+        return {'type':'paragraph', 'number': 0, 'body': body, '_list': True}
 
     if kind == 'item':
         m = RE_ITEM_MARU.match(text)
@@ -1337,17 +1407,45 @@ def _deepest_container(cur_paragraph):
     return node
 
 
+_RE_DELETED = re.compile(r'^[（(]?[　\s]*削[　\s]*除[　\s]*[）)]?[。．]?$')
+
+
+def _expand_article_ranges(flat):
+    """「第５条～第７条　削除」を「第５条　削除」「第６条　削除」「第７条　削除」に分ける。
+    整形では条番号を自動採番するので、1つの条のままだと後ろの条番号がずれるため。
+    本文が「削除」でない範囲の条は、分けずに1つの条のままにする。"""
+    out = []
+    for node in flat:
+        to = node.get('range_to')
+        if (node.get('type') != 'article' or not to or not node['number']
+                or not _RE_DELETED.match(node.get('body', '').strip())
+                or not (node['number'] < to <= node['number'] + 100)):
+            out.append(node)
+            continue
+        full = bool(re.search(r'[０-９]', node['number_str']))
+        for n in range(node['number'], to + 1):
+            s = str(n).translate(str.maketrans('0123456789', '０１２３４５６７８９')) if full else str(n)
+            out.append(dict(node, number=n, number_str=f'第{s}条', branch=0,
+                            title=node['title'] if n == node['number'] else '',
+                            range_to=None))
+    for node in out:
+        node.pop('range_to', None)
+    return out
+
+
 def build_tree(flat):
     """
     分類済みのフラットなdictリストを、
     章 > 条 > 項 > 号 のネスト構造に変換する。
     """
+    flat = _expand_article_ranges(flat)
     result = []
     cur_chapter = None
     cur_article = None
     cur_paragraph = None
     pending_title = None   # 条タイトル（article_titleが先行する場合）
     pending_note = ''      # 条タイトル末尾の注釈（※〜）
+    pending_lead = []      # 次の条の前に置く節の行（「第1節　労働時間」）
 
     last_dot = None        # 直前の「1.」形式の号 {'type', 'number'}（「2.」を号と判断するため）
 
@@ -1401,6 +1499,20 @@ def build_tree(flat):
                 # 第9項までが無いのに「１０　」→ 項番号ではなく本文の続き
                 node = {'type': 'text', 'body': node['raw']}
                 t = 'text'
+        if (t == 'paragraph' and node.get('_list') and cur_paragraph is not None
+                and _has_forecast(cur_paragraph['body'])):
+            # Word の段落番号の段落で、直前の項が「次の書類を…」と予告している → 号
+            node = {'type': 'item', 'number': 0, 'body': node['body']}
+            t = 'item'
+
+        if t == 'section':
+            _flush_pending()
+            pending_lead.append(node['body'])
+            continue
+        if t == 'chapter' and pending_lead:
+            # 条が来ないまま章が変わった節の行は、その位置に段落として残す
+            result.extend({'type': 'plain', 'body': x} for x in pending_lead)
+            pending_lead = []
 
         if t == 'chapter':
             _flush_pending()
@@ -1446,6 +1558,10 @@ def build_tree(flat):
                 'title_note': node.get('title_note') or pending_note or '',
                 'paragraphs': []
             }
+            if pending_lead:
+                # 条の前に置く節の行（整形では条見出しの前に、番号の付かない段落で出す）
+                cur_article['lead'] = pending_lead
+                pending_lead = []
             pending_title = None
             pending_note = ''      # 注釈はこの条だけのもの（次の条に引き継がない）
             # 第1項（本文が同行）
@@ -1662,6 +1778,7 @@ def build_tree(flat):
                 _orphan(body)
 
     _flush_pending()   # 最後まで条が来なかった括弧行も本文に戻す
+    result.extend({'type': 'plain', 'body': x} for x in pending_lead)
     for node in result:
         for a in (node.get('articles', []) if node.get('type') == 'chapter'
                   else [node] if node.get('type') == 'article' else []):
@@ -2247,6 +2364,13 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             if _kind0 is None:
                 _sid0 = get_style_id(para)
                 _kind0 = STYLE_KIND_MAP.get(_sid0) if _sid0 else None
+            # Word の箇条書き（List Bullet）は号。段落番号（List Number）は、直前の項が
+            # 「次の書類を…」と予告していれば号、そうでなければ項（build_tree が決める）
+            _sname = get_style_name(para, doc) or ''
+            if _sname.startswith('List Bullet') and _kind0 in (None, 'paragraph', 'paragraph_1'):
+                _kind0 = 'item'
+            elif _sname.startswith('List Number') and _kind0 in (None, 'paragraph'):
+                _kind0 = 'list_number'
             # 章・条は最優先で構造として扱う（図形より優先）
             _is_strong = bool(ln.chapter or ln.article
                               or _kind0 in ('chapter', 'article'))
