@@ -22,6 +22,8 @@
   --ok: #2E6B4F;
   --err: #A1262B;
   --err-bg: #FCECEC;
+  --del-bg: #FDECEC; --del-strong: #F7C4C4;
+  --ins-bg: #E7F5EB; --ins-strong: #BFE5CB;
   --mincho: "BIZ UDPMincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
   --gothic: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
   box-sizing: border-box;
@@ -34,6 +36,8 @@
     --rule: #323B4F; --ai: #8FAEEF; --ai-soft: #1F2B47;
     --caution: #F0C674; --caution-bg: #2E2614; --ok: #7CC4A0;
     --err: #F29B9F; --err-bg: #3A1D20;
+    --del-bg: #3A1D20; --del-strong: #6B2A30;
+    --ins-bg: #17301F; --ins-strong: #25563A;
   }
 }
 *, *::before, *::after { box-sizing: inherit; }
@@ -227,13 +231,33 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .result a.dl { display: inline-block; margin-top: 6px; font-weight: 700; color: var(--ai); word-break: break-all; }
 .result .sub { display: block; margin-top: 4px; font-size: 13px; }
 
-.cmp-list { margin-top: 10px; display: grid; gap: 10px; }
+.cmp-list { margin-top: 10px; width: min(1200px, calc(100vw - 32px)); position: relative; left: 50%; transform: translateX(-50%); overflow-x: auto; }
 .cmp-list[hidden] { display: none; }
-.cmp-row { padding: 10px 12px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; }
-.cmp-h { font-size: 14px; font-weight: 700; line-height: 1.6; overflow-wrap: anywhere; }
-.cmp-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--rule); border-radius: 4px; font-size: 12px; font-weight: 400; color: var(--muted); }
-.cmp-auto { margin-top: 2px; font-size: 13px; color: var(--muted); }
-.cmp-row textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; min-height: 2.6em; padding: 6px 8px; font: inherit; font-size: 14px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); color: var(--ink); resize: vertical; }
+.cmp-inner { min-width: 900px; }
+.cmp-only { display: block; margin-bottom: 8px; font-size: 14px; }
+.cmp-head, .cmp-block { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.cmp-head { font-size: 14px; font-weight: 700; text-align: center; padding-bottom: 4px; border-bottom: 2px solid var(--rule); }
+.cmp-block { padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.cmp-body.only .cmp-block[data-kind="same"][data-unit="article"],
+.cmp-body.only .cmp-block[data-quiet="1"] { display: none; }
+.cmp-col { padding: 2px 8px; overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; }
+.cmp-line:empty::before { content: "\200b"; }
+.cmp-line.chapter { text-align: center; font-weight: 700; }
+.cmp-line.lead { text-align: center; }
+.cmp-line.para { display: flex; }
+.cmp-line.para .num { flex: none; width: 4.5em; padding-right: .5em; text-align: right; box-sizing: border-box; }
+.cmp-line.para .txt { flex: 1; min-width: 0; }
+.cmp-line.item { padding-left: 1em; }
+.cmp-line.sub { padding-left: 1.5em; }
+.cmp-line.sub2 { padding-left: 2em; }
+.cmp-line.mark { color: var(--muted); }
+.cmp-block:is([data-kind="renumbered"], [data-kind="changed"], [data-kind="deleted"]) .cmp-old { background: var(--del-bg); }
+.cmp-block:is([data-kind="renumbered"], [data-kind="changed"], [data-kind="added"]) .cmp-new { background: var(--ins-bg); }
+.cmp-old .u { background: var(--del-strong); }
+.cmp-new .u { background: var(--ins-strong); }
+.cmp-note { grid-column: 1 / -1; margin-top: 6px; }
+.cmp-auto { font-size: 13px; color: var(--muted); }
+.cmp-note textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; min-height: 2.6em; padding: 6px 8px; font: inherit; font-size: 14px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); color: var(--ink); resize: vertical; }
 #cmpSave { margin-top: 12px; }
 
 details.log { margin-top: 12px; font-size: 13px; }
@@ -431,7 +455,13 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       <p class="hint">現行は読み込んだ docx、改正案は整形後の内容です。</p>
       <button type="button" class="btn" id="cmpShow" disabled>変更点を表示</button>
       <p class="hint" id="cmpHint" aria-live="polite"></p>
-      <div class="cmp-list" id="cmpList" hidden></div>
+      <div class="cmp-list" id="cmpList" hidden>
+        <label class="cmp-only"><input type="checkbox" id="cmpOnly"> 変更のある条だけ表示</label>
+        <div class="cmp-inner">
+          <div class="cmp-head"><div>現行</div><div>改正案</div></div>
+          <div class="cmp-body" id="cmpBody"></div>
+        </div>
+      </div>
       <button type="button" class="btn primary" id="cmpSave" hidden>新旧対照表を保存</button>
     </div>
   </section>
@@ -598,8 +628,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   }
 
   // ---------- 新旧対照表 ----------
-  const CMP_TAG = { changed: "内容変更",renumbered: "番号のみ", summary: "番号のみ", added: "新設", deleted: "削除" };
   let cmpRows = [];
+  let cmpBlocks = [];
   let cmpShown = false;      // 変更点（0件を含む）を表示中か
   const notesKey = () => "kisoku.notes." + [file.name, file.size, file.lastModified].join("|");
   function loadNotes() {
@@ -609,40 +639,91 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   // ponytail: 備考はファイルごとに端末のブラウザへ残し、古いものは消さない。増えて困るなら件数で間引く。
   function saveNotes(notes) { store.set(notesKey(), JSON.stringify(notes)); }
   function clearComparison() {
-    cmpRows = []; cmpShown = false;
-    $("cmpList").innerHTML = ""; $("cmpList").hidden = true;
+    cmpRows = []; cmpBlocks = []; cmpShown = false;
+    $("cmpBody").innerHTML = ""; $("cmpList").hidden = true;
     $("cmpSave").hidden = true; $("cmpHint").textContent = ""; $("cmpHint").className = "hint";
   }
   function cmpHint(kind, text) { $("cmpHint").className = "hint" + (kind === "err" ? " err" : ""); $("cmpHint").textContent = text; }
   function renderComparison() {
     const notes = loadNotes();
     const list = $("cmpList");
-    list.innerHTML = "";
-    cmpRows.forEach((r) => {
-      const row = document.createElement("div");
-      row.className = "cmp-row";
-      const h = document.createElement("div");
-      h.className = "cmp-h";
-      const heading = r.kind === "added" ? r.new_heading : r.kind === "deleted" ? r.old_heading
-        : (r.old_heading === r.new_heading ? r.new_heading : `${r.old_heading} → ${r.new_heading}`);
-      h.textContent = heading;
-      const tag = document.createElement("span");
-      tag.className = "cmp-tag"; tag.textContent = CMP_TAG[r.kind] || r.kind;
-      h.appendChild(tag);
-      row.appendChild(h);
-      if (r.note) {
-        const a = document.createElement("div");
-        a.className = "cmp-auto"; a.textContent = r.note;
-        row.appendChild(a);
+    const body = $("cmpBody");
+    body.innerHTML = "";
+    body.classList.toggle("only", $("cmpOnly").checked);
+    const rowById = new Map(cmpRows.map((r) => [r.id, r]));
+    // 1列分（行のリスト → 見た目のクラス付きの div）。本文は textContent で入れる。
+    const column = (lines, cls, side) => {
+      const col = document.createElement("div");
+      col.className = "cmp-col cmp-" + side;
+      const put = (box, text, ul) => {
+        if (!text) return;
+        if (ul) { const s = document.createElement("span"); s.className = "u"; s.textContent = text; box.appendChild(s); }
+        else box.appendChild(document.createTextNode(text));
+      };
+      (lines || []).forEach((segs, i) => {
+        const ln = document.createElement("div");
+        const c = cls[i] || "para";
+        ln.className = "cmp-line " + c;
+        // 項の行は「第５条」「２」を番号の欄に分け、折り返した行を本文の頭にそろえる
+        const full = segs.map(([t]) => t).join("");
+        const cut = c === "para" ? full.indexOf("　") : -1;
+        if (cut > 0 && cut <= 8) {
+          const num = document.createElement("span"); num.className = "num";
+          const txt = document.createElement("span"); txt.className = "txt";
+          let pos = 0;
+          segs.forEach(([text, ul]) => {
+            const a = Math.max(0, Math.min(text.length, cut - pos));          // 番号の部分
+            const b = Math.max(0, Math.min(text.length, cut + 1 - pos));      // 区切りの全角空白まで
+            put(num, text.slice(0, a), ul);
+            put(txt, text.slice(b), ul);
+            pos += text.length;
+          });
+          ln.append(num, txt);
+        } else {
+          segs.forEach(([text, ul]) => put(ln, text, ul));
+        }
+        col.appendChild(ln);
+      });
+      return col;
+    };
+    cmpBlocks.forEach((b) => {
+      const el = document.createElement("div");
+      el.className = "cmp-block";
+      el.dataset.kind = b.kind; el.dataset.unit = b.unit;
+      el.appendChild(column(b.old, b.old_cls || [], "old"));
+      el.appendChild(column(b.new, b.new_cls || [], "new"));
+      const r = b.row_id ? rowById.get(b.row_id) : null;
+      if (r) {
+        const box = document.createElement("div");
+        box.className = "cmp-note";
+        [b.row_note, b.row_label].forEach((t) => {
+          if (!t) return;
+          const a = document.createElement("div");
+          a.className = "cmp-auto"; a.textContent = t;
+          box.appendChild(a);
+        });
+        const heading = r.kind === "added" ? r.new_heading : r.kind === "deleted" ? r.old_heading
+          : (r.old_heading === r.new_heading ? r.new_heading : `${r.old_heading} → ${r.new_heading}`);
+        const ta = document.createElement("textarea");
+        ta.placeholder = "改正理由・備考"; ta.setAttribute("aria-label", "備考：" + heading);
+        ta.value = notes[r.id] || "";
+        ta.addEventListener("input", () => { const n = loadNotes(); n[r.id] = ta.value; saveNotes(n); });
+        box.appendChild(ta);
+        el.appendChild(box);
       }
-      const ta = document.createElement("textarea");
-      ta.placeholder = "改正理由・備考"; ta.setAttribute("aria-label", "備考：" + heading);
-      ta.value = notes[r.id] || "";
-      ta.addEventListener("input", () => { const n = loadNotes(); n[r.id] = ta.value; saveNotes(n); });
-      row.appendChild(ta);
-      list.appendChild(row);
+      body.appendChild(el);
     });
-    list.hidden = cmpRows.length === 0;
+    // 「変更のある条だけ」のとき、変更のある条を含まない章は見出しも隠す（印を付け、CSS で隠す）
+    let chapterEl = null;
+    body.querySelectorAll(".cmp-block").forEach((el) => {
+      if (el.dataset.unit === "chapter") {
+        chapterEl = el;
+        el.dataset.quiet = el.dataset.kind === "same" ? "1" : "";
+      } else if (chapterEl && el.dataset.kind !== "same") {
+        chapterEl.dataset.quiet = "";
+      }
+    });
+    list.hidden = cmpBlocks.length === 0;
     cmpShown = true;
     $("cmpSave").hidden = cmpRows.length === 0;
     cmpHint("ok", cmpRows.length ? `変更点 ${cmpRows.length} 件` : "変更点はありません。");
@@ -769,9 +850,10 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (!(await ensureParsed((k, t) => cmpHint(k, t)))) return;
     const m = await call({ type: "compare" });
     if (m.type === "error") { cmpHint("err", "比較できませんでした：" + m.text); log(m.detail || m.text); return; }
-    cmpRows = m.rows;
+    cmpRows = m.rows; cmpBlocks = m.blocks || [];
     renderComparison();
   }));
+  $("cmpOnly").addEventListener("change", () => $("cmpBody").classList.toggle("only", $("cmpOnly").checked));
 
   $("cmpSave").addEventListener("click", () => withBusy(async () => {
     const notes = loadNotes();

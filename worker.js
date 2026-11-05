@@ -121,7 +121,8 @@ async function handleFormat(msg) {
 
 async function handleCompare(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
-  post({ type: "compared", id: msg.id, rows: JSON.parse(entry.compare_rows(current.jsonPath)) });
+  const v = JSON.parse(entry.compare_rows(current.jsonPath));
+  post({ type: "compared", id: msg.id, rows: v.rows, blocks: v.blocks });
 }
 
 async function handleComparisonDocx(msg) {

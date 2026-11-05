@@ -74,7 +74,7 @@ assert rows[0]["old_heading"] == "第３条（休日）" and rows[0]["new_headin
 assert underlined(rows[0]["old"]) == "３" and underlined(rows[0]["new"]) == "４"
 assert rows[2]["old_heading"] == "第５条～第６条" and rows[2]["new_heading"] == "第６条～第７条"
 assert rows[2]["note"] == "条番号の繰り下げのみ（内容の変更なし、以降同様）"
-assert text(rows[0]["new"]).startswith("第４条（休日）\n休日は")
+assert text(rows[0]["new"]).startswith("（休日）\n第４条　休日は")
 
 # --- 残りが1条だけなら、まとめずに載せる ---
 rows = c.compare(dup[:1] + [dict(dup[1], articles=dup[1]["articles"][:4])],
@@ -109,7 +109,7 @@ added = copy.deepcopy(BASE)
 added[1]["articles"].insert(2, art(0, "特別休暇", "慶弔の際に特別休暇を与える。", number_str=""))
 rows = c.compare(BASE, added)
 assert rows[0]["kind"] == "added" and rows[0]["new_heading"] == "第５条（特別休暇）", rows[0]
-assert text(rows[0]["old"]) == "（新設）" and underlined(rows[0]["new"]).startswith("第５条")
+assert text(rows[0]["old"]) == "（新設）" and underlined(rows[0]["new"]).startswith("（特別休暇）第５条　慶弔")
 assert all(r["kind"] in ("renumbered", "summary") for r in rows[1:])
 rows = c.compare(added, BASE)
 assert rows[0]["kind"] == "deleted" and text(rows[0]["new"]) == "（削除）"
@@ -211,8 +211,59 @@ with tempfile.TemporaryDirectory() as d:
     d2 = Document(path2)
     assert "変更点はありません。" in [p.text for p in d2.paragraphs] and not d2.tables
 
+# --- view()：画面用の全文の並び ---
+def check_view(v, old_tree, new_tree, label=""):
+    blocks, rows = v["blocks"], v["rows"]
+    assert len(blocks) == len(c._align(c.units(old_tree, True), c.units(new_tree, False))), label
+    for b in blocks:
+        for side in ("old", "new"):
+            if b[side] is None:
+                assert b[side + "_cls"] is None, (label, b)
+            else:
+                assert len(b[side]) == len(b[side + "_cls"]), (label, b)
+        if b["kind"] == "same":
+            assert not any(ul for side in ("old", "new") for segs in b[side] for _, ul in segs), (label, b)
+        if b["kind"] == "added":
+            assert b["old"] is None and b["new"] is not None
+        if b["kind"] == "deleted":
+            assert b["new"] is None and b["old"] is not None
+    got = [b["row_id"] for b in blocks if b["row_id"]]
+    assert sorted(got) == sorted(r["id"] for r in rows), (label, got, [r["id"] for r in rows])
+    assert len(got) == len(set(got)), label
+
+
+v = c.view(dup, dup)
+check_view(v, dup, dup, "dup")
+assert v["rows"] == c.compare(dup, dup)
+sm = [r for r in v["rows"] if r["kind"] == "summary"][0]
+hits = [i for i, b in enumerate(v["blocks"]) if b["row_id"] == sm["id"]]
+assert len(hits) == 1
+b = v["blocks"][hits[0]]
+assert b["row_label"] == "Word では「第５条～第６条」を1行にまとめます" and b["row_note"] == sm["note"], b
+assert v["blocks"][hits[0] + 1]["row_id"] is None and v["blocks"][hits[0] + 1]["row_note"] == ""
+# まとめの先頭は区間の3条目（第５条＝遅刻）：old の1行目の見出しで確かめる
+assert text(b["old"]).startswith("（遅刻）\n第５条　遅刻は"), text(b["old"])
+check_view(c.view(BASE, added), BASE, added, "added")
+check_view(c.view(added, BASE), added, BASE, "deleted")
+check_view(c.view(dup, new), dup, new, "changed")
+check_view(c.view(old_chs, chs), old_chs, chs, "chapters")
+check_view(c.view(twin, twin), twin, twin, "twin")
+cls = c.units(BASE, False)[4]["cls"]          # 第3条：（労働時間）・第1項・号2つ
+assert cls == ["title", "para", "item", "item"], cls
+sub = [art(1, "x", "本文", items={1: ["号"]})]
+sub[0]["paragraphs"][0]["items"][0]["sub_items"] = [
+    {"body": "イ", "number": 1, "sub_items2": [{"body": "ロ", "number": 1}]}]
+sub[0]["paragraphs"][0]["tables"] = [{"type": "table", "rows": [["a"]]}]
+sub[0]["lead"] = ["第１節　節"]
+assert c.units(sub, False)[0]["cls"] == ["lead", "title", "para", "mark", "item", "sub", "sub2"]
+assert c.units([art(1, "", "本文")], False)[0]["lines"] == ["第１条　本文"]
+assert c.units([art(1, "x")], False)[0]["lines"] == ["（x）", "第１条"]
+
 # --- サンプル：落ちずに作れる。番号どおりのサンプルは変更なし ---
 for p in sorted(glob.glob(os.path.join(ROOT, "tests", "expected", "*.parsed.json"))):
+    with open(p, encoding="utf-8") as f:
+        tree = json.load(f)
+    check_view(c.view(tree, tree), tree, tree, p)
     rows = c.compare_files(p)
     assert all(r["kind"] in ("renumbered", "summary") for r in rows), (p, rows[:1])
     if "messy_kisoku" in p:
