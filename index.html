@@ -227,6 +227,15 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .result a.dl { display: inline-block; margin-top: 6px; font-weight: 700; color: var(--ai); word-break: break-all; }
 .result .sub { display: block; margin-top: 4px; font-size: 13px; }
 
+.cmp-list { margin-top: 10px; display: grid; gap: 10px; }
+.cmp-list[hidden] { display: none; }
+.cmp-row { padding: 10px 12px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; }
+.cmp-h { font-size: 14px; font-weight: 700; line-height: 1.6; overflow-wrap: anywhere; }
+.cmp-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--rule); border-radius: 4px; font-size: 12px; font-weight: 400; color: var(--muted); }
+.cmp-auto { margin-top: 2px; font-size: 13px; color: var(--muted); }
+.cmp-row textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; min-height: 2.6em; padding: 6px 8px; font: inherit; font-size: 14px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); color: var(--ink); resize: vertical; }
+#cmpSave { margin-top: 12px; }
+
 details.log { margin-top: 12px; font-size: 13px; }
 details.log summary { cursor: pointer; color: var(--muted); }
 details.log pre {
@@ -415,6 +424,18 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     </div>
   </section>
 
+  <section class="step" aria-labelledby="h5">
+    <div class="no" aria-hidden="true">⑤</div>
+    <div class="body">
+      <h2 id="h5">新旧対照表</h2>
+      <p class="hint">現行は読み込んだ docx、改正案は整形後の内容です。</p>
+      <button type="button" class="btn" id="cmpShow" disabled>変更点を表示</button>
+      <p class="hint" id="cmpHint" aria-live="polite"></p>
+      <div class="cmp-list" id="cmpList" hidden></div>
+      <button type="button" class="btn primary" id="cmpSave" hidden>新旧対照表を保存</button>
+    </div>
+  </section>
+
   <footer>
     整形結果の照合レポート（原本との文字数の突き合わせ）も一緒に作られます。<br>
     処理はすべてこのブラウザ内で行われます。ページを閉じると作業中のファイルは消えます。
@@ -502,6 +523,10 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $("cfImport").disabled = busy || !engineReady;
     $("cfImportBtn").setAttribute("aria-disabled", busy || !engineReady ? "true" : "false");
     $("run").disabled = busy || !file;
+    $("cmpShow").disabled = busy || !file;
+    $("cmpSave").disabled = busy;
+    // 解析のオプションを変えたら、表示中の変更点は古いので消す（保存で古い解析を使わないように）
+    if (!busy && cmpShown && parsedKey !== parseKeyNow()) clearComparison();
     $("file").disabled = busy;
     $("fileBtn").setAttribute("aria-disabled", busy ? "true" : "false");
     const hint = $("runHint");
@@ -562,6 +587,67 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     return true;
   }
 
+  // オプションが前回の解析と違えば解析し直す。show(kind, text) で状況を出す。
+  async function ensureParsed(show) {
+    if (parsedKey === parseKeyNow()) return true;
+    clearComparison();        // 表示中の変更点は前の解析のものなので消す
+    show("busy", "オプションが変わったので、構造を解析し直しています…");
+    if (await parse($("optGemini").checked)) return true;
+    show("err", "解析に失敗しました。上の表示と「処理の記録」を確認してください。");
+    return false;
+  }
+
+  // ---------- 新旧対照表 ----------
+  const CMP_TAG = { changed: "内容変更",renumbered: "番号のみ", summary: "番号のみ", added: "新設", deleted: "削除" };
+  let cmpRows = [];
+  let cmpShown = false;      // 変更点（0件を含む）を表示中か
+  const notesKey = () => "kisoku.notes." + [file.name, file.size, file.lastModified].join("|");
+  function loadNotes() {
+    try { const v = JSON.parse(store.get(notesKey()) || "{}"); return v && typeof v === "object" ? v : {}; }
+    catch { return {}; }
+  }
+  // ponytail: 備考はファイルごとに端末のブラウザへ残し、古いものは消さない。増えて困るなら件数で間引く。
+  function saveNotes(notes) { store.set(notesKey(), JSON.stringify(notes)); }
+  function clearComparison() {
+    cmpRows = []; cmpShown = false;
+    $("cmpList").innerHTML = ""; $("cmpList").hidden = true;
+    $("cmpSave").hidden = true; $("cmpHint").textContent = ""; $("cmpHint").className = "hint";
+  }
+  function cmpHint(kind, text) { $("cmpHint").className = "hint" + (kind === "err" ? " err" : ""); $("cmpHint").textContent = text; }
+  function renderComparison() {
+    const notes = loadNotes();
+    const list = $("cmpList");
+    list.innerHTML = "";
+    cmpRows.forEach((r) => {
+      const row = document.createElement("div");
+      row.className = "cmp-row";
+      const h = document.createElement("div");
+      h.className = "cmp-h";
+      const heading = r.kind === "added" ? r.new_heading : r.kind === "deleted" ? r.old_heading
+        : (r.old_heading === r.new_heading ? r.new_heading : `${r.old_heading} → ${r.new_heading}`);
+      h.textContent = heading;
+      const tag = document.createElement("span");
+      tag.className = "cmp-tag"; tag.textContent = CMP_TAG[r.kind] || r.kind;
+      h.appendChild(tag);
+      row.appendChild(h);
+      if (r.note) {
+        const a = document.createElement("div");
+        a.className = "cmp-auto"; a.textContent = r.note;
+        row.appendChild(a);
+      }
+      const ta = document.createElement("textarea");
+      ta.placeholder = "改正理由・備考"; ta.setAttribute("aria-label", "備考：" + heading);
+      ta.value = notes[r.id] || "";
+      ta.addEventListener("input", () => { const n = loadNotes(); n[r.id] = ta.value; saveNotes(n); });
+      row.appendChild(ta);
+      list.appendChild(row);
+    });
+    list.hidden = cmpRows.length === 0;
+    cmpShown = true;
+    $("cmpSave").hidden = cmpRows.length === 0;
+    cmpHint("ok", cmpRows.length ? `変更点 ${cmpRows.length} 件` : "変更点はありません。");
+  }
+
   async function withBusy(fn) {
     busy = true; refresh();
     try { return await fn(); } finally { busy = false; refresh(); }
@@ -574,6 +660,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       return;
     }
     file = f; parsedKey = null;
+    clearComparison();
     $("fileName").textContent = f.name;
     $("result").innerHTML = ""; $("log").textContent = "";
     await withBusy(() => parse(false));
@@ -623,10 +710,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     const problem = geminiKeyProblem();
     if (problem) { showResult("err", esc(problem)); return; }
     $("log").textContent = "";
-    if (parsedKey !== parseKeyNow()) {
-      showResult("busy", "オプションが変わったので、構造を解析し直しています…");
-      if (!(await parse($("optGemini").checked))) { showResult("err", "解析に失敗しました。上の表示と「処理の記録」を確認してください。"); return; }
-    }
+    if (!(await ensureParsed((k, t) => showResult(k, t)))) return;
     const tpl = tplValue();
     const tplName = document.querySelector(`label[for="${tpl}"] .t`).textContent;
     showResult("busy", `${esc(tplName)} で整形しています…`);
@@ -679,6 +763,27 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   });
 
   let sampleUrl = null;
+  $("cmpShow").addEventListener("click", () => withBusy(async () => {
+    const problem = geminiKeyProblem();
+    if (problem) { cmpHint("err", problem); return; }
+    if (!(await ensureParsed((k, t) => cmpHint(k, t)))) return;
+    const m = await call({ type: "compare" });
+    if (m.type === "error") { cmpHint("err", "比較できませんでした：" + m.text); log(m.detail || m.text); return; }
+    cmpRows = m.rows;
+    renderComparison();
+  }));
+
+  $("cmpSave").addEventListener("click", () => withBusy(async () => {
+    const notes = loadNotes();
+    const ids = new Set(cmpRows.map((r) => r.id));
+    const used = Object.fromEntries(Object.entries(notes).filter(([k]) => ids.has(k)));
+    const m = await call({ type: "comparisonDocx", notes: JSON.stringify(used) });
+    if (m.type === "error") { cmpHint("err", "保存できませんでした：" + m.text); log(m.detail || m.text); return; }
+    const url = docxBlobUrl(m.docx);
+    urls.push(url);
+    download(url, m.docxName);
+  }));
+
   $("cfSample").addEventListener("click", () => withBusy(async () => {
     cfHint("", "見本を作っています…");
     const m = await call({
@@ -724,7 +829,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $(id).addEventListener("change", () => { savePrefs(); refresh(); }));
   document.querySelectorAll('input[name="tpl"]').forEach((r) => r.addEventListener("change", () => { savePrefs(); refresh(); }));
 
-  $("optAgent").addEventListener("change", savePrefs);
+  $("optAgent").addEventListener("change", () => { savePrefs(); refresh(); });
   async function cancelAgent(id) {
     try {
       const r = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions/" + encodeURIComponent(id) + "/cancel",
@@ -741,7 +846,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     cancelAgent(agentId);
   });
 
-  $("apiKey").addEventListener("input", () => { if ($("saveKey").checked) store.set(K.key, $("apiKey").value.trim()); });
+  $("apiKey").addEventListener("input", () => { if ($("saveKey").checked) store.set(K.key, $("apiKey").value.trim()); refresh(); });
   $("saveKey").addEventListener("change", () => {
     if ($("saveKey").checked) store.set(K.key, $("apiKey").value.trim()); else store.del(K.key);
   });

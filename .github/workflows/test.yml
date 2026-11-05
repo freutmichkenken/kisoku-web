@@ -19,6 +19,7 @@ jobs:
       - run: python3 py/test_custom_template.py
       - run: python3 py/test_crossref.py
       - run: python3 py/test_gemini_agent.py
+      - run: python3 py/test_comparison.py
       - run: python3 tests/regression.py
       - run: python3 tests/test_misdetection.py
       - run: python3 tests/test_format_variation.py

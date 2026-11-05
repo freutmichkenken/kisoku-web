@@ -17,6 +17,7 @@ import gemini_helper
 from kisoku_parser import parse_kisoku
 from apply_style import apply_style, TEMPLATE_MAP  # noqa: F401
 import custom_template
+import comparison
 import settings_reader
 
 TEMPLATE_DIR = "/app/templates"
@@ -142,6 +143,27 @@ def format_docx(src_path, json_path, template_key,
     return json.dumps({"output_path": output_path,
                        "report_path": report_path},
                       ensure_ascii=False)
+
+
+def compare_rows(json_path):
+    """新旧対照表の行（変更のあった章・条）を JSON 文字列で返す。"""
+    return json.dumps(comparison.compare_files(json_path), ensure_ascii=False)
+
+
+def make_comparison(src_path, json_path, notes_json=""):
+    """新旧対照表の docx を作り、パスを返す。notes_json は {行の id: 備考}。"""
+    try:
+        notes = json.loads(notes_json or "{}")
+    except ValueError:
+        raise ValueError("備考の内容を読み取れませんでした")
+    if not isinstance(notes, dict):
+        raise ValueError("備考の内容を読み取れませんでした")
+    notes = {str(k): str(v) for k, v in notes.items()}
+    base = os.path.splitext(os.path.basename(src_path))[0]
+    out = os.path.join(os.path.dirname(src_path), f"{base}_新旧対照表.docx")
+    rows = comparison.compare_files(json_path)
+    return comparison.build_docx(rows, notes, out,
+                                 subtitle=os.path.basename(src_path))
 
 
 def make_sample(custom_json, tree_json, work_dir):

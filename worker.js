@@ -18,6 +18,7 @@ const PY_FILES = [
   "crossref.py",
   "verify_report.py",
   "gemini_helper.py",
+  "comparison.py",
 ];
 const TEMPLATE_FILES = [
   "就業規則テンプレ1.docx",
@@ -118,6 +119,18 @@ async function handleFormat(msg) {
   post(out, transfer);
 }
 
+async function handleCompare(msg) {
+  if (!current) throw new Error("先に docx を読み込んでください");
+  post({ type: "compared", id: msg.id, rows: JSON.parse(entry.compare_rows(current.jsonPath)) });
+}
+
+async function handleComparisonDocx(msg) {
+  if (!current) throw new Error("先に docx を読み込んでください");
+  const path = entry.make_comparison(current.srcPath, current.jsonPath, msg.notes || "{}");
+  const docx = readOut(path);
+  post({ type: "comparisonDocx", id: msg.id, docxName: path.split("/").pop(), docx }, [docx]);
+}
+
 async function handleSample(msg) {
   runNo += 1;
   const path = entry.make_sample(msg.custom || "", msg.tree || "[]", `/work/sample_${runNo}`);
@@ -148,6 +161,8 @@ self.onmessage = async (ev) => {
     if (msg.type === "parse") await handleParse(msg);
     else if (msg.type === "format") await handleFormat(msg);
     else if (msg.type === "sample") await handleSample(msg);
+    else if (msg.type === "compare") await handleCompare(msg);
+    else if (msg.type === "comparisonDocx") await handleComparisonDocx(msg);
     else if (msg.type === "readCustom") await handleReadCustom(msg);
   } catch (e) {
     let text = String(e && e.message ? e.message : e);

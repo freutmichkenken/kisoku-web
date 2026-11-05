@@ -18,6 +18,7 @@ python3 py/test_parser.py
 python3 py/test_custom_template.py
 python3 py/test_crossref.py
 python3 py/test_gemini_agent.py
+python3 py/test_comparison.py
 python3 tests/regression.py
 python3 tests/test_misdetection.py
 python3 tests/test_format_variation.py
