@@ -235,6 +235,103 @@ def is_toc_paragraph(para, doc):
     return low.startswith('toc') or low.startswith('table of contents')
 
 
+# 手打ちの目次の行
+#  a. 行末が「リーダー記号2文字以上 or タブ」+ ページ番号
+#  b. 章・条の見出しで、行末が「（第1条～第4条）」のような条の範囲の括弧
+_NUM_CH = '[0-9０-９一二三四五六七八九十百]+'
+#  ページ番号は「６～７」「10～14」のような範囲でもよい
+_RE_TOC_LEADER_PAGE = re.compile(
+    r'(?:[…‥・．.]{2,}|\t)[\s　]*[－-]?[\s　]*[0-9０-９]+[\s　]*[－-]?'
+    r'(?:[\s　]*[～〜~][\s　]*[－-]?[\s　]*[0-9０-９]+[\s　]*[－-]?)?[\s　]*$')
+# 目次の見出し（「目次」「目　次」「【目次】」）
+_RE_TOC_TITLE = re.compile(
+    r'^[【［\[〈＜<（(]?[\s　]*目[\s　]*次[\s　]*[】］\]〉＞>）)]?$')
+_RE_TOC_ARTICLE_RANGE = re.compile(
+    r'[（(][\s　]*第[\s　]*' + _NUM_CH + r'[\s　]*条'
+    r'(?:[\s　]*[～〜~－ー-][\s　]*第?[\s　]*' + _NUM_CH + r'[\s　]*条)?'
+    r'[\s　]*[）)][\s　]*$')
+
+
+def is_manual_toc_line(text):
+    """手打ちの目次の行か（本文が始まる前の段落にだけ使う）。"""
+    s = text.strip()
+    if not s:
+        return False
+    if _RE_TOC_LEADER_PAGE.search(text.rstrip('\r\n')):
+        return True
+    st = text.lstrip('　 \t').rstrip()
+    if (match_chapter(st) or match_article(st)) and _RE_TOC_ARTICLE_RANGE.search(st):
+        return True
+    return False
+
+
+def _toc_heading_number(st):
+    """章・条の見出しなら ('chapter'|'article', 番号)、それ以外は None。"""
+    m = match_chapter(st)
+    if m:
+        return 'chapter', zenkaku_to_int(m.group(1))
+    m = match_article(st)
+    if m:
+        return 'article', zenkaku_to_int(m.group(1))
+    return None
+
+
+def find_manual_toc(paras):
+    """
+    手打ちの目次の段落の位置（child_idx の集合）を返す。
+    paras: 目次スタイルでない段落の (child_idx, テキスト) を文書の順に並べたもの。
+
+    行末で目次と分かる行（リーダー＋ページ番号、条の範囲）だけでなく、
+    ページ番号の無い目次の行（「第１条（目的）」だけの行）も拾うため、
+    「目次」の見出しか目次の行から始まるまとまりを、
+    番号が戻る章（第１章がもう一度出る）、または条だけの目次のあとの章・番号が戻る条
+    で終わるとみなす。
+    途中に句点で終わる行（＝本文）があるか、番号が戻らないまま終わったときは、
+    まとまりを目次とみなさず、本文の始まりより前の、行末で目次と分かる行だけを返す。
+    """
+    # 本文の始まり（最初の章・条の見出し）より前にある、行末で目次と分かる行
+    base = set()
+    for idx, text in paras:
+        st = text.lstrip('　 \t').rstrip()
+        if is_manual_toc_line(text):
+            base.add(idx)
+        elif _toc_heading_number(st):
+            break
+
+    start = None
+    for k, (idx, text) in enumerate(paras):
+        st = text.lstrip('　 \t').rstrip()
+        if _RE_TOC_TITLE.match(st) or is_manual_toc_line(text):
+            start = k
+            break
+        if _toc_heading_number(st):
+            return base          # 目次より前に本文が始まった
+    if start is None:
+        return base
+
+    block = set()
+    last = {'chapter': None, 'article': None}
+    for idx, text in paras[start:]:
+        st = text.lstrip('　 \t').rstrip()
+        h = _toc_heading_number(st)
+        if st and not is_manual_toc_line(text) and not _RE_TOC_TITLE.match(st):
+            if h:
+                kind, n = h
+                if kind == 'chapter' and (
+                        (last['chapter'] is not None and n <= last['chapter'])
+                        or (last['chapter'] is None and last['article'] is not None)):
+                    return base | block      # ここから本文
+                if (kind == 'article' and last['chapter'] is None
+                        and last['article'] is not None and n <= last['article']):
+                    return base | block      # 条だけの目次で番号が戻った
+            if st.endswith('。'):
+                return base              # 文がある → 目次ではない
+        if h:
+            last[h[0]] = h[1]
+        block.add(idx)
+    return base                          # 本文の始まりが見つからない
+
+
 # ============================================================
 # STEP 0: 元ファイルの自動番号（numPr）定義を読み取る
 # ============================================================
@@ -1818,8 +1915,14 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
                         break
                     fig_adjacent.add(idx)
 
+    # 手打ちの目次の段落（目次スタイルの段落は除いて探す）
+    manual_toc = find_manual_toc(
+        [(i, _texts[i]) for i, c in _all
+         if not is_toc_paragraph(Paragraph(c, doc), doc)])
+
     front_indices = []
     front_texts = []
+    front_paras = []       # 前付けの要素 (child_idx, テキスト or 表ならNone, 目次の行か)
     body_started = False
     back_start = None      # 停止ワードを検出した位置（ここ以降は後付け）
     _prev_text = ''        # 直前の空でない段落（停止ワードが行の折り返しかを見る）
@@ -1834,6 +1937,16 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             # 章・条見出しが並ぶため、本文と誤認識してしまう
             if is_toc_paragraph(para, doc):
                 n_toc_skipped += 1
+                continue
+
+            # 手打ちの目次の行（本文が始まる前だけ）は前付けにする。
+            # 停止ワード（附則など）や本文の始まりの判定より前に見分ける
+            if not body_started and child_idx in manual_toc:
+                front_indices.append(child_idx)
+                front_paras.append((child_idx, text, True))
+                if text.strip():
+                    front_texts.append(text.strip())
+                    _prev_text = text
                 continue
 
             # 停止ワード（附則・改版履歴など）を検出したら、
@@ -1893,9 +2006,25 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
                         or match_chapter(stripped_t)
                         or match_article(stripped_t)):
                     body_started = True
+                    # 条で本文が始まるとき、直前の括弧だけの行
+                    # （第1条のタイトル）は前付けではなく本文に含める
+                    if kind == 'article' or match_article(stripped_t):
+                        _last = None
+                        for _fp in reversed(front_paras):
+                            if _fp[1] is not None and _fp[1].strip():
+                                _last = _fp
+                                break
+                        if (_last is not None and not _last[2]
+                                and RE_TITLE.match(_last[1].lstrip('　 \t'))
+                                and _last[0] in front_indices):
+                            front_indices.remove(_last[0])
+                            if front_texts:
+                                front_texts.pop()
+                            seq.append(('text', _last[1]))
                 else:
                     # まだ本文前 → 前付け（表紙・前文）として記録し、
                     # 構造解析の対象からは外す
+                    front_paras.append((child_idx, text, False))
                     front_indices.append(child_idx)
                     if text.strip():
                         front_texts.append(text.strip())
@@ -1922,6 +2051,7 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
         elif child.tag == qn('w:tbl'):
             if not body_started:
                 # 本文前の表（表紙内の表など）も前付けに含める
+                front_paras.append((child_idx, None, False))
                 front_indices.append(child_idx)
                 tbl_index += 1
                 continue

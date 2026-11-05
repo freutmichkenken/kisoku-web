@@ -20,912 +20,232 @@
       15,
       16,
       17,
-      18
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134
     ],
     "texts": [
       "モデル就業規則",
       "（卸小売業）",
       "（注）会社それぞれの職場事情を考慮し、必要に応じて、当規則の文言を修正、削除、加筆してください。",
-      "目　次"
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 1,
-    "number_str": "第１章",
-    "title": "総則……………………………………………………………………６",
-    "articles": [
-      {
-        "type": "article",
-        "number": 1,
-        "branch": 0,
-        "number_str": "第１条",
-        "title": "目的",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 2,
-        "branch": 0,
-        "number_str": "第２条",
-        "title": "適用範囲",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 3,
-        "branch": 0,
-        "number_str": "第３条",
-        "title": "規則の遵守",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 2,
-    "number_str": "第２章",
-    "title": "採用、異動等……………………………………………………６～７",
-    "articles": [
-      {
-        "type": "article",
-        "number": 4,
-        "branch": 0,
-        "number_str": "第４条",
-        "title": "採用手続",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 5,
-        "branch": 0,
-        "number_str": "第５条",
-        "title": "採用時の提出書類",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 6,
-        "branch": 0,
-        "number_str": "第６条",
-        "title": "試用期間",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 7,
-        "branch": 0,
-        "number_str": "第７条",
-        "title": "労働条件の明示",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 7,
-        "branch": 2,
-        "number_str": "第７条の２",
-        "title": "女子の再雇用",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 7,
-        "branch": 3,
-        "number_str": "第７条の３",
-        "title": "パートタイマーへの転換",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 8,
-        "branch": 0,
-        "number_str": "第８条",
-        "title": "人事異動",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 9,
-        "branch": 0,
-        "number_str": "第９条",
-        "title": "休職",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 3,
-    "number_str": "第３章",
-    "title": "服務規律…………………………………………………………８～10",
-    "articles": [
-      {
-        "type": "article",
-        "number": 10,
-        "branch": 0,
-        "number_str": "第10条",
-        "title": "服務",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 11,
-        "branch": 0,
-        "number_str": "第11条",
-        "title": "遵守事項",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 12,
-        "branch": 0,
-        "number_str": "第12条",
-        "title": "社員バッジ、社員証",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 13,
-        "branch": 0,
-        "number_str": "第13条",
-        "title": "制服の着用",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 14,
-        "branch": 0,
-        "number_str": "第14条",
-        "title": "服務上の特定",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 15,
-        "branch": 0,
-        "number_str": "第15条",
-        "title": "出勤、退社、外出",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 16,
-        "branch": 0,
-        "number_str": "第16条",
-        "title": "私用外出",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 17,
-        "branch": 0,
-        "number_str": "第17条",
-        "title": "客用施設の利用禁止",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 18,
-        "branch": 0,
-        "number_str": "第18条",
-        "title": "持込、持出",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 19,
-        "branch": 0,
-        "number_str": "第19条",
-        "title": "携行品の点検",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 20,
-        "branch": 0,
-        "number_str": "第20条",
-        "title": "職場離席",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 21,
-        "branch": 0,
-        "number_str": "第21条",
-        "title": "社員買物",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 22,
-        "branch": 0,
-        "number_str": "第22条",
-        "title": "職場のパワーハラスメントの禁止",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 23,
-        "branch": 0,
-        "number_str": "第23条",
-        "title": "セクシュアルハラスメントの禁止",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 24,
-        "branch": 0,
-        "number_str": "第24条",
-        "title": "妊娠・出産・育児休業・介護休業等に関するハラスメントの禁止",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 25,
-        "branch": 0,
-        "number_str": "第25条",
-        "title": "その他あらゆるハラスメントの禁止",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 26,
-        "branch": 0,
-        "number_str": "第26条",
-        "title": "個人情報保護",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 27,
-        "branch": 0,
-        "number_str": "第27条",
-        "title": "出退勤",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 28,
-        "branch": 0,
-        "number_str": "第28条",
-        "title": "遅刻、早退、欠勤等",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 29,
-        "branch": 0,
-        "number_str": "第29条",
-        "title": "早退",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 30,
-        "branch": 0,
-        "number_str": "第30条",
-        "title": "直行、直帰",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 31,
-        "branch": 0,
-        "number_str": "第31条",
-        "title": "私傷病欠勤",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 4,
-    "number_str": "第４章",
-    "title": "労働時間、休憩及び休日………………………………………10～14",
-    "articles": [
-      {
-        "type": "article",
-        "number": 32,
-        "branch": 0,
-        "number_str": "第32条",
-        "title": "労働時間及び休憩時間",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 33,
-        "branch": 0,
-        "number_str": "第33条",
-        "title": "休日",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 34,
-        "branch": 0,
-        "number_str": "第34条",
-        "title": "休日の変更、振替",
-        "title_note": "",
-        "paragraphs": [
-          {
-            "type": "paragraph",
-            "number": 1,
-            "body": "〔例２〕１カ月単位の変形労働時間制（隔週週休２日制を採用する場合）の規程例",
-            "items": []
-          }
-        ]
-      },
-      {
-        "type": "article",
-        "number": 32,
-        "branch": 0,
-        "number_str": "第32条",
-        "title": "労働時間及び休憩時間",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 33,
-        "branch": 0,
-        "number_str": "第33条",
-        "title": "休日",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 34,
-        "branch": 0,
-        "number_str": "第34条",
-        "title": "休日の変更、振替",
-        "title_note": "",
-        "paragraphs": [
-          {
-            "type": "paragraph",
-            "number": 1,
-            "body": "〔例３〕１年単位の変形労働時間制の規程例",
-            "items": []
-          }
-        ]
-      },
-      {
-        "type": "article",
-        "number": 32,
-        "branch": 0,
-        "number_str": "第32条",
-        "title": "労働時間及び休憩時間",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 33,
-        "branch": 0,
-        "number_str": "第33条",
-        "title": "休日",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 34,
-        "branch": 0,
-        "number_str": "第34条",
-        "title": "休日の変更、振替",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 35,
-        "branch": 0,
-        "number_str": "第35条",
-        "title": "時間外及び休日労働等",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ],
-    "preamble": [
-      "〔例１〕完全週休２日制を採用する場合の規程例"
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 5,
-    "number_str": "第５章",
-    "title": "休暇等……………………………………………………………15～17",
-    "articles": [
-      {
-        "type": "article",
-        "number": 36,
-        "branch": 0,
-        "number_str": "第36条",
-        "title": "年次有給休暇",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 37,
-        "branch": 0,
-        "number_str": "第37条",
-        "title": "年次有給休暇の時間単位での付与",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 38,
-        "branch": 0,
-        "number_str": "第38条",
-        "title": "産前産後の休業",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 39,
-        "branch": 0,
-        "number_str": "第39条",
-        "title": "母性健康管理の措置",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 40,
-        "branch": 0,
-        "number_str": "第40条",
-        "title": "育児時間及び生理休暇",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 41,
-        "branch": 0,
-        "number_str": "第41条",
-        "title": "育児・介護休業、子の看護休暇等",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 42,
-        "branch": 0,
-        "number_str": "第42条",
-        "title": "慶弔休暇",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 43,
-        "branch": 0,
-        "number_str": "第43条",
-        "title": "裁判員等のための休暇",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 6,
-    "number_str": "第６章",
-    "title": "賃金………………………………………………………………18～25",
-    "articles": [
-      {
-        "type": "article",
-        "number": 44,
-        "branch": 0,
-        "number_str": "第44条",
-        "title": "賃金の構成",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 45,
-        "branch": 0,
-        "number_str": "第45条",
-        "title": "基本給",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 46,
-        "branch": 0,
-        "number_str": "第46条",
-        "title": "家族手当",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 47,
-        "branch": 0,
-        "number_str": "第47条",
-        "title": "通勤手当",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 48,
-        "branch": 0,
-        "number_str": "第48条",
-        "title": "役付手当",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 49,
-        "branch": 0,
-        "number_str": "第49条",
-        "title": "技能・資格手当",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 50,
-        "branch": 0,
-        "number_str": "第50条",
-        "title": "精勤手当",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 51,
-        "branch": 0,
-        "number_str": "第51条",
-        "title": "割増賃金",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 52,
-        "branch": 0,
-        "number_str": "第52条",
-        "title": "１年単位の変形労働時間制に関する賃金の精算",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 53,
-        "branch": 0,
-        "number_str": "第53条",
-        "title": "代替休暇",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 54,
-        "branch": 0,
-        "number_str": "第54条",
-        "title": "休暇等の賃金",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 55,
-        "branch": 0,
-        "number_str": "第55条",
-        "title": "臨時休業の賃金",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 56,
-        "branch": 0,
-        "number_str": "第56条",
-        "title": "欠勤等の扱い",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 57,
-        "branch": 0,
-        "number_str": "第57条",
-        "title": "賃金の計算期間及び支払日",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 58,
-        "branch": 0,
-        "number_str": "第58条",
-        "title": "賃金の支払と控除",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 59,
-        "branch": 0,
-        "number_str": "第59条",
-        "title": "賃金の非常時払い",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 60,
-        "branch": 0,
-        "number_str": "第60条",
-        "title": "昇給",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 61,
-        "branch": 0,
-        "number_str": "第61条",
-        "title": "賞与",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 7,
-    "number_str": "第７章",
-    "title": "定年、退職及び解雇……………………………………………25～26",
-    "articles": [
-      {
-        "type": "article",
-        "number": 62,
-        "branch": 0,
-        "number_str": "第62条",
-        "title": "定年等",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 63,
-        "branch": 0,
-        "number_str": "第63条",
-        "title": "退職",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 64,
-        "branch": 0,
-        "number_str": "第64条",
-        "title": "解雇",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ],
-    "preamble": [
-      "［例］定年を満６０歳とし、その後希望者を継続雇用する例（満６５歳以降は対象者基準あり）"
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 8,
-    "number_str": "第８章",
-    "title": "退職金……………………………………………………………26～27",
-    "articles": [
-      {
-        "type": "article",
-        "number": 65,
-        "branch": 0,
-        "number_str": "第65条",
-        "title": "退職金の支給",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 66,
-        "branch": 0,
-        "number_str": "第66条",
-        "title": "退職金の額",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 67,
-        "branch": 0,
-        "number_str": "第67条",
-        "title": "退職金の支払方法及び支払時期",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 9,
-    "number_str": "第９章",
-    "title": "安全衛生及び災害補償…………………………………………27～29",
-    "articles": [
-      {
-        "type": "article",
-        "number": 68,
-        "branch": 0,
-        "number_str": "第68条",
-        "title": "遵守事項",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 69,
-        "branch": 0,
-        "number_str": "第69条",
-        "title": "健康診断",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 70,
-        "branch": 0,
-        "number_str": "第70条",
-        "title": "長時間労働者に対する面接指導",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 71,
-        "branch": 0,
-        "number_str": "第71条",
-        "title": "ストレスチェック",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 72,
-        "branch": 0,
-        "number_str": "第72条",
-        "title": "健康管理上の個人情報の取扱い",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 73,
-        "branch": 0,
-        "number_str": "第73条",
-        "title": "安全衛生教育",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 74,
-        "branch": 0,
-        "number_str": "第74条",
-        "title": "災害補償",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 10,
-    "number_str": "第10章",
-    "title": "職業訓練……………………………………………………………29",
-    "articles": [
-      {
-        "type": "article",
-        "number": 75,
-        "branch": 0,
-        "number_str": "第75条",
-        "title": "教育訓練",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 11,
-    "number_str": "第11章",
-    "title": "表彰及び制裁…………………………………………………29～31",
-    "articles": [
-      {
-        "type": "article",
-        "number": 76,
-        "branch": 0,
-        "number_str": "第76条",
-        "title": "表彰",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 77,
-        "branch": 0,
-        "number_str": "第77条",
-        "title": "懲戒の種類",
-        "title_note": "",
-        "paragraphs": []
-      },
-      {
-        "type": "article",
-        "number": 78,
-        "branch": 0,
-        "number_str": "第78条",
-        "title": "懲戒の事由",
-        "title_note": "",
-        "paragraphs": []
-      }
-    ]
-  },
-  {
-    "type": "chapter",
-    "number": 12,
-    "number_str": "第12章",
-    "title": "無期労働契約への転換……………………………………………31",
-    "articles": [
-      {
-        "type": "article",
-        "number": 79,
-        "branch": 0,
-        "number_str": "第79条",
-        "title": "無期労働契約への転換",
-        "title_note": "",
-        "paragraphs": []
-      }
+      "目　次",
+      "第１章　総則……………………………………………………………………６",
+      "第１条（目的）",
+      "第２条（適用範囲）",
+      "第３条（規則の遵守）",
+      "第２章　採用、異動等……………………………………………………６～７",
+      "第４条（採用手続）",
+      "第５条（採用時の提出書類）",
+      "第６条（試用期間）",
+      "第７条（労働条件の明示）",
+      "第７条の２（女子の再雇用）",
+      "第７条の３（パートタイマーへの転換）",
+      "第８条（人事異動）",
+      "第９条（休職）",
+      "第３章　服務規律…………………………………………………………８～10",
+      "第10条（服務）",
+      "第11条（遵守事項）",
+      "第12条（社員バッジ、社員証）",
+      "第13条（制服の着用）",
+      "第14条（服務上の特定）",
+      "第15条（出勤、退社、外出）",
+      "第16条（私用外出）",
+      "第17条（客用施設の利用禁止）",
+      "第18条（持込、持出）",
+      "第19条（携行品の点検）",
+      "第20条（職場離席）",
+      "第21条（社員買物）",
+      "第22条（職場のパワーハラスメントの禁止）",
+      "第23条（セクシュアルハラスメントの禁止）",
+      "第24条（妊娠・出産・育児休業・介護休業等に関するハラスメントの禁止）",
+      "第25条（その他あらゆるハラスメントの禁止）",
+      "第26条（個人情報保護）",
+      "第27条（出退勤）",
+      "第28条（遅刻、早退、欠勤等）",
+      "第29条（早退）",
+      "第30条（直行、直帰）",
+      "第31条（私傷病欠勤）",
+      "第４章　労働時間、休憩及び休日………………………………………10～14",
+      "〔例１〕完全週休２日制を採用する場合の規程例",
+      "第32条（労働時間及び休憩時間）",
+      "第33条（休日）",
+      "第34条（休日の変更、振替）",
+      "〔例２〕１カ月単位の変形労働時間制（隔週週休２日制を採用する場合）の規程例",
+      "第32条（労働時間及び休憩時間）",
+      "第33条（休日）",
+      "第34条（休日の変更、振替）",
+      "〔例３〕１年単位の変形労働時間制の規程例",
+      "第32条（労働時間及び休憩時間）",
+      "第33条（休日）",
+      "第34条（休日の変更、振替）",
+      "第35条（時間外及び休日労働等）",
+      "第５章　休暇等……………………………………………………………15～17",
+      "第36条（年次有給休暇）",
+      "第37条（年次有給休暇の時間単位での付与）",
+      "第38条（産前産後の休業）",
+      "第39条（母性健康管理の措置）",
+      "第40条（育児時間及び生理休暇）",
+      "第41条（育児・介護休業、子の看護休暇等）",
+      "第42条（慶弔休暇）",
+      "第43条（裁判員等のための休暇）",
+      "第６章　賃金………………………………………………………………18～25",
+      "第44条（賃金の構成）",
+      "第45条（基本給）",
+      "第46条（家族手当）",
+      "第47条（通勤手当）",
+      "第48条（役付手当）",
+      "第49条（技能・資格手当）",
+      "第50条（精勤手当）",
+      "第51条（割増賃金）",
+      "第52条（１年単位の変形労働時間制に関する賃金の精算）",
+      "第53条（代替休暇）",
+      "第54条（休暇等の賃金）",
+      "第55条（臨時休業の賃金）",
+      "第56条（欠勤等の扱い）",
+      "第57条（賃金の計算期間及び支払日）",
+      "第58条（賃金の支払と控除）",
+      "第59条（賃金の非常時払い）",
+      "第60条（昇給）",
+      "第61条（賞与）",
+      "第７章　定年、退職及び解雇……………………………………………25～26",
+      "［例］定年を満６０歳とし、その後希望者を継続雇用する例（満６５歳以降は対象者基準あり）",
+      "第62条（定年等）",
+      "第63条（退職）",
+      "第64条（解雇）",
+      "第８章　退職金……………………………………………………………26～27",
+      "第65条（退職金の支給）",
+      "第66条（退職金の額）",
+      "第67条（退職金の支払方法及び支払時期）",
+      "第９章　安全衛生及び災害補償…………………………………………27～29",
+      "第68条（遵守事項）",
+      "第69条（健康診断）",
+      "第70条（長時間労働者に対する面接指導）",
+      "第71条（ストレスチェック）",
+      "第72条（健康管理上の個人情報の取扱い）",
+      "第73条（安全衛生教育）",
+      "第74条（災害補償）",
+      "第10章　職業訓練……………………………………………………………29",
+      "第75条（教育訓練）",
+      "第11章　表彰及び制裁…………………………………………………29～31",
+      "第76条（表彰）",
+      "第77条（懲戒の種類）",
+      "第78条（懲戒の事由）",
+      "第12章　無期労働契約への転換……………………………………………31",
+      "第79条（無期労働契約への転換）"
     ]
   },
   {
