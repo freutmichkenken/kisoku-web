@@ -786,11 +786,16 @@ def _para_num_is_continuation(buf, m, next_para=None):
         （「契約期間は、／2 年以内」）
       - 番号が次の項番号と違い、前の行が文の途中で終わっていて、半角空白で区切られて
         いれば数量（PDF由来の「満／60 歳」「…のうち／5 項目」）
-      - 番号が次の項番号と違い、前の行が句点などで終わっておらず、番号の後ろが単位の語なら
-        数量（「（１）…連続する／５　日以内の休暇」）"""
+      - 番号が次の項番号と違い、前の行が句点や名詞（漢字・カタカナ）で終わっておらず、
+        番号の後ろが単位の語なら、全角空白でも数量（「（１）…連続する／５　日以内の休暇」
+        「…以下の者…／６　時間」）。前の行が名詞で終わる
+        （「（２）その他会社が認めた場合／３　日以上の…」）なら項
+      - 「ただし助詞で終わるとき」の助詞には、接続の語（「から」「及び」「につき」など。
+        行末の読点は除いて見る）も含む"""
     num = zenkaku_to_int(m.group('num'))
     if (next_para is not None and num != next_para
-            and buf.last not in '。．」）)' and _QUANTITY_UNIT.match(m.group('body'))):
+            and buf.last not in '。．」）)' and not re.match(r'[一-龯々ァ-ヶー]', buf.last)
+            and _QUANTITY_UNIT.match(m.group('body'))):
         return True
     if not _ends_mid_sentence(buf) or m.group('ws') != ' ':
         return False
@@ -1081,7 +1086,8 @@ def _ends_with_connective(text):
 
 
 # 数字の後ろがこれらの単位なら、項番号ではなく数量（「60 歳」「1 日」「6 割」）。
-# 半角空白で区切られているときだけ使う（PDF由来の文書）。本文が単位の字で
+# 主に半角空白で区切られているときに使う（PDF由来の文書）。全角空白でも、番号が次の
+# 項番号と違い前の行が文の途中なら使う（_para_num_is_continuation）。本文が単位の字で
 # 始まる項（「2 年次有給休暇は」「2 年間休日は」「2 時間外労働は」）と
 # 区別するため、そうした語は除く。
 # 1字の単位（年・日・時・分 など）は、後ろに漢字が続くと別の語になる
@@ -1826,7 +1832,7 @@ def build_tree(flat):
 
 
 # 句点で終わる文か（後ろに括弧書きの注記「（ただし、…を除く）」が付いていてもよい）
-_RE_ENDS_SENTENCE = re.compile(r'。[　 \t]*(?:[（(][^（()）]*[）)][　 \t]*)*$')
+_RE_ENDS_SENTENCE = re.compile(r'。[　 \t]*(?:[（(]' + _PAREN_INNER + r'[）)][　 \t]*)*$')
 
 
 def _maru_items_to_paragraphs(article):
