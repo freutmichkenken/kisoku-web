@@ -429,7 +429,7 @@ def merge_lines(items):
             else:
                 is_new = _starts_new_unit(stripped, buf)
             if (not is_new and head == 'chapter_titled'
-                    and not _chapter_title_continues(buf)):
+                    and not _chapter_title_continues(buf, stripped)):
                 # 章タイトルのあとの本文（章の前文など）は章タイトルに混ぜない
                 is_new = True
             if (not is_new and head == 'chapter_bare'
@@ -472,21 +472,6 @@ def _heading_state(buf):
 
 _RE_MARK_HEAD = re.compile(
     r'^(?:[①-⑳㉑-㊿]|（[０-９0-9一二三四五六七八九十]+）|\([０-９0-9一二三四五六七八九十]+\))[　\s]*')
-# 項番号の前の行がこれで終わっていれば、文の途中の改行（「契約期間は、／2 年以内」）
-_MID_SENTENCE_END = set('、，をがは')
-
-
-def _is_marker_line(s):
-    """行頭に号の記号（（１）、①、ア 等）があるか。"""
-    s = s.lstrip('　 \t')
-    if _RE_MARK_HEAD.match(s):
-        return True
-    if _HAS_MARKER_ANALYZER:
-        try:
-            return identify_symbol(s)[0] is not None
-        except Exception:
-            return False
-    return False
 
 
 def _is_short_dot_item(s):
@@ -500,36 +485,39 @@ def _is_short_dot_item(s):
     return not re.search(r'[。、はをが]', rest) and len(rest) <= 30
 
 
-def _chapter_title_continues(buf):
-    """章タイトルが行の途中で折り返されているか
-    （「第5章　賃金及び／退職金」「第2章　育児・介護休業等に／関する事項」）。
-    「…について」のように言い切る形は続きとみなさない。"""
+def _chapter_title_continues(buf, line):
+    """章タイトルが行の途中で折り返されているか。
+      - タイトルが「、・」や助詞・「及び」等で終わる（「第2章　育児・介護休業等に／関する事項」）
+      - 次の行が、句点の無い短い語句（「第2章　労働時間、休憩／休日及び休暇」）
+    次の行が括弧付きの見出し（「〔Ａ例〕…」「［例１］…」）や、空白で区切った行
+    （「Ａ  週40時間労働制の規定例」）なら、章の前文とみなす。"""
     t = buf.rstrip('　 \t')
-    return bool(t) and (t[-1] in '、，・にをはがでへのとや' or t.endswith(
-        ('及び', '並びに', '又は', '若しくは')))
+    if t and (t[-1] in '、，・にをはがでへのとや' or t.endswith(
+            ('及び', '並びに', '又は', '若しくは'))):
+        return True
+    s = line.strip()
+    return (bool(s) and len(s) <= 20 and '。' not in s
+            and not re.match(r'^[〔［【＜<（(※・]', s)
+            and not re.search(r'[ 　]{2,}', s))
 
 
 def _para_num_is_continuation(buf, m):
-    """RE_PARA に一致した行が、項の始まりではなく前の文の続きか。"""
-    t = buf.rstrip('　 \t')
-    if not t:
-        return False
-    # 号は「（１）履歴書、」のように読点で終わることがあるので、号の行には使わない
-    if t[-1] in _MID_SENTENCE_END and not _is_marker_line(buf):
-        return True
-    # 「満／60 歳とし」のように、文の途中で数量が行頭に来た（PDF由来の半角空白）
-    return (t[-1] not in COMPLETE_ENDINGS and m.group('ws') == ' '
+    """RE_PARA に一致した行が、項の始まりではなく前の文の続きか。
+    「満／60 歳とし」「契約期間は、／2 年以内」のように、前の行が文の途中で終わり、
+    次の行が半角空白＋単位（PDF由来）のときだけ続きとみなす。"""
+    return (_ends_mid_sentence(buf) and m.group('ws') == ' '
             and bool(_QUANTITY_UNIT.match(m.group('body'))))
 
 
 def _starts_new_unit(stripped, buf):
     """行頭が章・条・条タイトル・第2項以降・号の記号で、新しい段落の始まりか。"""
     if match_chapter(stripped) or match_article(stripped):
-        return True
+        # 「…その後30日間は、／第10条（解雇）の規定にかかわらず」:
+        # 文の途中で折り返した行の先頭に来た参照は、見出しにしない
+        return not (_ends_mid_sentence(buf) and _heading_is_reference(stripped))
     # 「通常の賃金の／1.25倍とする」: 文の途中で小数が行頭に来た
-    tb = buf.rstrip('　 \t')
     if (re.match(r'^[０-９0-9]+[．.][０-９0-9]', stripped)
-            and tb and tb[-1] not in COMPLETE_ENDINGS):
+            and _ends_mid_sentence(buf)):
         return False
     if (re.match(r'^（[^）]+）[\s　]*([※＊*].*)?$', stripped)    # 条タイトル
             or re.match(r'^\([^)]+\)\s*$', stripped)):
@@ -561,9 +549,9 @@ def _starts_new_unit(stripped, buf):
                 # 前の行が同じ記号の続き番号の号（「（１）履歴書、／（２）より…」）なら号
                 if prev_t is not None and prev_t == cur_t and cur_n == prev_n + 1:
                     return True
-                # 前の行が号でなければ、第1号は号の列の始まり
-                # （「職務の遂行にあたり、／（１）のれんや看板を…」）
-                if prev_t is None and cur_n == 1:
+                # 前の行と違う記号の第1号は、号（号の細分）の列の始まり
+                # （「職務の遂行にあたり、／（１）のれん…」「（１）…に関し、／①のれん…」）
+                if prev_t != cur_t and cur_n == 1:
                     return True
             except Exception:
                 pass
@@ -629,26 +617,40 @@ _REF_AFTER_HEADING = re.compile(
 
 
 def match_chapter(s):
-    """章見出しなら RE_CHAPTER の match を返す。本文中の参照（「第3章の規定」）なら None。"""
-    m = RE_CHAPTER.match(s)
-    if not m:
-        return None
-    if _REF_AFTER_HEADING.match(m.group(2).strip()):
-        return None
-    return m
+    """章見出しの形なら RE_CHAPTER の match を返す。"""
+    return RE_CHAPTER.match(s)
 
 
 def match_article(s):
-    """条見出しなら RE_ARTICLE の match を返す。本文中の参照（「第10条（解雇）の規定」）なら None。"""
+    """条見出しの形なら RE_ARTICLE の match を返す。"""
+    return RE_ARTICLE.match(s)
+
+
+def _heading_is_reference(s):
+    """章・条の見出しの形の行で、番号の後ろ（括弧書きを除く）が助詞・読点か
+    （「第3章の規定」「第10条（解雇）の規定」）。見出しの本文が「第1項の規定は…」
+    「のべ5日…」で始まることもあるので、前の行が文の途中で終わっている
+    （行の折り返し）ときにだけ使う（merge_lines）。"""
+    m = RE_CHAPTER.match(s)
+    if m:
+        return bool(_REF_AFTER_HEADING.match(m.group(2).strip()))
     m = RE_ARTICLE.match(s)
-    if not m:
-        return None
-    rest = m.group(3)
-    tm = re.match(r'^[（(][^）)]*[）)]', rest)
-    after = rest[tm.end():] if tm else rest
-    if _REF_AFTER_HEADING.match(after.lstrip('　 \t')):
-        return None
-    return m
+    if m:
+        rest = m.group(3)
+        tm = re.match(r'^[（(][^）)]*[）)]', rest)
+        after = rest[tm.end():] if tm else rest
+        return bool(_REF_AFTER_HEADING.match(after.lstrip('　 \t')))
+    return False
+
+
+def _ends_mid_sentence(text):
+    """行が文の途中で終わっているか（読点・助詞・漢字で終わる。PDF由来の折り返し）。
+    「…とする」「…による」のように言い切る形や、句点・括弧で終わる行は含めない。"""
+    t = (text or '').rstrip('　 \t')
+    if not t:
+        return False
+    c = t[-1]
+    return c in '、，のにをはがでとへやも' or bool(re.match(r'[一-龯々]', c))
 
 
 # 数字の後ろがこれらの単位なら、項番号ではなく数量（「60 歳」「1 日」「6 割」）。
@@ -690,14 +692,14 @@ def _strip_para1_number(body):
 
 
 # 括弧だけの行のうち、条タイトルではなく注記とみなすもの
-#   例:「（ただし、中途採用者を除く）」「（パートタイマーを除く）」「（令和６年４月１日一部改定）」
-# 「（管理監督者を除く従業員の休憩）」のようなタイトルと区別するため、
-# 除外・包含の表現は末尾にあるときだけ注記とみなす。
+#   例:「（ただし、中途採用者を除く）」「（令和６年４月１日一部改定）」
+# 「（パートタイマーを除く）」のような行は、条タイトル（「（管理監督者を除く）」）と
+# 見分けられないので、ここでは注記にしない。タイトルとして保留し、次に条が
+# 来なければ build_tree が本文に戻す。
 _RE_NOTE_PAREN = re.compile(
     r'(?:令和|平成|昭和)[　\s]*[元０-９0-9一二三四五六七八九十]+[　\s]*年'
     r'|[０-９0-9]{4}[　\s]*年'
-    r'|^ただし'
-    r'|(?:を除く|は除く|を含む|以下同じ|において同じ)(?:ものとする|こと)?[。．]?$')
+    r'|^ただし')
 
 
 def _is_note_paren(inner):
@@ -1796,6 +1798,7 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
     front_texts = []
     body_started = False
     back_start = None      # 停止ワードを検出した位置（ここ以降は後付け）
+    _prev_text = ''        # 直前の空でない段落（停止ワードが行の折り返しかを見る）
 
     for child_idx, child in enumerate(iter_block_elements(body)):
         if child.tag == qn('w:p'):
@@ -1814,11 +1817,15 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             # 行頭一致に限る（本文中の「〇〇法附則第3項」で止まらないように）
             # 「附則に定める…」「附則第2項の規定により…」のような本文中の参照
             # （行の折り返しで行頭に来たもの）では止めない
+            # 前の段落が文の途中で終わっているとき（行の折り返し）だけ判定する
             _sm = stop_re.match(text.strip()) if text.strip() else None
-            if _sm and not _STOP_WORD_REF.match(text.strip()[_sm.end():]):
+            if _sm and not (_ends_mid_sentence(_prev_text)
+                            and _STOP_WORD_REF.match(text.strip()[_sm.end():])):
                 print(f"停止: {repr(text.strip()[:30])}（以降は整形せず保持）")
                 back_start = child_idx
                 break
+            if text.strip():
+                _prev_text = text
             # 図形・画像を含む段落は、テキストに置き換えると失われるため
             # 元のXMLをそのまま複製する対象として記録する
             # 章・条・条タイトルの行は、装飾の図形（見出し下の罫線など）を
