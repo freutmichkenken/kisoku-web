@@ -886,6 +886,32 @@ def _emit_drawing(doc, node, src_body, src_doc=None,
     return False
 
 
+def _emit_image(doc, node):
+    """
+    画面で足した画像（PNG・JPEG の base64）を、本文の幅に収めて中央に入れる。
+    形式の確認は web_entry.write_tree で済ませているが、壊れていても整形は止めない。
+    """
+    import base64
+    import io
+    try:
+        data = base64.b64decode(node.get("data") or "", validate=True)
+        sec = doc.sections[-1]
+        usable_w = sec.page_width - sec.left_margin - sec.right_margin
+        usable_h = sec.page_height - sec.top_margin - sec.bottom_margin
+        shape = doc.add_picture(io.BytesIO(data))      # 末尾に画像だけの段落ができる
+        p = doc.paragraphs[-1]
+        # 本文の幅と高さの両方に収まるよう、縦横比を保って縮める（拡大はしない）
+        scale = min(1.0, usable_w / shape.width if shape.width else 1.0,
+                    usable_h / shape.height if shape.height else 1.0)
+        if scale < 1.0:
+            shape.width, shape.height = int(shape.width * scale), int(shape.height * scale)
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        return True
+    except Exception as e:
+        print(f"  ※ 画像「{node.get('name', '')}」を入れられませんでした: {e}")
+        return False
+
+
 def _add_table(doc, tbl_node, style_id, src_tables=None,
                src_styles=None, out_styles=None):
     """
@@ -1151,11 +1177,14 @@ def apply_style(json_path, template_path, template_key, output_path,
             n_table += 1
 
     def emit_drawings(container):
-        """dict内の drawings（図形・画像）を元のまま出力する"""
+        """dict内の drawings（図形・画像）を元のまま出力する。画面で足した画像（type=image）は新しく入れる"""
         nonlocal n_draw
         for dw in container.get("drawings", []):
-            if _emit_drawing(doc, dw, src_body, src_doc,
-                             src_styles, out_styles):
+            if dw.get("type") == "image":
+                ok = _emit_image(doc, dw)
+            else:
+                ok = _emit_drawing(doc, dw, src_body, src_doc, src_styles, out_styles)
+            if ok:
                 n_draw += 1
 
     def emit_article(art):

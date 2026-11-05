@@ -149,6 +149,55 @@ def format_docx(src_path, json_path, template_key,
 
 
 _TREE_TYPES = {"front_matter", "chapter", "article", "back_matter"}
+IMAGE_MAX_BYTES = 5 * 1024 * 1024        # 画面で足す画像1枚の上限（画面側と同じ）
+IMAGE_TOTAL_BYTES = 30 * 1024 * 1024     # 規程全体の画像の合計の上限（ブラウザ内の Python のメモリを使い切らないように）
+_IMAGE_MAGIC = {"image/png": b"\x89PNG\r\n\x1a\n", "image/jpeg": b"\xff\xd8\xff"}
+
+
+def _check_image(dw):
+    """画面で足した画像：PNG・JPEG で、宣言した形式と中身が一致し、上限以下であること。"""
+    import base64
+    import binascii
+    mime, data = dw.get("mime"), dw.get("data")
+    if mime not in _IMAGE_MAGIC or not isinstance(data, str) or not isinstance(dw.get("name", ""), str):
+        raise ValueError("画像は PNG か JPEG にしてください")
+    if len(data) > IMAGE_MAX_BYTES * 4 // 3 + 4:
+        raise ValueError("画像は 5MB 以下にしてください")
+    try:
+        raw = base64.b64decode(data, validate=True)
+    except (binascii.Error, ValueError):
+        raise ValueError("画像が壊れているため読み込めません")
+    if len(raw) > IMAGE_MAX_BYTES:
+        raise ValueError("画像は 5MB 以下にしてください")
+    if not raw.startswith(_IMAGE_MAGIC[mime]):
+        raise ValueError("画像の形式と中身が一致しません（拡張子だけ変えた画像は使えません）")
+    return len(raw)
+
+
+def _check_figures(node, used=None):
+    """表・図・画像の一覧の形を確かめる（表・図は元の文書の位置 index を持つ）。"""
+    for key in ("tables", "drawings"):
+        lst = node.get(key, [])
+        if not isinstance(lst, list) or not all(isinstance(x, dict) for x in lst):
+            raise ValueError("編集内容の形式が正しくありません")
+        for x in lst:
+            if key == "drawings" and x.get("type") == "image":
+                n = _check_image(x)
+                if used is not None:
+                    used[0] += n
+                    if used[0] > IMAGE_TOTAL_BYTES:
+                        raise ValueError("画像の合計は 30MB 以下にしてください")
+                continue
+            idx = x.get("index")
+            if not (idx is None or (isinstance(idx, int) and not isinstance(idx, bool) and idx >= 0)):
+                raise ValueError("編集内容の形式が正しくありません")
+            if key == "tables":
+                rows = x.get("rows", [])
+                if not isinstance(rows, list) or not all(
+                        isinstance(r, list) and all(c is None or isinstance(c, str) for c in r) for r in rows):
+                    raise ValueError("編集内容の形式が正しくありません")
+            elif not (x.get("text") is None or isinstance(x.get("text"), str)):
+                raise ValueError("編集内容の形式が正しくありません")
 
 
 def _check_tree(tree):
@@ -159,12 +208,18 @@ def _check_tree(tree):
     def text(v):
         return v is None or isinstance(v, str)
 
+    used = [0]                       # 画像の合計の大きさ
+
+    def figures(node):
+        _check_figures(node, used)
+
     def units(lst, kind):
         if not isinstance(lst, list):
             raise ValueError("編集内容の形式が正しくありません")
         for u in lst:
             if not isinstance(u, dict) or not text(u.get("body")):
                 raise ValueError("編集内容の形式が正しくありません")
+            figures(u)
             if kind == "paragraph":
                 units(u.get("items", []), "item")
             elif kind == "item":
@@ -184,6 +239,7 @@ def _check_tree(tree):
         if not isinstance(a, dict) or a.get("type") != "article" or not text(a.get("title")):
             raise ValueError("編集内容の形式が正しくありません")
         numbered(a)
+        figures(a)
         units(a.get("paragraphs", []), "paragraph")
 
     for node in tree:
@@ -193,6 +249,7 @@ def _check_tree(tree):
             if not text(node.get("title")) or not isinstance(node.get("articles", []), list):
                 raise ValueError("編集内容の形式が正しくありません")
             numbered(node)
+            figures(node)
             for a in node.get("articles", []):
                 article(a)
         elif node["type"] == "article":
