@@ -24,6 +24,7 @@
   --err-bg: #FCECEC;
   --del-bg: #FDECEC; --del-strong: #F7C4C4;
   --ins-bg: #E7F5EB; --ins-strong: #BFE5CB;
+  --band-bg: #FFFFFF; --hover-bg: #EEF1F6; --edit-old: #E8EEF9;
   --mincho: "BIZ UDPMincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
   --gothic: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
   box-sizing: border-box;
@@ -38,6 +39,7 @@
     --err: #F29B9F; --err-bg: #3A1D20;
     --del-bg: #3A1D20; --del-strong: #6B2A30;
     --ins-bg: #17301F; --ins-strong: #25563A;
+    --band-bg: #1A2030; --hover-bg: #232B3F; --edit-old: #1F2B47;
   }
 }
 *, *::before, *::after { box-sizing: inherit; }
@@ -231,15 +233,30 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .result a.dl { display: inline-block; margin-top: 6px; font-weight: 700; color: var(--ai); word-break: break-all; }
 .result .sub { display: block; margin-top: 4px; font-size: 13px; }
 
-.cmp-list { margin-top: 10px; width: min(1200px, calc(100vw - 32px)); position: relative; left: 50%; transform: translateX(-50%); overflow-x: auto; }
+.cmp-list { margin-top: 10px; width: min(1200px, calc(100vw - 32px)); position: relative; left: 50%; transform: translateX(-50%); }
+.cmp-scroll { overflow-x: auto; }
 .cmp-list[hidden] { display: none; }
 .cmp-inner { min-width: 900px; }
-.cmp-only { display: block; margin-bottom: 8px; font-size: 14px; }
+.cmp-bar { position: sticky; top: 0; z-index: 20; background: var(--band-bg); border-bottom: 1px solid var(--rule); padding: 6px 4px; margin-bottom: 8px; }
+.cmp-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 14px; }
+.cmp-only { display: inline-block; font-size: 14px; }
+.cmp-bar .btn.small { min-height: 28px; padding: 0 10px; font-size: 13px; font-weight: 400; }
+.cmp-toc { max-height: 40vh; overflow-y: auto; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--rule); font-size: 13.5px; }
+.cmp-toc[hidden] { display: none; }
+.cmp-toc button { display: block; width: 100%; text-align: left; padding: 2px 6px; border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; border-radius: 4px; }
+.cmp-toc button:hover, .cmp-toc button:focus-visible { background: var(--hover-bg); }
+.cmp-toc button.art { padding-left: 1.6em; }
+.cmp-toc button.chap { font-weight: 700; }
+.cmp-toc .chg { color: var(--ai); margin-left: .4em; font-size: 12px; }
+.cmp-fold { flex: none; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px; margin-right: 2px; }
+.cmp-block { scroll-margin-top: 90px; }
+.cmp-block.folded:not(.editing) { display: none; }   /* 編集中の条は、折りたたんでも隠さない */
+.cmp-block.editing .cmp-old { background: var(--edit-old); }
 .cmp-head, .cmp-block { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .cmp-head { font-size: 14px; font-weight: 700; text-align: center; padding-bottom: 4px; border-bottom: 2px solid var(--rule); }
 .cmp-block { padding: 6px 0; border-bottom: 1px solid var(--rule); }
-.cmp-body.only .cmp-block[data-kind="same"][data-unit="article"],
-.cmp-body.only .cmp-block[data-quiet="1"] { display: none; }
+.cmp-body.only .cmp-block[data-kind="same"][data-unit="article"]:not(.editing),
+.cmp-body.only .cmp-block[data-quiet="1"]:not(.editing) { display: none; }
 .cmp-col { padding: 2px 8px; overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; }
 .cmp-line:empty::before { content: "\200b"; }
 .cmp-line.chapter { text-align: center; font-weight: 700; }
@@ -247,10 +264,10 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .cmp-line.para { display: flex; }
 .cmp-line.para .num { flex: none; width: 4.5em; padding-right: .5em; text-align: right; box-sizing: border-box; }
 .cmp-line.para .txt { flex: 1; min-width: 0; }
-.cmp-line.item { padding-left: 1em; }
-.cmp-line.sub { padding-left: 1.5em; }
-.cmp-line.sub2 { padding-left: 2em; }
-.cmp-line.mark { color: var(--muted); }
+.cmp-line.item { padding-left: calc(4.5em + 4em); text-indent: -3em; }
+.cmp-line.sub { padding-left: calc(4.5em + 6em); text-indent: -3em; }
+.cmp-line.sub2 { padding-left: calc(4.5em + 8em); text-indent: -5em; }
+.cmp-line.mark { color: var(--muted); padding-left: calc(4.5em + 1em); }
 .cmp-block:is([data-kind="renumbered"], [data-kind="changed"], [data-kind="deleted"]) .cmp-old { background: var(--del-bg); }
 .cmp-block:is([data-kind="renumbered"], [data-kind="changed"], [data-kind="added"]) .cmp-new { background: var(--ins-bg); }
 .cmp-old .u { background: var(--del-strong); }
@@ -263,18 +280,35 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .cmp-new.editable:hover, .cmp-new.editable:focus-visible { outline: 2px solid var(--ai); outline-offset: -2px; }
 .ed-err { margin: 4px 0; padding: 6px 10px; border-radius: 5px; background: var(--err-bg); color: var(--err); font-size: 13.5px; }
 .ed-form { display: grid; gap: 8px; padding: 6px 0; font-size: 14px; }
-.ed-field { display: grid; gap: 2px; }
+.ed-field { display: flex; align-items: baseline; gap: 8px; }
 .ed-label { font-size: 12.5px; color: var(--muted); font-weight: 700; }
-.ed-title, .ed-text { width: 100%; box-sizing: border-box; padding: 5px 7px; font: inherit; line-height: 1.6; border: 1px solid var(--rule); border-radius: 5px; background: var(--surface); color: var(--ink); }
-.ed-text { resize: vertical; }
-.ed-unit { display: grid; gap: 4px; padding: 6px 0 6px 8px; border-left: 3px solid var(--rule); }
-.ed-unit .ed-unit { margin-left: 8px; }
-.ed-unit-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.ed-tools { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.ed-title, .ed-text { width: 100%; box-sizing: border-box; padding: 4px 7px; font: inherit; line-height: 1.6; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--ink); }
+.ed-text { resize: none; overflow: hidden; display: block; }
+.ed-title:hover, .ed-text:hover { background: var(--hover-bg); }
+.ed-title:focus, .ed-text:focus { border-color: var(--ai); background: var(--surface); outline: none; }
+.ed-field .ed-title { flex: 1; min-width: 0; }
+.ed-unit { display: grid; gap: 2px; }
+.ed-paragraph { margin-top: 12px; }
+.ed-paragraph > .ed-unit-row > .ed-label { font-weight: 700; color: var(--ink); }
+.ed-item { margin-left: 1.2em; padding-left: 6px; border-left: 1px solid var(--rule); }
+.ed-sub { margin-left: 1.2em; padding-left: 6px; border-left: 1px solid var(--rule); }
+.ed-sub2 { margin-left: 1.2em; padding-left: 6px; border-left: 1px solid var(--rule); }
+.ed-unit-row { display: flex; align-items: flex-start; gap: 6px; }
+.ed-unit-row > .ed-label { flex: none; min-width: 3.4em; padding-top: 6px; }
+.ed-unit-row > .ed-text { flex: 1; min-width: 0; }
+/* ふだんは透明にして押せなくする（visibility:hidden にするとフォーカスを当てられず、Tab でも届かない） */
+.ed-tools { display: inline-flex; flex: none; gap: 4px; position: relative; opacity: 0; pointer-events: none; }
+.ed-tools.open { opacity: 1; pointer-events: auto; }
+.ed-unit-row:hover > .ed-tools, .ed-unit-row:focus-within > .ed-tools, .ed-fig:hover > .ed-tools, .ed-fig:focus-within > .ed-tools { opacity: 1; pointer-events: auto; }
 .ed-tools .btn.small { min-height: 26px; padding: 0 8px; font-size: 12.5px; font-weight: 400; }
+.ed-menu { position: absolute; top: 100%; right: 0; z-index: 30; display: grid; min-width: 9em; padding: 4px; margin-top: 2px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.ed-menu[hidden] { display: none; }
+.ed-menu button { text-align: left; padding: 5px 10px; border: 0; background: none; color: var(--ink); font: inherit; font-size: 13.5px; cursor: pointer; border-radius: 4px; white-space: nowrap; }
+.ed-menu button:hover, .ed-menu button:focus-visible { background: var(--hover-bg); }
+.ed-keys { margin: 0; font-size: 12.5px; color: var(--muted); }
 .ed-form > .btn.small { justify-self: start; }
 .ed-mark { font-size: 13px; color: var(--muted); }
-.ed-fig { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.ed-fig { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-left: 3.4em; }
 .ed-thumb { max-height: 60px; max-width: 120px; border: 1px solid var(--rule); border-radius: 3px; }
 .ed-foot { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; border-top: 1px dashed var(--rule); }
 .btn.small.primary { width: auto; min-height: 0; font-size: 14px; }
@@ -483,10 +517,20 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         <button type="button" class="btn small" id="editDiscard" hidden>下書きを削除</button>
       </div>
       <div class="cmp-list" id="cmpList" hidden>
-        <label class="cmp-only"><input type="checkbox" id="cmpOnly"> 変更のある条だけ表示</label>
-        <div class="cmp-inner">
-          <div class="cmp-head"><div>現行</div><div>改正案</div></div>
-          <div class="cmp-body" id="cmpBody"></div>
+        <div class="cmp-bar" id="cmpBar">
+          <div class="cmp-bar-row">
+            <label class="cmp-only"><input type="checkbox" id="cmpOnly"> 変更のある条だけ表示</label>
+            <button type="button" class="btn small" id="cmpTocBtn" aria-expanded="false" aria-controls="cmpToc">目次</button>
+            <button type="button" class="btn small" id="cmpOpenAll">すべて開く</button>
+            <button type="button" class="btn small" id="cmpCloseAll">すべて閉じる</button>
+          </div>
+          <div class="cmp-toc" id="cmpToc" hidden></div>
+        </div>
+        <div class="cmp-scroll">
+          <div class="cmp-inner">
+            <div class="cmp-head"><div>現行</div><div>改正案</div></div>
+            <div class="cmp-body" id="cmpBody"></div>
+          </div>
         </div>
       </div>
       <button type="button" class="btn primary" id="cmpSave" hidden>新旧対照表を保存</button>
@@ -661,6 +705,71 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   let cmpRows = [];
   let cmpBlocks = [];
   let cmpShown = false;      // 変更点（0件を含む）を表示中か
+  const cmpClosed = new Set();   // 折りたたんだ章（new_path か old_path を文字列にしたキー）。描き直しをまたいで保つ
+  const chapKeyOf = (b) => JSON.stringify(b.new_path || b.old_path);
+  const segText = (segs) => (segs || []).map(([t]) => t).join("");
+  // 折りたたみの状態を block と開閉ボタンに反映する
+  function applyFold() {
+    let key = null;
+    cmpBlocks.forEach((b) => {
+      if (!b.blockEl) return;
+      if (b.unit === "chapter") {
+        key = chapKeyOf(b);
+        const closed = cmpClosed.has(key);
+        b.blockEl.querySelectorAll(".cmp-fold").forEach((f) => {
+          const name = b.chapName || "章";
+          f.textContent = closed ? "▸" : "▾";
+          f.setAttribute("aria-expanded", String(!closed));
+          f.setAttribute("aria-label", closed ? `${name}を開く` : `${name}を折りたたむ`);
+        });
+      } else {
+        b.blockEl.classList.toggle("folded", key !== null && cmpClosed.has(key));
+      }
+    });
+  }
+  function setChapterOpen(key, open) {
+    if (open) cmpClosed.delete(key); else cmpClosed.add(key);
+    applyFold();
+  }
+  function ensureOpen(b) {
+    if (b.chapKey && cmpClosed.has(b.chapKey)) setChapterOpen(b.chapKey, true);
+  }
+  function buildToc() {
+    const toc = $("cmpToc");
+    toc.textContent = "";
+    const only = $("cmpOnly").checked;
+    cmpBlocks.forEach((b) => {
+      const el = b.blockEl;
+      if (!el) return;
+      if (only && ((b.unit === "article" && b.kind === "same") || el.dataset.quiet === "1")) return;
+      const lines = b.kind === "deleted" ? b.old : b.new;
+      const cls = (b.kind === "deleted" ? b.old_cls : b.new_cls) || [];
+      let text = "";
+      if (b.unit === "chapter") text = segText((lines || [])[0]);
+      else {
+        const ti = cls.indexOf("title"), pi = cls.indexOf("para");
+        const num = pi >= 0 ? segText(lines[pi]).split("　")[0] : "";
+        text = num + (ti >= 0 ? segText(lines[ti]) : "");
+        if (!text) text = segText((lines || [])[0]).slice(0, 30);
+      }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = b.unit === "chapter" ? "chap" : "art";
+      btn.textContent = text;
+      if (b.kind !== "same") {
+        const m = document.createElement("span");
+        m.className = "chg"; m.textContent = "●";
+        btn.appendChild(m);
+      }
+      btn.addEventListener("click", () => {
+        if (b.unit === "chapter") ensureOpen({ chapKey: chapKeyOf(b) }); else ensureOpen(b);
+        // 目次を閉じてから移る（開いたままだと張り付いた帯ごと画面の上を覆うため）
+        toc.hidden = true; $("cmpTocBtn").setAttribute("aria-expanded", "false");
+        el.scrollIntoView({ block: "center" });
+      });
+      toc.appendChild(btn);
+    });
+  }
   const notesKey = () => "kisoku.notes." + [file.name, file.size, file.lastModified].join("|");
   function loadNotes() {
     try { const v = JSON.parse(store.get(notesKey()) || "{}"); return v && typeof v === "object" ? v : {}; }
@@ -670,7 +779,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   function saveNotes(notes) { store.set(notesKey(), JSON.stringify(notes)); }
   function clearComparison() {
     cmpRows = []; cmpBlocks = []; cmpShown = false;
-    editingEl = null; pendingOpen = null;
+    editingEl = null; pendingOpen = null; cmpClosed.clear();
+    $("cmpToc").hidden = true; $("cmpToc").textContent = ""; $("cmpTocBtn").setAttribute("aria-expanded", "false");
     $("cmpBody").innerHTML = ""; $("cmpList").hidden = true;
     $("cmpSave").hidden = true; $("cmpHint").textContent = ""; $("cmpHint").className = "hint";
   }
@@ -803,6 +913,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     const path = b.new_path;
     const node = nodeAt(edit.tree, path);
     if (!node) { editingEl = null; return; }
+    ensureOpen(b);
+    if (b.blockEl) b.blockEl.classList.add("editing");
     col.classList.remove("editable");
     col.removeAttribute("role"); col.removeAttribute("tabindex");
     const cancel = () => {
@@ -897,9 +1009,13 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       });
       return col;
     };
+    let chapKey = null;
     cmpBlocks.forEach((b) => {
       const el = document.createElement("div");
       el.className = "cmp-block";
+      b.blockEl = el;
+      if (b.unit === "chapter") { chapKey = chapKeyOf(b); b.chapName = null; }
+      b.chapKey = b.unit === "chapter" ? null : chapKey;
       el.dataset.kind = b.kind; el.dataset.unit = b.unit;
       el.appendChild(column(b.old, b.old_cls || [], "old"));
       const newCol = column(b.new, b.new_cls || [], "new");
@@ -916,6 +1032,19 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         b.el = newCol;
       }
       el.appendChild(newCol);
+      if (b.unit === "chapter") {
+        const head = segText((b.new || b.old || [])[0]).match(/^第[^\s\u3000]*章/);
+        b.chapName = head ? head[0] : "章";
+        const own = chapKeyOf(b);
+        [el.querySelector(".cmp-old .cmp-line"), el.querySelector(".cmp-new .cmp-line")].forEach((ln) => {
+          if (!ln) return;
+          const f = document.createElement("button");
+          f.type = "button"; f.className = "cmp-fold"; f.setAttribute("aria-expanded", "true");
+          f.addEventListener("click", (e) => { e.stopPropagation(); setChapterOpen(own, cmpClosed.has(own)); });
+          f.addEventListener("keydown", (e) => e.stopPropagation());
+          ln.prepend(f);
+        });
+      }
       const r = b.row_id ? rowById.get(b.row_id) : null;
       if (r) {
         const box = document.createElement("div");
@@ -947,6 +1076,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         chapterEl.dataset.quiet = "";
       }
     });
+    applyFold();
+    if (!$("cmpToc").hidden) buildToc();
     list.hidden = cmpBlocks.length === 0;
     cmpShown = true;
     editingEl = null;
@@ -1099,7 +1230,22 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       else refreshEditBar();
     });
   });
-  $("cmpOnly").addEventListener("change", () => $("cmpBody").classList.toggle("only", $("cmpOnly").checked));
+  $("cmpOnly").addEventListener("change", () => {
+    $("cmpBody").classList.toggle("only", $("cmpOnly").checked);
+    if (!$("cmpToc").hidden) buildToc();
+  });
+  $("cmpTocBtn").addEventListener("click", () => {
+    const toc = $("cmpToc");
+    toc.hidden = !toc.hidden;
+    $("cmpTocBtn").setAttribute("aria-expanded", String(!toc.hidden));
+    if (!toc.hidden) buildToc();
+  });
+  const foldAll = (open) => {
+    cmpBlocks.forEach((b) => { if (b.unit === "chapter") { const k = chapKeyOf(b); if (open) cmpClosed.delete(k); else cmpClosed.add(k); } });
+    applyFold();
+  };
+  $("cmpOpenAll").addEventListener("click", () => foldAll(true));
+  $("cmpCloseAll").addEventListener("click", () => foldAll(false));
 
   $("cmpSave").addEventListener("click", () => withBusy(async () => {
     const notes = loadNotes();
