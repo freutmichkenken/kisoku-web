@@ -93,7 +93,7 @@ async function handleParse(msg) {
   py.FS.writeFile(srcPath, new Uint8Array(msg.bytes));
 
   const res = JSON.parse(entry.parse(srcPath, !!msg.useGemini,
-    !!msg.layoutAsFigure, msg.apiKey || ""));
+    !!msg.layoutAsFigure, msg.apiKey || "", msg.geminiMode || "paragraph"));
   current = { srcPath, jsonPath: res.json_path };
   post({ type: "parsed", id: msg.id, chapters: res.chapters, articles: res.articles });
 }

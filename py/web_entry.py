@@ -10,8 +10,10 @@ Colab 版の kisoku_app.py から、画面（ipywidgets）部分を取り除き�
 """
 
 import os
+import sys
 import json
 
+import gemini_helper
 from kisoku_parser import parse_kisoku
 from apply_style import apply_style, TEMPLATE_MAP  # noqa: F401
 import custom_template
@@ -34,14 +36,32 @@ def _set_api_key(api_key):
         os.environ.pop("GEMINI_API_KEY", None)
 
 
-def parse(src_path, use_gemini=False, layout_as_figure=False, api_key=""):
+def _set_agent_hook():
+    """ブラウザでは、まとめて判定の interaction ID を画面（中止ボタン）へ知らせる。"""
+    if sys.platform != "emscripten":
+        return
+    import js
+    from pyodide.ffi import to_js
+
+    def hook(interaction_id):
+        js.postMessage(to_js({"type": "agentStarted",
+                              "interactionId": interaction_id},
+                             dict_converter=js.Object.fromEntries))
+
+    gemini_helper.agent_started_hook = hook
+
+
+def parse(src_path, use_gemini=False, layout_as_figure=False, api_key="",
+          gemini_mode="paragraph"):
     """整形前 docx を解析して JSON を保存し、章・条の数を返す。"""
     _set_api_key(api_key if use_gemini else "")
+    _set_agent_hook()
 
     tree = parse_kisoku(
         src_path,
         use_gemini=bool(use_gemini),
         treat_layout_as_figure=bool(layout_as_figure),
+        gemini_mode=gemini_mode,
     )
 
     json_path = os.path.splitext(src_path)[0] + "_parsed.json"

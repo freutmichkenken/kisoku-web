@@ -91,6 +91,7 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
   font: inherit; font-weight: 700; cursor: pointer;
   border: 1.5px solid var(--ai); background: var(--surface); color: var(--ai);
 }
+.btn[hidden] { display: none; }
 .btn.primary { background: var(--ai); color: var(--surface); width: 100%; min-height: 52px; font-size: 17px; }
 .btn:disabled, .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 .file input:focus-visible + .btn, .btn:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible {
@@ -317,6 +318,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
             <input type="checkbox" id="saveKey"><label for="saveKey">この端末のブラウザに保存する</label>
             <button type="button" class="linkbtn" id="clearKey">保存したキーを削除</button>
           </div>
+          <div class="opt">
+            <input type="checkbox" id="optAgent">
+            <label for="optAgent">全文をまとめて判定する（Antigravity）</label>
+            <div class="desc">本文をすべて Google に送ります。数分かかります。無料枠のキーでは学習に使われる可能性があるため、有料枠のキーを使ってください。</div>
+          </div>
         </div>
       </div>
     </div>
@@ -399,6 +405,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     <div class="body">
       <h2 id="h4">整形して保存</h2>
       <button type="button" class="btn primary" id="run" disabled>整形してダウンロード</button>
+      <button type="button" class="btn small" id="agentCancel" hidden>中止</button>
       <p class="hint" id="runHint"></p>
       <div class="result" id="result" aria-live="polite"></div>
       <details class="log" id="logBox">
@@ -434,6 +441,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   let urls = [];
   let seq = 0;
   const pending = new Map();
+  let agentId = null;        // まとめて判定の実行中の interaction ID（中止ボタン用）
+  let agentCancelled = false; // 中止を押したか（解析が終わるまで保つ）
 
   // ---------- Worker ----------
   const worker = new Worker("worker.js?v=" + Date.now());
@@ -446,6 +455,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       log("[起動エラー] " + m.text);
     }
     else if (m.type === "log") log(m.text);
+    else if (m.type === "agentStarted") {
+      agentId = m.interactionId;
+      $("agentCancel").hidden = false;
+      if (agentCancelled) cancelAgent(agentId); else $("agentCancel").disabled = false;
+    }
     else if (pending.has(m.id)) { const p = pending.get(m.id); pending.delete(m.id); p(m); }
   };
   const call = (msg, transfer) => new Promise((resolve) => {
@@ -462,6 +476,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   $("optHyoki").checked = !!prefs.hyoki;
   $("optXref").checked = !!prefs.xref;
   $("optGemini").checked = !!prefs.gemini;
+  $("optAgent").checked = !!prefs.agent;
   ($(prefs.tpl || "t1") || $("t1")).checked = true;
   const savedKey = store.get(K.key);
   if (savedKey) { $("apiKey").value = savedKey; $("saveKey").checked = true; }
@@ -469,7 +484,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   function savePrefs() {
     store.set(K.prefs, JSON.stringify({
       layout: $("optLayout").checked, toc: $("optToc").checked,
-      hyoki: $("optHyoki").checked, xref: $("optXref").checked, gemini: $("optGemini").checked, tpl: tplValue(),
+      hyoki: $("optHyoki").checked, xref: $("optXref").checked, gemini: $("optGemini").checked, agent: $("optAgent").checked, tpl: tplValue(),
     }));
   }
   const tplValue = () => (document.querySelector('input[name="tpl"]:checked') || {}).value || "t1";
@@ -497,7 +512,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 
   function parseKey(g, apiKey) {
     return [file && file.name, file && file.size, file && file.lastModified,
-            $("optLayout").checked, g, g ? apiKey : ""].join("|");
+            $("optLayout").checked, g, g ? apiKey : "", g ? $("optAgent").checked : ""].join("|");
   }
   function parseKeyNow() { return parseKey($("optGemini").checked, $("apiKey").value.trim()); }
 
@@ -518,13 +533,20 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     const hint = $("parseHint");
     hint.className = "hint";
     hint.textContent = engineReady ? "構造を解析しています…" : "準備が終わり次第、構造を解析します…";
-    if (useGemini) hint.textContent += "（Gemini 使用時は数分かかることがあります）";
+    const agent = useGemini && $("optAgent").checked;
+    if (useGemini) hint.textContent += agent ? "（全文判定中。数分かかります）" : "（Gemini 使用時は数分かかることがあります）";
     const bytes = await file.arrayBuffer();
-    const m = await call({
-      type: "parse", name: file.name, bytes,
-      layoutAsFigure: $("optLayout").checked,
-      useGemini, apiKey,
-    }, [bytes]);
+    let m;
+    try {
+      m = await call({
+        type: "parse", name: file.name, bytes,
+        layoutAsFigure: $("optLayout").checked,
+        useGemini, apiKey,
+        geminiMode: agent ? "agent" : "paragraph",
+      }, [bytes]);
+    } finally {
+      agentId = null; agentCancelled = false; $("agentCancel").hidden = true;
+    }
     if (m.type === "error") {
       parsedKey = null;
       hint.className = "hint err";
@@ -701,6 +723,23 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   ["optLayout", "optToc", "optHyoki", "optXref", "optGemini"].forEach((id) =>
     $(id).addEventListener("change", () => { savePrefs(); refresh(); }));
   document.querySelectorAll('input[name="tpl"]').forEach((r) => r.addEventListener("change", () => { savePrefs(); refresh(); }));
+
+  $("optAgent").addEventListener("change", savePrefs);
+  async function cancelAgent(id) {
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions/" + encodeURIComponent(id) + "/cancel",
+        { method: "POST", headers: { "x-goog-api-key": $("apiKey").value.trim() } });
+      log(r.ok ? "中止しています…" : "中止を依頼できませんでした（HTTP " + r.status + "）");
+    } catch (e) {
+      log("中止を依頼できませんでした：" + e.message);
+    }
+  }
+  $("agentCancel").addEventListener("click", () => {
+    if (!agentId) return;
+    agentCancelled = true;   // チャンクの間に押された場合も、次のチャンクを始めた直後に止める
+    $("agentCancel").disabled = true;
+    cancelAgent(agentId);
+  });
 
   $("apiKey").addEventListener("input", () => { if ($("saveKey").checked) store.set(K.key, $("apiKey").value.trim()); });
   $("saveKey").addEventListener("change", () => {

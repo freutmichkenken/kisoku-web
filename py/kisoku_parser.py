@@ -2265,7 +2265,7 @@ def apply_gemini_split(tree, length_threshold=100, verbose=True):
 
 
 def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
-                 treat_layout_as_figure=False):
+                 treat_layout_as_figure=False, gemini_mode='paragraph'):
     """
     就業規則docxをパースしてJSON構造を返す。
 
@@ -2281,6 +2281,9 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
     use_gemini: True にすると、正規表現・スタイルで判定できなかった
                 段落だけを Gemini に問い合わせて再判定する（任意・無料枠）。
                 APIキー未設定やライブラリ未導入の場合は自動でスキップする。
+    gemini_mode: use_gemini のときの判定不能段落の問い合わせ方。
+                'paragraph'（既定）: 1段落ずつ前後の文脈とともに送る。
+                'agent': 本文全体を Antigravity エージェントに送り、まとめて判定する。
     """
     if stop_words is None:
         stop_words = ['附則', '付則', '改版履歴', '改訂履歴', '制定・改廃履歴', '沿革']
@@ -2556,14 +2559,25 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
     # --- Gemini による判定不能段落の再判定 ---
     if use_gemini and gemini_candidates:
         try:
-            from gemini_helper import classify_with_gemini, is_available
+            from gemini_helper import (classify_with_gemini, is_available,
+                                       classify_document_with_agent)
             if is_available():
                 print(f"Gemini判定: 判定不能な{len(gemini_candidates)}段落を問い合わせます...")
                 n_resolved = 0
+                agent_kinds = {}
+                if gemini_mode == 'agent':
+                    agent_kinds = classify_document_with_agent(
+                        merged_texts, [c[2] for c in gemini_candidates])
+                    if agent_kinds is None:
+                        agent_kinds = {}
+                        print("Antigravity判定: 使えなかったためルールの判定のまま")
                 for flat_idx, target, tcur in gemini_candidates:
-                    before = merged_texts[max(0, tcur - 2):tcur]
-                    after = merged_texts[tcur + 1:tcur + 3]
-                    kind = classify_with_gemini(target, before, after)
+                    if gemini_mode == 'agent':
+                        kind = agent_kinds.get(tcur)
+                    else:
+                        before = merged_texts[max(0, tcur - 2):tcur]
+                        after = merged_texts[tcur + 1:tcur + 3]
+                        kind = classify_with_gemini(target, before, after)
                     # 番号の無い行を章・条にすると以降の条番号が全部ずれるため、
                     # 章・条の判定は採用しない（番号付きの章・条は正規表現で拾える）
                     if kind and kind not in ('body', 'chapter', 'article'):
