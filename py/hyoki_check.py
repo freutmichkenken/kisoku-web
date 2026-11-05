@@ -277,10 +277,13 @@ def iter_body_texts(data):
         t = node.get("type")
         if t == "chapter":
             yield node.get("title", "")
+            yield from (node.get("preamble") or [])
             for art in (node.get("articles") or []):
                 yield from walk_article(art)
         elif t == "article":
             yield from walk_article(node)
+        elif t == "plain":
+            yield node.get("body", "")
 
 
 # ============================================================

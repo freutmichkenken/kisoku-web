@@ -121,6 +121,12 @@ def _katakana_index(c):
     return 0
 
 
+# 記号の後ろがこれらで始まる行は、号ではなく本文中の参照
+#   例:「（１）に掲げる場合」「①の場合を除き」「（２）又は（３）」
+REF_AFTER_MARKER = re.compile(
+    r'^(?:の|に|を|で(?!き)|から|まで|より|及び|又は|並びに|若しくは|ないし|乃至|[、，])')
+
+
 def identify_symbol(text):
     """
     行頭の記号タイプを返す。
@@ -131,6 +137,8 @@ def identify_symbol(text):
         m = pat.match(s)
         if m:
             num, body = extractor(m)
+            if REF_AFTER_MARKER.match(body.lstrip('　 \t')):
+                return None, 0, s
             return type_name, num, body.strip()
     return None, 0, s
 
