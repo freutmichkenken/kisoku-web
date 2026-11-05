@@ -45,6 +45,7 @@ def outline(tree):
             items(it.get('sub_items', []), d + 1)
 
     def art(a):
+        out.extend(f"節:{x}" for x in a.get('lead', []))   # 条の前に置く節の行
         note = f" 注釈={a['title_note']}" if a.get('title_note') else ''
         out.append(f"{a['number_str']}（{a['title']}）{note}")
         for p in a['paragraphs']:

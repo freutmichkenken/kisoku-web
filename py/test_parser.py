@@ -226,6 +226,12 @@ _CASES = [
       '第6条（遵守）　従業員は次の事項を守る。', '①　遅刻をしないこと。', '②　私用をしないこと。'],
      ['第5条（服務）', '  1:従業員は、誠実に職務を遂行しなければならない。', '  2:従業員は、会社の名誉を害してはならない。',
       '第6条（遵守）', '  1:従業員は次の事項を守る。', '    1)遅刻をしないこと。', '    2)私用をしないこと。']),
+    # 段階6：括弧の無い条タイトル（S2）は、直前に括弧の条タイトルがある条や、
+    # 折り返した本文の1行目（16字以上）には使わない
+    (['（職場のパワーハラスメントの禁止）', '第12条　職務上の地位や人間関係などの職場内の優越',
+      '的な関係を背景とした言動をしてはならない。', '第13条　懲戒の種類', '懲戒は次のとおりとする。'],
+     ['第12条（職場のパワーハラスメントの禁止）', '  1:職務上の地位や人間関係などの職場内の優越的な関係を背景とした言動をしてはならない。',
+      '第13条（懲戒の種類）', '  1:懲戒は次のとおりとする。']),
     # 句点の無い短い本文だけの規則でも、番号が戻らなければ目次にしない
     (['目次', '第１条（目的）', 'この規則は労働条件を定める', '第２条（定義）', '社員とは正社員をいう'],
      ['第１条（目的）', '  1:この規則は労働条件を定める', '第２条（定義）', '  1:社員とは正社員をいう']),
@@ -302,13 +308,13 @@ with tempfile.TemporaryDirectory() as _w:
 print("OK (figure)")
 
 
-# 章の前文（条に属さない本文）が整形後の docx に残る
+# 章の前文（条に属さない本文）と節の行（S4）が整形後の docx に残る
 from apply_style import apply_style
 import json
 with tempfile.TemporaryDirectory() as _w:
     _src = os.path.join(_w, 'src.docx')
     _d = Document()
-    for _ln in ['第1章　総則', '［例］　規程例です。', '第1条（目的）　…。']:
+    for _ln in ['第1章　総則', '［例］　規程例です。', '第1条（目的）　…。', '第２節　労働時間', '第2条（休憩）　…。']:
         _d.add_paragraph(_ln)
     _d.save(_src)
     with contextlib.redirect_stdout(io.StringIO()):
@@ -323,6 +329,7 @@ with tempfile.TemporaryDirectory() as _w:
                     source_docx=_src, show_notice=False)
     _texts = [p.text for p in Document(_dst).paragraphs]
     assert '［例］　規程例です。' in _texts, _texts
+    assert _texts.index('第２節　労働時間') < _texts.index('（休憩）'), _texts
 print("OK (structure)")
 
 # Gemini判定は本文扱いの段落で呼ばれ、章・条の判定は採用しない

@@ -1158,6 +1158,9 @@ def apply_style(json_path, template_path, template_key, output_path,
     def emit_article(art):
         nonlocal n_article, n_para, n_item, n_comment
         n_article += 1
+        # 条の前に置く節の行（「第1節　労働時間」）は、見出しにせず番号の付かない段落で残す
+        for txt in art.get("lead", []):
+            doc.add_paragraph(txt)
         # 条見出し（タイトル）— 全角括弧で囲んで出力
         # 「（目的）　※〇〇パターン」のような末尾注釈があれば括弧の外に付ける
         title = _wrap_title(art.get("title", ""))
