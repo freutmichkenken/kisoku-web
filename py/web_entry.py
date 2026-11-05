@@ -149,6 +149,7 @@ def format_docx(src_path, json_path, template_key,
 
 
 _TREE_TYPES = {"front_matter", "chapter", "article", "back_matter"}
+_UNIT_NAME = {"paragraph": "項", "item": "号", "sub": "号の細分", "sub2": "号の細分の下"}
 IMAGE_MAX_BYTES = 5 * 1024 * 1024        # 画面で足す画像1枚の上限（画面側と同じ）
 IMAGE_TOTAL_BYTES = 30 * 1024 * 1024     # 規程全体の画像の合計の上限（ブラウザ内の Python のメモリを使い切らないように）
 _IMAGE_MAGIC = {"image/png": b"\x89PNG\r\n\x1a\n", "image/jpeg": b"\xff\xd8\xff"}
@@ -179,7 +180,7 @@ def _check_figures(node, used=None):
     for key in ("tables", "drawings"):
         lst = node.get(key, [])
         if not isinstance(lst, list) or not all(isinstance(x, dict) for x in lst):
-            raise ValueError("編集内容の形式が正しくありません")
+            raise ValueError("表・図の一覧の形式が正しくありません")
         for x in lst:
             if key == "drawings" and x.get("type") == "image":
                 n = _check_image(x)
@@ -190,14 +191,19 @@ def _check_figures(node, used=None):
                 continue
             idx = x.get("index")
             if not (idx is None or (isinstance(idx, int) and not isinstance(idx, bool) and idx >= 0)):
-                raise ValueError("編集内容の形式が正しくありません")
+                raise ValueError("表・図の元の位置（index）が正しくありません")
             if key == "tables":
                 rows = x.get("rows", [])
                 if not isinstance(rows, list) or not all(
                         isinstance(r, list) and all(c is None or isinstance(c, str) for c in r) for r in rows):
-                    raise ValueError("編集内容の形式が正しくありません")
+                    raise ValueError("表の中身（rows）の形式が正しくありません")
             elif not (x.get("text") is None or isinstance(x.get("text"), str)):
-                raise ValueError("編集内容の形式が正しくありません")
+                raise ValueError("図の文字（text）の形式が正しくありません")
+
+
+def _s(v):
+    """エラーの場所の表示に使う文字列（文字列でなければ空。前後の空白は除く）。"""
+    return v.strip() if isinstance(v, str) else ""
 
 
 def _check_tree(tree):
@@ -214,52 +220,69 @@ def _check_tree(tree):
         _check_figures(node, used)
 
     def units(lst, kind):
+        name = _UNIT_NAME[kind]
         if not isinstance(lst, list):
-            raise ValueError("編集内容の形式が正しくありません")
-        for u in lst:
+            raise ValueError(f"{name}の一覧の形式が正しくありません")
+        for i, u in enumerate(lst, 1):
             if not isinstance(u, dict) or not text(u.get("body")):
-                raise ValueError("編集内容の形式が正しくありません")
-            figures(u)
-            if kind == "paragraph":
-                units(u.get("items", []), "item")
-            elif kind == "item":
-                units(u.get("sub_items", []), "sub")
-            elif kind == "sub":
-                # 解析結果では sub_items2 が null のことがある
-                v = u.get("sub_items2")
-                units([] if v is None else v, "sub2")
+                raise ValueError(f"{i}番目の{name}の本文の形式が正しくありません")
+            try:
+                figures(u)
+                if kind == "paragraph":
+                    units(u.get("items", []), "item")
+                elif kind == "item":
+                    units(u.get("sub_items", []), "sub")
+                elif kind == "sub":
+                    # 解析結果では sub_items2 が null のことがある
+                    v = u.get("sub_items2")
+                    units([] if v is None else v, "sub2")
+            except ValueError as e:
+                raise ValueError(f"{i}番目の{name}：{e}") from e
 
     def numbered(u):
         # 番号は整数、元の番号の文字列は文字列（比較・整形で文字列として扱うため）
         n = u.get("number", 0)
         if (n is not None and (isinstance(n, bool) or not isinstance(n, int))) or not text(u.get("number_str")):
-            raise ValueError("編集内容の形式が正しくありません")
+            raise ValueError(f"番号の形式が正しくありません（number={n!r}, number_str={u.get('number_str')!r}）")
 
     def article(a):
-        if not isinstance(a, dict) or a.get("type") != "article" or not text(a.get("title")):
-            raise ValueError("編集内容の形式が正しくありません")
+        if not isinstance(a, dict) or a.get("type") != "article":
+            raise ValueError("条の形式が正しくありません")
+        if not text(a.get("title")):
+            raise ValueError("条タイトルの形式が正しくありません")
         numbered(a)
         figures(a)
         units(a.get("paragraphs", []), "paragraph")
 
-    for node in tree:
+    def located(fn, where):
+        try:
+            fn()
+        except ValueError as e:
+            raise ValueError(f"{where}：{e}") from e
+
+    for ti, node in enumerate(tree, 1):
         if not isinstance(node, dict) or node.get("type") not in _TREE_TYPES:
-            raise ValueError("編集内容の形式が正しくありません")
+            raise ValueError(f"先頭から{ti}番目の要素の種類が正しくありません")
         if node["type"] == "chapter":
-            if not text(node.get("title")) or not isinstance(node.get("articles", []), list):
-                raise ValueError("編集内容の形式が正しくありません")
-            numbered(node)
-            figures(node)
-            for a in node.get("articles", []):
-                article(a)
+            where = f"{_s(node.get('number_str'))}{_s(node.get('title'))}".strip() or f"{ti}番目の章"
+
+            def chapter_head(node=node):
+                if not text(node.get("title")) or not isinstance(node.get("articles", []), list):
+                    raise ValueError("章タイトルか条の一覧の形式が正しくありません")
+                numbered(node)
+                figures(node)
+            located(chapter_head, where)
+            for ai, a in enumerate(node.get("articles", []), 1):
+                aw = (_s(a.get("number_str")) or _s(a.get("title")) or f"{ai}番目の条") if isinstance(a, dict) else f"{ai}番目の条"
+                located(lambda a=a: article(a), f"{where}の{aw}")
         elif node["type"] == "article":
-            article(node)
+            located(lambda node=node: article(node), _s(node.get("number_str")) or _s(node.get("title")) or f"{ti}番目の条")
         else:
             # 前付け・後付けは編集しないが、壊れた下書きで整形が落ちないよう形だけ確かめる
             idx, texts = node.get("indices", []), node.get("texts", [])
             if (not isinstance(idx, list) or not all(isinstance(i, int) and not isinstance(i, bool) for i in idx)
                     or not isinstance(texts, list) or not all(isinstance(s, str) for s in texts)):
-                raise ValueError("編集内容の形式が正しくありません")
+                raise ValueError("表紙・附則など（前付け・後付け）の形式が正しくありません")
 
 
 def read_tree(json_path):

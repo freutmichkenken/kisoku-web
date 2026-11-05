@@ -198,10 +198,26 @@ def _align(old_units, new_units):
             continue
         # 置き換え・追加・削除：似ている条どうしを順番を保って組にし、残りは新設・削除
         olds, news = old_units[i1:i2], new_units[j1:j2]
+        one_to_one = len(olds) == 1 and len(news) == 1
         pairs += [(None if i is None else olds[i], None if j is None else news[j])
-                  for i, j in _pair_similar(
-                      olds, news, lambda o, n: _ratio(o["sig"], n["sig"]) if o["kind"] == n["kind"] else 0.0)]
+                  for i, j in _pair_similar(olds, news, lambda o, n: _unit_score(o, n, one_to_one))]
     return pairs
+
+
+def _unit_score(o, n, one_to_one):
+    """
+    置き換えの区間で、現行と改正案の章・条を同じものとみなす度合い。
+    本文を大きく書き換えても「削除＋新設」に分かれないよう、次のときは同じ条（内容変更）とみなす。
+    - 条タイトル（章なら章タイトル）が同じで空でない
+    - どちらもタイトルが無く、区間に現行・改正案が1つずつしかない（その位置の条を書き換えた）
+    タイトルが違う条どうしは、本文が似ていなければ「削除＋新設」のまま（廃止と新設を改正扱いにしない）。
+    """
+    if o["kind"] != n["kind"]:
+        return 0.0
+    r = _ratio(o["sig"], n["sig"])
+    if (o["title"] and o["title"] == n["title"]) or (one_to_one and not o["title"] and not n["title"]):
+        r = max(r, _PAIR_RATIO)
+    return r
 
 
 def _pair_similar(olds, news, score):

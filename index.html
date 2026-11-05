@@ -261,6 +261,7 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .cmp-edit .hint { margin: 0; flex: 1 1 100%; }
 .cmp-new.editable { cursor: pointer; border-radius: 4px; }
 .cmp-new.editable:hover, .cmp-new.editable:focus-visible { outline: 2px solid var(--ai); outline-offset: -2px; }
+.ed-err { margin: 4px 0; padding: 6px 10px; border-radius: 5px; background: var(--err-bg); color: var(--err); font-size: 13.5px; }
 .ed-form { display: grid; gap: 8px; padding: 6px 0; font-size: 14px; }
 .ed-field { display: grid; gap: 2px; }
 .ed-label { font-size: 12.5px; color: var(--muted); font-weight: 700; }
@@ -732,8 +733,22 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   async function sendTrees() {
     const m = await call({ type: "useTrees",
       base: edit ? JSON.stringify(edit.base) : null, edited: edit ? JSON.stringify(edit.tree) : null });
-    if (m.type === "error") { cmpHint("err", "編集内容を反映できませんでした：" + m.text); log(m.detail || m.text); return false; }
+    if (m.type === "error") {
+      sendError = "編集内容を反映できませんでした：" + String(m.text).replace(/^\w+Error:\s*/, "");
+      cmpHint("err", sendError); log(m.detail || m.text);
+      return false;
+    }
+    if (edit) edit.sent = true;     // 一度でも反映した（下書きもある）
     return true;
+  }
+  let sendError = "";
+  // 編集欄の上にエラーを出す（⑤ の上の表示だけでは、編集欄の位置から見えないため）
+  function showFormError(text) {
+    if (!editingEl) return;
+    let box = editingEl.querySelector(".ed-err");
+    if (!box) { box = document.createElement("div"); box.className = "ed-err"; box.setAttribute("role", "alert"); editingEl.prepend(box); }
+    box.textContent = text;
+    box.scrollIntoView({ block: "nearest" });
   }
   async function restoreDraft() {
     let d = null;
@@ -763,12 +778,12 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   async function syncEdit() {
     await withBusy(async () => {
       if (!(await sendTrees())) {
-        // 反映できなかった変更は取り消し、画面を変更前に戻す（編集欄が開いたまま固まらないように）
+        // 反映できなかった変更は木から取り消す。編集欄は開いたまま入力を残し、理由をその上に出す
+        // （描き直すと入力が消え、何も起きなかったように見えるため）
         if (edit.undo.length) edit.tree = JSON.parse(edit.undo.pop());
-        if (!edit.undo.length && JSON.stringify(edit.tree) === JSON.stringify(edit.base)) edit = null;  // 何も変わっていない
         pendingOpen = null;
-        editingEl = null;
-        renderComparison();
+        if (editingEl && editingEl.isConnected) showFormError(sendError);
+        else { editingEl = null; renderComparison(); }
         return;
       }
       await saveDraft();
@@ -790,7 +805,12 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (!node) { editingEl = null; return; }
     col.classList.remove("editable");
     col.removeAttribute("role"); col.removeAttribute("tabindex");
-    const cancel = () => { editingEl = null; renderComparison(); };
+    const cancel = () => {
+      // 一度も反映していなければ（編集欄を開いただけ・反映に失敗しただけ）、編集していない状態に戻す
+      if (edit && !edit.sent) edit = null;
+      editingEl = null;
+      renderComparison();
+    };
     let form;
     if (b.unit === "chapter") {
       const ti = path[0];
