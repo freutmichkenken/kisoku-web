@@ -60,33 +60,56 @@ def _num(value, fallback):
 # ============================================================
 
 def _article_lines(art, number_label, old):
-    """条を表示用の行（文字列のリスト）にする。old=True なら元の番号を使う。"""
+    """
+    条を表示用の行にする。old=True なら元の番号を使う。
+    返り値: (行のリスト, 同じ長さのクラス名のリスト)。
+    行の形は整形後の書き方（節の行／（タイトル）／第1項「第○条　本文」／２　本文／（１）…）。
+    """
+    lines, cls = [], []
+
+    def add(text, c):
+        lines.append(text)
+        cls.append(c)
+
+    def marks(node):
+        for m in _container_marks(node):
+            add(m, "mark")
+
     title = (art.get("title") or "").strip()
     note = (art.get("title_note") or "").strip()
-    head = number_label + (f"（{title}）" if title else "")
-    if note:
-        head += f"　{note}"
-    lines = [t for t in art.get("lead", []) if t] + [head]
-    for pi, para in enumerate(art.get("paragraphs", []), 1):
-        pn = _num(para.get("number"), pi) if old else pi
+    for t in art.get("lead", []):
+        if t:
+            add(t, "lead")
+    if title:
+        add(f"（{title}）" + (f"　{note}" if note else ""), "title")
+    elif note:
+        add(note, "title")
+    paras = art.get("paragraphs", [])
+    if not paras:
+        add(number_label, "para")
+    for pi, para in enumerate(paras, 1):
         body = para.get("body", "")
-        # 第1項は番号を付けない（整形後の出力と同じ）
-        lines.append(body if pn == 1 else f"{_zen(pn)}　{body}")
-        lines += _container_marks(para)
+        if pi == 1:
+            # 第1項は条番号の行（突き合わせ用に番号なしのときは本文だけ）
+            add(f"{number_label}　{body}" if number_label and body else (number_label or body), "para")
+        else:
+            pn = _num(para.get("number"), pi) if old else pi
+            add(f"{_zen(pn)}　{body}", "para")
+        marks(para)
         for ii, it in enumerate(para.get("items", []), 1):
             n = _num(it.get("number"), ii) if old else ii
-            lines.append(f"（{_zen(n)}）{it.get('body', '')}")
-            lines += _container_marks(it)
+            add(f"（{_zen(n)}）{it.get('body', '')}", "item")
+            marks(it)
             for si, su in enumerate(it.get("sub_items", []), 1):
                 n = _num(su.get("number"), si) if old else si
-                lines.append(f"　{_kana(n)}　{su.get('body', '')}")
-                lines += _container_marks(su)
+                add(f"　{_kana(n)}　{su.get('body', '')}", "sub")
+                marks(su)
                 for s2i, s2 in enumerate(su.get("sub_items2") or [], 1):
                     n = _num(s2.get("number"), s2i) if old else s2i
-                    lines.append(f"　　（{_kana(n)}）{s2.get('body', '')}")
-                    lines += _container_marks(s2)
-    lines += _container_marks(art)
-    return lines
+                    add(f"　　（{_kana(n)}）{s2.get('body', '')}", "sub2")
+                    marks(s2)
+    marks(art)
+    return lines, cls
 
 
 def _container_marks(node):
@@ -103,7 +126,8 @@ def _container_marks(node):
 def units(tree, old):
     """
     木を章・条の単位の列にする。
-    各単位: {kind, number, label, title, sig, lines}
+    各単位: {kind, number, label, title, sig, lines, cls}
+      cls: lines と同じ長さのクラス名（chapter/lead/title/para/item/sub/sub2/mark）。
       number: 比べるための番号（int）。label: 「第５条」「第２章」。
       sig: 番号を除いた中身（突き合わせに使う）。lines: 表示用の行。
     """
@@ -122,11 +146,11 @@ def units(tree, old):
         else:
             number = n_art
             label = f"第{_zen(number)}条"
-        lines = _article_lines(art, label, old)
-        sig_lines = _article_lines(art, "", False)
+        lines, cls = _article_lines(art, label, old)
+        sig_lines, _ = _article_lines(art, "", False)
         out.append({"kind": "article", "number": number, "label": label,
                     "title": (art.get("title") or "").strip(),
-                    "sig": "\n".join(sig_lines), "lines": lines})
+                    "sig": "\n".join(sig_lines), "lines": lines, "cls": cls})
 
     for node in tree:
         t = node.get("type")
@@ -142,7 +166,7 @@ def units(tree, old):
             title = (node.get("title") or "").strip()
             out.append({"kind": "chapter", "number": number, "label": label,
                         "title": title, "sig": "章:" + title,
-                        "lines": [f"{label}　{title}".rstrip()]})
+                        "lines": [f"{label}　{title}".rstrip()], "cls": ["chapter"]})
             for art in node.get("articles", []):
                 add_article(art)
         elif t == "article":
@@ -302,47 +326,72 @@ def _summary_row(run):
             "old": [[[old_r, False]]], "new": [[[new_r, False]]], "note": note}
 
 
-def compare(old_tree, new_tree):
+def view(old_tree, new_tree):
     """
-    新旧対照表の行のリストを返す（変更の無い章・条は含めない）。
-    kind: changed（中身の変更）/ renumbered（番号のみ）/ summary（番号のみの区間のまとめ）
-          / added（新設）/ deleted（削除）
+    画面用の全文の並びと、Word の表の行を返す: {"blocks": [...], "rows": [...]}。
+    rows は変更のあった章・条だけ（kind: changed / renumbered / summary / added / deleted）。
+    blocks は章・条の組を文書の順にすべて（変更の無いものも）並べたもの。
     """
+    pairs = _align(units(old_tree, True), units(new_tree, False))
+    blocks = []
+    for o, n in pairs:
+        if o is None:
+            kind, old, new = "added", None, _plain(n["lines"], True)
+        elif n is None:
+            kind, old, new = "deleted", _plain(o["lines"], True), None
+        elif o["sig"] == n["sig"]:
+            if o["lines"] == n["lines"]:
+                kind, old, new = "same", _plain(o["lines"]), _plain(n["lines"])
+            else:
+                kind = "renumbered"
+                old, new = _marked(o["lines"], n["lines"])
+        else:
+            kind = "changed"
+            old, new = _marked(o["lines"], n["lines"])
+        blocks.append({"kind": kind, "unit": (o or n)["kind"], "old": old, "new": new,
+                       "old_cls": o["cls"] if o else None, "new_cls": n["cls"] if n else None,
+                       "row_id": None, "row_note": "", "row_label": ""})
+
     rows, run = [], []
+    owner = []                    # (行の位置, block の位置, summary か)
 
     def flush():
         # 条を _SHOW_IN_RUN 個載せるまでは、間の章も載せる。残りをまとめる。
         shown = 0
         cut = len(run)
-        for k, (o, _) in enumerate(run):
+        for k, (_, o, _n) in enumerate(run):
             if shown == _SHOW_IN_RUN:
                 cut = k
                 break
             if o["kind"] == "article":
                 shown += 1
-        rows.extend(_row("renumbered", o, n) for o, n in run[:cut])
+        for bi, o, n in run[:cut]:
+            owner.append((len(rows), bi, False))
+            rows.append(_row("renumbered", o, n))
         rest = run[cut:]
-        n_art = sum(1 for o, _ in rest if o["kind"] == "article")
+        n_art = sum(1 for _, o, _n in rest if o["kind"] == "article")
         if n_art >= 2:
-            rows.append(_summary_row(rest))
+            first = next(bi for bi, o, _n in rest if o["kind"] == "article")
+            owner.append((len(rows), first, True))
+            rows.append(_summary_row([(o, n) for _, o, n in rest]))
         else:
-            rows.extend(_row("renumbered", o, n) for o, n in rest)
+            for bi, o, n in rest:
+                owner.append((len(rows), bi, False))
+                rows.append(_row("renumbered", o, n))
         run.clear()
 
-    for o, n in _align(units(old_tree, True), units(new_tree, False)):
-        if o is not None and n is not None and o["sig"] == n["sig"]:
-            if o["lines"] != n["lines"]:
-                run.append((o, n))       # 番号のみ
-            elif o["kind"] == "article":
+    for bi, (o, n) in enumerate(pairs):
+        kind = blocks[bi]["kind"]
+        if kind == "same":
+            if o["kind"] == "article":
                 flush()                  # 番号も中身も同じ条で区間を切る（章見出しでは切らない）
             continue
+        if kind == "renumbered":
+            run.append((bi, o, n))       # 番号のみ
+            continue
         flush()
-        if o is None:
-            rows.append(_row("added", None, n))
-        elif n is None:
-            rows.append(_row("deleted", o, None))
-        else:
-            rows.append(_row("changed", o, n))
+        owner.append((len(rows), bi, False))
+        rows.append(_row(kind, o, n))
     flush()
     # 同じ見出しの行（条番号の重複など）で備考が共有されないよう、2つ目以降の id に番号を付ける
     seen = {}
@@ -351,7 +400,18 @@ def compare(old_tree, new_tree):
         seen[r["id"]] = k
         if k > 1:
             r["id"] += f"#{k}"
-    return rows
+    for ri, bi, is_summary in owner:
+        b, r = blocks[bi], rows[ri]
+        b["row_id"] = r["id"]
+        if is_summary:
+            b["row_note"] = r["note"]
+            b["row_label"] = f"Word では「{r['old_heading']}」を1行にまとめます"
+    return {"blocks": blocks, "rows": rows}
+
+
+def compare(old_tree, new_tree):
+    """新旧対照表の行のリストを返す（変更の無い章・条は含めない）。view() の rows。"""
+    return view(old_tree, new_tree)["rows"]
 
 
 # ============================================================
@@ -448,6 +508,15 @@ def build_docx(rows, notes, out_path, title="新旧対照表", subtitle=""):
 
 def compare_files(old_json_path, new_json_path=None):
     """解析済み JSON（改正案を省くと同じ木）から行を作る。"""
+    return compare(*_load_trees(old_json_path, new_json_path))
+
+
+def view_files(old_json_path, new_json_path=None):
+    """解析済み JSON から画面用の {"blocks", "rows"} を作る。"""
+    return view(*_load_trees(old_json_path, new_json_path))
+
+
+def _load_trees(old_json_path, new_json_path=None):
     with open(old_json_path, encoding="utf-8") as f:
         old_tree = json.load(f)
     if new_json_path and new_json_path != old_json_path:
@@ -455,4 +524,4 @@ def compare_files(old_json_path, new_json_path=None):
             new_tree = json.load(f)
     else:
         new_tree = old_tree
-    return compare(old_tree, new_tree)
+    return old_tree, new_tree

@@ -146,8 +146,8 @@ def format_docx(src_path, json_path, template_key,
 
 
 def compare_rows(json_path):
-    """新旧対照表の行（変更のあった章・条）を JSON 文字列で返す。"""
-    return json.dumps(comparison.compare_files(json_path), ensure_ascii=False)
+    """新旧対照表の画面用データ {"blocks"（全文の並び）, "rows"（変更のあった章・条）} を JSON 文字列で返す。"""
+    return json.dumps(comparison.view_files(json_path), ensure_ascii=False)
 
 
 def make_comparison(src_path, json_path, notes_json=""):
