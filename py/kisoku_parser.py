@@ -514,7 +514,7 @@ def _starts_new_unit(stripped, buf):
     if match_chapter(stripped) or match_article(stripped):
         # 「…その後30日間は、／第10条（解雇）の規定にかかわらず」:
         # 文の途中で折り返した行の先頭に来た参照は、見出しにしない
-        return not (_ends_mid_sentence(buf) and _heading_is_reference(stripped))
+        return not (_ends_mid_sentence(buf, kanji=False) and _heading_is_reference(stripped))
     # 「通常の賃金の／1.25倍とする」: 文の途中で小数が行頭に来た
     if (re.match(r'^[０-９0-9]+[．.][０-９0-9]', stripped)
             and _ends_mid_sentence(buf)):
@@ -643,14 +643,17 @@ def _heading_is_reference(s):
     return False
 
 
-def _ends_mid_sentence(text):
-    """行が文の途中で終わっているか（読点・助詞・漢字で終わる。PDF由来の折り返し）。
-    「…とする」「…による」のように言い切る形や、句点・括弧で終わる行は含めない。"""
+def _ends_mid_sentence(text, kanji=True):
+    """行が文の途中で終わっているか（読点・助詞で終わる。PDF由来の折り返し）。
+    「…とする」「…による」のように言い切る形や、句点・括弧で終わる行は含めない。
+    kanji=True なら漢字で終わる行も含める（「定年は満／60 歳」）。号の行は
+    「（２）健康診断書」のように名詞で終わることが多いので、次の行が見出しかを
+    見るときは kanji=False にする。"""
     t = (text or '').rstrip('　 \t')
     if not t:
         return False
     c = t[-1]
-    return c in '、，のにをはがでとへやも' or bool(re.match(r'[一-龯々]', c))
+    return c in '、，のにをはがでとへやも' or (kanji and bool(re.match(r'[一-龯々]', c)))
 
 
 # 数字の後ろがこれらの単位なら、項番号ではなく数量（「60 歳」「1 日」「6 割」）。
@@ -1819,7 +1822,7 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             # （行の折り返しで行頭に来たもの）では止めない
             # 前の段落が文の途中で終わっているとき（行の折り返し）だけ判定する
             _sm = stop_re.match(text.strip()) if text.strip() else None
-            if _sm and not (_ends_mid_sentence(_prev_text)
+            if _sm and not (_ends_mid_sentence(_prev_text, kanji=False)
                             and _STOP_WORD_REF.match(text.strip()[_sm.end():])):
                 print(f"停止: {repr(text.strip()[:30])}（以降は整形せず保持）")
                 back_start = child_idx
