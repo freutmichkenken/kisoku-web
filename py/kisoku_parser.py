@@ -47,7 +47,7 @@ from docx.oxml.ns import qn
 import functools
 
 # 記号階層の動的判定（ブラウザ版でも必ず読み込む。worker.js の PY_FILES）
-from marker_hierarchy import (identify_symbol, _SYMBOL_TYPES,
+from marker_hierarchy import (identify_symbol, _SYMBOL_TYPES, kanji_to_int,
                               REF_AFTER_MARKER as _REF_AFTER_MARKER)
 
 
@@ -487,7 +487,7 @@ class Line:
     これを使い、結合した文字列に正規表現をかけ直さない。
     """
     __slots__ = ('text', 's', 'indent', 'chapter', 'article', 'title', 'para',
-                 'decimal', 'paren_only', 'sym_type', 'sym_num', 'sym_body',
+                 'decimal', 'paren_only', 'sym_type', 'sym_num', 'sym_body', 'sym_char',
                  'mark_head', 'is_marker', 'last')
 
     def __init__(self, text):
@@ -513,12 +513,14 @@ class Line:
         # 括弧だけの行（結合の区切りに使う。RE_TITLE より広い）
         self.paren_only = bool(_RE_PAREN_ONLY_ZEN.match(s) or _RE_PAREN_ONLY_HAN.match(s))
         # 号の記号（marker_hierarchy の記号の種類・番号・後ろの本文。本文は前後の空白込み）
-        self.sym_type, self.sym_num, self.sym_body = None, 0, s
+        self.sym_type, self.sym_num, self.sym_body, self.sym_char = None, 0, s, ''
         for type_name, pat, extractor in _SYMBOL_TYPES:
             m = pat.match(s)
             if m:
                 self.sym_type = type_name
                 self.sym_num, self.sym_body = extractor(m)
+                if type_name in _KANA_TYPES:
+                    self.sym_char = s.lstrip('（(')[0]   # 記号の文字（イロハ順の判定に使う）
                 break
         self.mark_head = _RE_MARK_HEAD.match(s)   # 「（１）」「①」「（一）」
         self.is_marker = bool(self.mark_head) or self.sym_type is not None
@@ -1015,32 +1017,20 @@ _STOP_WORD_REF = re.compile(
     r'(?:の|に|を|で|は|が|と|へ|から|まで|より|及び|又は|並びに|若しくは|[、，。])')
 
 def zenkaku_to_int(s):
-    """全角数字を含む文字列を整数に変換"""
+    """全角数字・漢数字を含む文字列を整数に変換"""
     s = s.translate(str.maketrans('０１２３４５６７８９', '0123456789'))
     try:
         return int(s)
     except ValueError:
-        # 漢数字
-        kanji = {'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10,
-                 '百':100,'千':1000,'万':10000}
-        val = 0; tmp = 0
-        for c in s:
-            if c in kanji:
-                k = kanji[c]
-                if k >= 10:
-                    tmp = (tmp or 1) * k
-                    if k >= 1000:
-                        val += tmp; tmp = 0
-                else:
-                    tmp += k
-        return val + tmp or 1
+        return kanji_to_int(s) or 1
 
-def classify_line(text, depth=None):
+def classify_line(text, depth=None, number=None):
     """
     1つの単位（merge_lines の Unit、または1行の文字列）を分類してdictを返す。
     先頭の行の判定結果（Line）と、2行目以降をつないだ文字列から作る。
     depth: 号の記号の深さ（marker_depths が項ごとの入れ子で決めたもの。
            0=号、1=号の細分、2以上=さらに下）。None なら号とする。
+    number: 号の番号の上書き（kana_numbers が決めたカタカナの号の番号）。None なら記号の番号
     keys: type, number, title/body
     """
     unit = _as_unit(text)
@@ -1102,7 +1092,7 @@ def classify_line(text, depth=None):
     # --- 号系記号の判定（深さは marker_depths が項ごとの入れ子で決めたもの）---
     if f.sym_type is not None:
         t = ('item' if not depth else 'item_sub' if depth == 1 else 'item_sub2')
-        return {'type': t, 'number': f.sym_num,
+        return {'type': t, 'number': f.sym_num if number is None else number,
                 'body': (f.sym_body + unit.tail).strip(),
                 'marker': f.sym_type, 'raw': stripped}
 
@@ -1149,6 +1139,49 @@ def marker_depths(merged):
             stack.append(f.sym_type)
         depths[id(val)] = stack.index(f.sym_type)
     return depths
+
+
+_KANA_TYPES = ('katakana', 'paren_zen_kana', 'paren_han_kana')
+_GOJUON = ('アイウエオカキクケコサシスセソタチツテトナニヌネノ'
+           'ハヒフヘホマミムメモヤユヨラリルレロワヲン')
+_IROHA = 'イロハニホヘトチリヌルヲワカヨタレソツネナラム'
+
+
+def kana_numbers(merged):
+    """
+    カタカナの号（ア、（イ） 等）の番号を、{id(Unit): 番号} で返す。
+    アイウエオ順かイロハ順かは1文字では決まらない（「イ」はアイウエオ順の2番、
+    イロハ順の1番）ので、marker_depths と同じ歩き方で見た、同じ記号の種類の
+    連なりの最初の文字が「イ」ならイロハ順、それ以外はアイウエオ順で数える。
+    """
+    nums = {}
+    stack = []   # [記号の種類, 連なりの最初の文字]
+    for k, val in merged:
+        if k == 'auto':
+            if val[0] in ('chapter', 'article', 'paragraph', 'paragraph_1', 'body_plain'):
+                stack = []
+            continue
+        if k != 'text':
+            continue
+        f = val.first
+        if (f.chapter or f.article or _unit_title(val)
+                or (f.para and zenkaku_to_int(f.para.group('num')) >= 2)):
+            stack = []
+            continue
+        if f.sym_type is None:
+            continue
+        types = [e[0] for e in stack]
+        if f.sym_type in types:
+            idx = types.index(f.sym_type)
+            del stack[idx + 1:]
+        else:
+            stack.append([f.sym_type, f.sym_char])
+            idx = len(stack) - 1
+        if f.sym_type in _KANA_TYPES:
+            order = _IROHA if stack[idx][1] == 'イ' else _GOJUON
+            if f.sym_char in order:
+                nums[id(val)] = order.index(f.sym_char) + 1
+    return nums
 
 
 # 条タイトルの括弧の後ろ（空白と「※注釈」だけ）
@@ -2318,6 +2351,7 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
 
     # 号の記号の深さ（号・号の細分…）を決める
     depths = marker_depths(merged)
+    kana_nums = kana_numbers(merged)
 
     text_cursor = 0
     for k, val in merged:
@@ -2332,7 +2366,8 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             if node:
                 flat.append(node)
         else:  # 'text'
-            node = classify_line(val, depth=depths.get(id(val)))
+            node = classify_line(val, depth=depths.get(id(val)),
+                                 number=kana_nums.get(id(val)))
             if node:
                 # 'text'（＝どのパターンにも該当せず本文扱い）は判定不能候補。
                 # 括弧書きの注記（「（中途採用者を除く）」）は本文と分かっているので除く

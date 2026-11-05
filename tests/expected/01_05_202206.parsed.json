@@ -1038,7 +1038,7 @@
                 "sub_items": [
                   {
                     "type": "item_sub",
-                    "number": 2,
+                    "number": 1,
                     "body": "１番（日勤）",
                     "tables": [
                       {
@@ -1155,7 +1155,7 @@
                 "sub_items": [
                   {
                     "type": "item_sub",
-                    "number": 2,
+                    "number": 1,
                     "body": "毎週　　曜日とする。ただし、　　　　部および　　　　部は毎週　　曜日とする。"
                   },
                   {

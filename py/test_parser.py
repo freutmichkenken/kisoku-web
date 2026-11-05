@@ -235,6 +235,24 @@ for _lines, _expected in _CASES:
     assert _got == _expected, '\n'.join(['期待:'] + _expected + ['実際:'] + _got)
 
 
+# 漢数字・全角数字の読み取り
+for _s, _v in [('百十', 110), ('百二十', 120), ('千二百', 1200), ('十', 10), ('二十一', 21),
+               ('二〇', 20), ('一〇〇', 100), ('１２', 12), ('12', 12)]:
+    assert kisoku_parser.zenkaku_to_int(_s) == _v, (_s, kisoku_parser.zenkaku_to_int(_s), _v)
+
+# 「第百十条」の条番号が 110 になる
+with tempfile.TemporaryDirectory() as _w:
+    _path = os.path.join(_w, 'x.docx')
+    _d = Document()
+    for _ln in ['第百九条（a）　a。', '第百十条（b）　b。', '第百二十条（c）　c。']:
+        _d.add_paragraph(_ln)
+    _d.save(_path)
+    with contextlib.redirect_stdout(io.StringIO()):
+        _tree = kisoku_parser.parse_kisoku(_path, use_gemini=False)
+_nums = [n['number'] for n in _tree if n['type'] == 'article']
+assert _nums == [109, 110, 120], _nums
+
+
 # 前付けの中身（表紙・手打ちの目次の行）を確かめる
 def _front_texts(lines):
     with tempfile.TemporaryDirectory() as w:
