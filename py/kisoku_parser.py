@@ -587,14 +587,24 @@ def merge_lines(items):
     merged = []
     buf = None
     # いまの条番号と項番号（次に来るはずの条・項の番号を見るため）
-    ctx = {'article': None, 'para': 1}
+    # prev_items: いまの条の、前の項までに出てきた号の (記号の種類, 番号)
+    # （「前項に定める書類のうち／（１）の書類は」の号の参照を見分けるため）
+    ctx = {'chapter': None, 'article': None, 'para': 1,
+           'prev_items': set(), 'cur_items': set()}
 
     def count_unit(ln):
-        if ln.article:
+        if ln.chapter:
+            ctx['chapter'] = zenkaku_to_int(ln.chapter.group(1))
+        elif ln.article:
             ctx['article'] = zenkaku_to_int(ln.article.group(1))
             ctx['para'] = 1
+            ctx['prev_items'], ctx['cur_items'] = set(), set()
         elif ln.para:
             ctx['para'] = zenkaku_to_int(ln.para.group('num'))
+            ctx['prev_items'] |= ctx['cur_items']
+            ctx['cur_items'] = set()
+        elif ln.sym_type is not None:
+            ctx['cur_items'].add((ln.sym_type, ln.sym_num))
 
     def flush():
         nonlocal buf
@@ -703,18 +713,25 @@ def _chapter_title_continues(buf, line):
 
 def _para_num_is_continuation(buf, m, next_para=None):
     """RE_PARA に一致した行が、項の始まりではなく前の文の続きか。
-    「満／60 歳とし」「契約期間は、／2 年以内」のように、前の行が文の途中で終わり、
-    次の行が半角空白＋単位（PDF由来）のときだけ続きとみなす。
-    番号が次に来るはずの項番号（next_para）と同じで、前の行が助詞で終わっていなければ
-    （名詞＋読点の列挙など）、項の始まりとみなす
-    （「（２）特殊健康診断、／2 年に1回以上…」の 2 は第2項。
-    「契約期間は、／2 年以内」は助詞で終わるので数量）。"""
-    tb = buf.text.rstrip('　 \t').rstrip('、，')
-    if (next_para is not None and zenkaku_to_int(m.group('num')) == next_para
-            and not (tb and tb[-1] in 'のにをはがでとへやも')):
+    番号の並びで決め、単位の語（_QUANTITY_UNIT）は番号で決まらないときの補助に使う。
+      - 前の行が文として終わっていれば項（番号が飛んでいても項とする）
+      - 番号が次に来るはずの項番号（next_para）と同じなら項
+        （「（２）特殊健康診断、／2 年に1回以上…」の 2 は第2項）。
+        ただし前の行が助詞で終わるときは、半角空白＋単位なら数量
+        （「契約期間は、／2 年以内」）
+      - 番号が次の項番号と違い、前の行が文の途中で終わっていて、半角空白で区切られて
+        いれば数量（PDF由来の「満／60 歳」「…のうち／5 項目」）"""
+    if not _ends_mid_sentence(buf) or m.group('ws') != ' ':
         return False
-    return (_ends_mid_sentence(buf) and m.group('ws') == ' '
-            and bool(_QUANTITY_UNIT.match(m.group('body'))))
+    if next_para is not None and zenkaku_to_int(m.group('num')) == next_para:
+        tb = buf.text.rstrip('　 \t').rstrip('、，')
+        if not (tb and tb[-1] in 'のにをはがでとへやも'):
+            return False
+        return bool(_QUANTITY_UNIT.match(m.group('body')))
+    # 「2 . 前項の…」のように番号の後ろに「.」があれば項番号の書き方
+    if re.search(r'[．.]', m.string[m.end('ws'):m.start('body')]):
+        return False
+    return True
 
 
 def _has_inline_prev_marker(buf, cur_t, cur_n):
@@ -738,19 +755,24 @@ def _starts_new_unit(ln, buf, ctx=None):
     ctx: merge_lines が数える、いまの条番号（'article'）と項番号（'para'）。
     番号が次に来るはずの条・項と同じかを、言葉の規則より先に見る。"""
     ctx = ctx or {}
-    next_art = ctx['article'] + 1 if ctx.get('article') is not None else None
     next_para = ctx.get('para', 1) + 1
-    ma = ln.article
-    if ln.chapter or ma:
-        # 「…その後30日間は、／第10条（解雇）の規定にかかわらず」:
-        # 文の途中で折り返した行の先頭に来た参照は、見出しにしない
-        if not (_ends_mid_sentence(buf, kanji=False) and _heading_is_reference(ln)):
+    if ln.chapter or ln.article:
+        # 前の行が文として終わっていれば見出し
+        if not _ends_mid_sentence(buf, kanji=False):
             return True
-        # 次に来るはずの条番号の見出しは、助詞が直接続く参照（「第11条（解雇）の規定」）
-        # でなければ見出し（「…証明書、／第11条（準用）　第1項の規定は…」）
-        return bool(ma and not ma.group(2) and next_art is not None
-                    and zenkaku_to_int(ma.group(1)) == next_art
-                    and not _heading_is_reference(ln, particle_only=True))
+        # 文の途中で折り返した行の先頭に来た見出しの形の行は、番号の並びで決める。
+        # 「…その後30日間は、／第10条（解雇）の規定にかかわらず」のように
+        # 助詞が直接続く形は、番号にかかわらず参照
+        nxt = _is_next_heading(ln, ctx)
+        if _heading_is_reference(ln):
+            # 次に来るはずの条番号の見出しは、助詞が直接続く参照でなければ見出し
+            # （「…証明書、／第11条（準用）　第1項の規定は…」）
+            return bool(nxt and ln.article
+                        and not _heading_is_reference(ln, particle_only=True))
+        # 「は・が・と・より」などが続く形（「…については、／第3章は適用しない」）は、
+        # 見出しの本文が平仮名で始まる場合（「第2条（がん検診）　がん検診を」）と
+        # 言葉では見分けられないので、番号が次に来るはずの章・条でなければ参照とする
+        return nxt or not _RE_WEAK_REF_AFTER_HEADING.match(_heading_after(ln))
     # 「通常の賃金の／1.25倍とする」: 文の途中で小数が行頭に来た
     # 「…休憩は1時間／2.1か月単位の」のように、整数部が次の項番号なら第2項
     md = ln.decimal
@@ -767,6 +789,11 @@ def _starts_new_unit(ln, buf, ctx=None):
     elif ln.sym_type is not None:
         body = ln.sym_body
     else:
+        return False
+    # 「前項に定める書類のうち／（１）の書類は…」: 記号の直後が助詞で、同じ条の前の項に
+    # 同じ番号の号がもう出ていれば、新しい号ではなく、その号を指す本文中の参照
+    if (ln.sym_type is not None and (ln.sym_type, ln.sym_num) in ctx.get('prev_items', ())
+            and _REF_AFTER_MARKER.match(body.lstrip('　 \t'))):
         return False
     # 「…にかかわらず、／（１）に掲げる場合は」: 読点で終わった文の続きで、
     # 記号の直後が助詞なら号ではなく本文中の参照。読点で終わっていなければ、
@@ -857,18 +884,40 @@ def _heading_is_reference(ln, particle_only=False):
     particle_only=True なら、「第1項」のような項・号の参照が続く形は数えない。"""
     if not isinstance(ln, Line):
         ln = line_info(ln)
-    if ln.chapter:
-        after = ln.chapter.group(2).strip()
-    elif ln.article:
-        rest = ln.article.group(3)
-        tm = re.match(r'^[（(][^）)]*[）)]', rest)
-        after = (rest[tm.end():] if tm else rest).lstrip('　 \t')
-    else:
+    if not (ln.chapter or ln.article):
         return False
-    hit = _REF_AFTER_HEADING.match(after)
+    hit = _REF_AFTER_HEADING.match(_heading_after(ln))
     if hit and particle_only and hit.group(0).startswith('第'):
         return False
     return bool(hit)
+
+
+# 見出しの番号の後ろがこれらで始まり、番号が次に来るはずの章・条でなければ参照
+# （「第3章は適用しない」「第10条（定年）は適用しない」「第5条が定める」）
+_RE_WEAK_REF_AFTER_HEADING = re.compile(r'^(?:は|が|と|へ|も|より)')
+
+
+def _heading_after(ln):
+    """章・条の見出しの形の行（Line）の、番号の後ろ（条は括弧書きを除く）の文字列。"""
+    if ln.chapter:
+        return ln.chapter.group(2).strip()
+    rest = ln.article.group(3)
+    tm = re.match(r'^[（(][^）)]*[）)]', rest)
+    return (rest[tm.end():] if tm else rest).lstrip('　 \t')
+
+
+def _is_next_heading(ln, ctx):
+    """章・条の見出しの形の行（Line）の番号が、次に来るはずの章・条の番号か。
+    条は「いまの条番号＋1」か、いまの条の枝番（「第9条」のあとの「第9条の2」）。
+    章は「いまの章番号＋1」（章がまだ無ければ第1章）。"""
+    if ln.chapter:
+        cur = ctx.get('chapter')
+        return zenkaku_to_int(ln.chapter.group(1)) == (cur or 0) + 1
+    cur = ctx.get('article')
+    if cur is None:
+        return False
+    n = zenkaku_to_int(ln.article.group(1))
+    return n == cur + 1 or (bool(ln.article.group(2)) and n == cur)
 
 
 def _ends_mid_sentence(x, kanji=True):
@@ -1372,7 +1421,8 @@ def build_tree(flat):
                 cur_paragraph['items'].append({
                     'type': 'item',
                     'number': num,
-                    'body': node['body']
+                    'body': node['body'],
+                    '_marker': node.get('marker'),   # 記号の種類（_maru_items_to_paragraphs 用）
                 })
             elif cur_article is not None:
                 # 項のない条の直下に号が来る場合 → 第1項を自動生成
@@ -1390,7 +1440,8 @@ def build_tree(flat):
                 cur_paragraph['items'].append({
                     'type': 'item',
                     'number': num,
-                    'body': node['body']
+                    'body': node['body'],
+                    '_marker': node.get('marker'),   # 記号の種類（_maru_items_to_paragraphs 用）
                 })
             else:
                 _orphan(node.get('raw') or node['body'])
@@ -1540,7 +1591,49 @@ def build_tree(flat):
                 _orphan(body)
 
     _flush_pending()   # 最後まで条が来なかった括弧行も本文に戻す
+    for node in result:
+        for a in (node.get('articles', []) if node.get('type') == 'chapter'
+                  else [node] if node.get('type') == 'article' else []):
+            _maru_items_to_paragraphs(a)
+            for p in a['paragraphs']:
+                for it in p.get('items', []):
+                    it.pop('_marker', None)
     return result
+
+
+def _maru_items_to_paragraphs(article):
+    """
+    柱書の無い条で、①②…を項として書いた規則（S1）を項に直す。
+      第5条（服務）
+      ①　従業員は、誠実に職務を遂行しなければならない。
+      ②　従業員は、会社の名誉を害してはならない。
+    条見出しの直後に①が来て（第1項の本文が空）、号がすべて丸数字の連番で、
+    どれも句点で終わる文のときだけ項とする。①の下の（１）などは、その項の号になる。
+    柱書のあとの①（「次の事項を守る。／①…」）は号のまま。
+    """
+    paras = article['paragraphs']
+    if len(paras) != 1 or paras[0]['body'].strip():
+        return
+    items = paras[0].get('items', [])
+    if (len(items) < 2 or any(it.get('_marker') != 'maru' for it in items)
+            or [it['number'] for it in items] != list(range(1, len(items) + 1))
+            or not all(it['body'].rstrip('　 \t').endswith('。') for it in items)
+            or paras[0].get('tables') or paras[0].get('drawings')):
+        return
+    new = []
+    for it in items:
+        p = {'type': 'paragraph', 'number': it['number'], 'body': it['body'], 'items': []}
+        for sub in it.get('sub_items', []):
+            ni = {k: v for k, v in sub.items() if k != 'sub_items2'}
+            ni['type'] = 'item'
+            if sub.get('sub_items2'):
+                ni['sub_items'] = [dict(s2, type='item_sub') for s2 in sub['sub_items2']]
+            p['items'].append(ni)
+        for key in ('tables', 'drawings'):
+            if it.get(key):
+                p[key] = it[key]
+        new.append(p)
+    article['paragraphs'] = new
 
 
 # ============================================================
