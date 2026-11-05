@@ -134,7 +134,7 @@ def units(tree, old):
     out = []
     n_ch = n_art = 0
 
-    def add_article(art):
+    def add_article(art, path):
         nonlocal n_art
         n_art += 1
         if old:
@@ -150,9 +150,10 @@ def units(tree, old):
         sig_lines, _ = _article_lines(art, "", False)
         out.append({"kind": "article", "number": number, "label": label,
                     "title": (art.get("title") or "").strip(),
-                    "sig": "\n".join(sig_lines), "lines": lines, "cls": cls})
+                    "sig": "\n".join(sig_lines), "lines": lines, "cls": cls,
+                    "path": path})
 
-    for node in tree:
+    for ti, node in enumerate(tree):
         t = node.get("type")
         if t == "chapter":
             n_ch += 1
@@ -166,11 +167,12 @@ def units(tree, old):
             title = (node.get("title") or "").strip()
             out.append({"kind": "chapter", "number": number, "label": label,
                         "title": title, "sig": "章:" + title,
-                        "lines": [f"{label}　{title}".rstrip()], "cls": ["chapter"]})
-            for art in node.get("articles", []):
-                add_article(art)
+                        "lines": [f"{label}　{title}".rstrip()], "cls": ["chapter"],
+                        "path": [ti]})
+            for ai, art in enumerate(node.get("articles", [])):
+                add_article(art, [ti, ai])
         elif t == "article":
-            add_article(node)
+            add_article(node, [ti])
     return out
 
 
@@ -298,7 +300,10 @@ def _row(kind, o, n, note=""):
         old, new = _plain(o["lines"], True), [[["（削除）", False]]]
     else:
         old, new = _marked(o["lines"], n["lines"])
-    return {"id": f"{kind}:{_heading(o)}|{_heading(n)}", "kind": kind,
+    # 備考の対応付けに使う id。編集で改正案の見出しや変化の種類が変わっても外れないよう、
+    # 現行の見出しがあればそれだけで作る（新設は改正案の見出し）
+    rid = f"o:{_heading(o)}" if o is not None else f"n:{_heading(n)}"
+    return {"id": rid, "kind": kind,
             "old_heading": _heading(o), "new_heading": _heading(n),
             "old": old, "new": new, "note": note}
 
@@ -321,7 +326,7 @@ def _summary_row(run):
     if any(o["kind"] == "chapter" for o, _ in run):
         note += "。章番号の変更を含む"
     old_r, new_r = rng(o1, o2), rng(n1, n2)
-    return {"id": f"summary:{old_r}|{new_r}", "kind": "summary",
+    return {"id": f"summary:{old_r}", "kind": "summary",
             "old_heading": old_r, "new_heading": new_r,
             "old": [[[old_r, False]]], "new": [[[new_r, False]]], "note": note}
 
@@ -350,6 +355,8 @@ def view(old_tree, new_tree):
             old, new = _marked(o["lines"], n["lines"])
         blocks.append({"kind": kind, "unit": (o or n)["kind"], "old": old, "new": new,
                        "old_cls": o["cls"] if o else None, "new_cls": n["cls"] if n else None,
+                       # 木の中の位置（[章の位置, 条の位置] か [位置]）。画面で改正案を編集するときに使う
+                       "old_path": o["path"] if o else None, "new_path": n["path"] if n else None,
                        "row_id": None, "row_note": "", "row_label": ""})
 
     rows, run = [], []

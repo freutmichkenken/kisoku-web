@@ -256,6 +256,25 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .cmp-old .u { background: var(--del-strong); }
 .cmp-new .u { background: var(--ins-strong); }
 .cmp-note { grid-column: 1 / -1; margin-top: 6px; }
+.cmp-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; }
+.cmp-edit[hidden] { display: none; }
+.cmp-edit .hint { margin: 0; flex: 1 1 100%; }
+.cmp-new.editable { cursor: pointer; border-radius: 4px; }
+.cmp-new.editable:hover, .cmp-new.editable:focus-visible { outline: 2px solid var(--ai); outline-offset: -2px; }
+.ed-form { display: grid; gap: 8px; padding: 6px 0; font-size: 14px; }
+.ed-field { display: grid; gap: 2px; }
+.ed-label { font-size: 12.5px; color: var(--muted); font-weight: 700; }
+.ed-title, .ed-text { width: 100%; box-sizing: border-box; padding: 5px 7px; font: inherit; line-height: 1.6; border: 1px solid var(--rule); border-radius: 5px; background: var(--surface); color: var(--ink); }
+.ed-text { resize: vertical; }
+.ed-unit { display: grid; gap: 4px; padding: 6px 0 6px 8px; border-left: 3px solid var(--rule); }
+.ed-unit .ed-unit { margin-left: 8px; }
+.ed-unit-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.ed-tools { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.ed-tools .btn.small { min-height: 26px; padding: 0 8px; font-size: 12.5px; font-weight: 400; }
+.ed-form > .btn.small { justify-self: start; }
+.ed-mark { font-size: 13px; color: var(--muted); }
+.ed-foot { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; border-top: 1px dashed var(--rule); }
+.btn.small.primary { width: auto; min-height: 0; font-size: 14px; }
 .cmp-auto { font-size: 13px; color: var(--muted); }
 .cmp-note textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; min-height: 2.6em; padding: 6px 8px; font: inherit; font-size: 14px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); color: var(--ink); resize: vertical; }
 #cmpSave { margin-top: 12px; }
@@ -455,6 +474,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       <p class="hint">現行は読み込んだ docx、改正案は整形後の内容です。</p>
       <button type="button" class="btn" id="cmpShow" disabled>変更点を表示</button>
       <p class="hint" id="cmpHint" aria-live="polite"></p>
+      <div class="cmp-edit" id="cmpEdit" hidden>
+        <span class="hint" id="editHint"></span>
+        <button type="button" class="btn small" id="editUndo" disabled>元に戻す</button>
+        <button type="button" class="btn small" id="editDiscard" hidden>下書きを削除</button>
+      </div>
       <div class="cmp-list" id="cmpList" hidden>
         <label class="cmp-only"><input type="checkbox" id="cmpOnly"> 変更のある条だけ表示</label>
         <div class="cmp-inner">
@@ -473,6 +497,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 </main>
 
 <script src="custom.js"></script>
+<script src="editor.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -556,7 +581,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $("cmpShow").disabled = busy || !file;
     $("cmpSave").disabled = busy;
     // 解析のオプションを変えたら、表示中の変更点は古いので消す（保存で古い解析を使わないように）
-    if (!busy && cmpShown && parsedKey !== parseKeyNow()) clearComparison();
+    if (!busy && cmpShown && !edit && parsedKey !== parseKeyNow()) clearComparison();
+    refreshEditBar();
     $("file").disabled = busy;
     $("fileBtn").setAttribute("aria-disabled", busy ? "true" : "false");
     const hint = $("runHint");
@@ -619,6 +645,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 
   // オプションが前回の解析と違えば解析し直す。show(kind, text) で状況を出す。
   async function ensureParsed(show) {
+    if (edit) return true;    // 編集中は解析し直さない（解析のオプションも変えられないようにしている）
     if (parsedKey === parseKeyNow()) return true;
     clearComparison();        // 表示中の変更点は前の解析のものなので消す
     show("busy", "オプションが変わったので、構造を解析し直しています…");
@@ -640,9 +667,168 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   function saveNotes(notes) { store.set(notesKey(), JSON.stringify(notes)); }
   function clearComparison() {
     cmpRows = []; cmpBlocks = []; cmpShown = false;
+    editingEl = null; pendingOpen = null;
     $("cmpBody").innerHTML = ""; $("cmpList").hidden = true;
     $("cmpSave").hidden = true; $("cmpHint").textContent = ""; $("cmpHint").className = "hint";
   }
+  // ---------- 改正案の編集 ----------
+  // edit: { base（現行の木）, tree（編集した木）, undo（元に戻す用の木の JSON）}。編集していなければ null
+  let edit = null;
+  let editingEl = null;        // 編集欄を開いている改正案の列（同時に1つだけ）
+  let pendingOpen = null;      // 描き直したあとに編集欄を開く条・章の位置
+  let draftSaveFailed = false;
+  const UNDO_MAX = 50;
+  const draftKey = () => [file.name, file.size, file.lastModified].join("|");
+  // 下書きは端末のブラウザ（IndexedDB）にファイルごとに残す。外部には送らない。
+  const idb = (() => {
+    let opening = null;
+    const open = () => opening || (opening = new Promise((res, rej) => {
+      const r = indexedDB.open("kisoku", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("drafts");
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => { opening = null; rej(r.error); };
+    }));
+    const run = async (mode, fn) => {
+      const db = await open();
+      return new Promise((res, rej) => {
+        const tx = db.transaction("drafts", mode);
+        const req = fn(tx.objectStore("drafts"));
+        tx.oncomplete = () => res(req.result);
+        tx.onerror = () => rej(tx.error);
+        tx.onabort = () => rej(tx.error);
+      });
+    };
+    return {
+      get: (k) => run("readonly", (s) => s.get(k)),
+      put: (k, v) => run("readwrite", (s) => s.put(v, k)),
+      del: (k) => run("readwrite", (s) => s.delete(k)),
+    };
+  })();
+
+  async function saveDraft() {
+    try {
+      await idb.put(draftKey(), { base: edit.base, tree: edit.tree, name: file.name, savedAt: Date.now() });
+      draftSaveFailed = false;
+    } catch (e) {
+      draftSaveFailed = true;
+      log("下書きを保存できませんでした：" + (e && e.message ? e.message : e));
+    }
+  }
+  function refreshEditBar() {
+    // 編集中は、全部の条を消しても「元に戻す」「下書きを削除」を押せるように出し続ける
+    $("cmpEdit").hidden = !cmpShown || (!cmpBlocks.length && !edit);
+    $("editUndo").disabled = busy || !edit || !edit.undo.length;
+    $("editDiscard").hidden = !edit;
+    $("editDiscard").disabled = busy;
+    let t = edit ? "編集中は、② の解析のオプションを変えられません。" : "改正案の条・章を押すと編集できます。";
+    if (edit && draftSaveFailed) t += "この端末に保存できないため、ページを閉じると編集は消えます。";
+    $("editHint").textContent = t;
+    ["optLayout", "optGemini", "optAgent"].forEach((id) => { $(id).disabled = !!edit; });
+  }
+  // 編集した木を Worker に渡す（null なら編集なし）
+  async function sendTrees() {
+    const m = await call({ type: "useTrees",
+      base: edit ? JSON.stringify(edit.base) : null, edited: edit ? JSON.stringify(edit.tree) : null });
+    if (m.type === "error") { cmpHint("err", "編集内容を反映できませんでした：" + m.text); log(m.detail || m.text); return false; }
+    return true;
+  }
+  async function restoreDraft() {
+    let d = null;
+    try { d = await idb.get(draftKey()); } catch { return; }
+    if (!d || !Array.isArray(d.base) || !Array.isArray(d.tree)) return;
+    edit = { base: d.base, tree: d.tree, undo: [] };
+    if (!(await sendTrees())) { edit = null; return; }
+    $("parseHint").textContent += "前回の編集の下書きを読み込みました（⑤ で削除できます）。";
+  }
+  const nodeAt = (tree, path) => (path.length === 1 ? tree[path[0]] : tree[path[0]]?.articles?.[path[1]]);
+  function setAt(tree, path, node) {
+    if (path.length === 1) tree[path[0]] = node; else tree[path[0]].articles[path[1]] = node;
+  }
+  function spliceAt(tree, path, del, ...add) {
+    const list = path.length === 1 ? tree : tree[path[0]].articles;
+    list.splice(path[path.length - 1], del, ...add);
+  }
+  // 木を変える。変える前の木を「元に戻す」用に残し、保存・反映・描き直しまで行う
+  async function changeTree(mutate) {
+    edit.undo.push(JSON.stringify(edit.tree));
+    if (edit.undo.length > UNDO_MAX) edit.undo.shift();
+    mutate(edit.tree);
+    await syncEdit();
+  }
+  async function syncEdit() {
+    await withBusy(async () => {
+      if (!(await sendTrees())) {
+        // 反映できなかった変更は取り消し、画面を変更前に戻す（編集欄が開いたまま固まらないように）
+        if (edit.undo.length) edit.tree = JSON.parse(edit.undo.pop());
+        if (!edit.undo.length && JSON.stringify(edit.tree) === JSON.stringify(edit.base)) edit = null;  // 何も変わっていない
+        pendingOpen = null;
+        editingEl = null;
+        renderComparison();
+        return;
+      }
+      await saveDraft();
+      await loadComparison();
+    });
+  }
+  // force: 描き直しの中から開くとき（処理中の表示のまま開く）
+  async function openEditor(b, col, force = false) {
+    if ((busy && !force) || editingEl) return;
+    editingEl = col;            // 木を受け取るのを待つ間に、ほかの条が開かれないように先に押さえる
+    if (!edit) {
+      const m = await call({ type: "getTree" });
+      if (m.type === "error") { editingEl = null; cmpHint("err", "編集内容を読み込めませんでした：" + m.text); return; }
+      const base = JSON.parse(m.tree);
+      edit = { base, tree: KisokuEditor.clone(base), undo: [] };
+    }
+    const path = b.new_path;
+    const node = nodeAt(edit.tree, path);
+    if (!node) { editingEl = null; return; }
+    col.classList.remove("editable");
+    col.removeAttribute("role"); col.removeAttribute("tabindex");
+    const cancel = () => { editingEl = null; renderComparison(); };
+    let form;
+    if (b.unit === "chapter") {
+      const ti = path[0];
+      form = KisokuEditor.chapterForm(node, {
+        commit: (ch) => changeTree((t) => { t[ti].title = ch.title; }),
+        cancel,
+        insertArticle: (ch) => { pendingOpen = [ti, 0]; changeTree((t) => { t[ti].title = ch.title; t[ti].articles.unshift(KisokuEditor.newArticle()); }); },
+        insertAfter: (ch) => { pendingOpen = [ti + 1]; changeTree((t) => { t[ti].title = ch.title; t.splice(ti + 1, 0, KisokuEditor.newChapter()); }); },
+        remove: () => changeTree((t) => { t.splice(ti, 1); }),
+      });
+    } else {
+      form = KisokuEditor.articleForm(node, {
+        commit: (art) => changeTree((t) => setAt(t, path, art)),
+        cancel,
+        insertAfter: (art) => {
+          pendingOpen = [...path.slice(0, -1), path[path.length - 1] + 1];
+          changeTree((t) => { setAt(t, path, art); spliceAt(t, pendingOpen, 0, KisokuEditor.newArticle()); });
+        },
+        remove: () => changeTree((t) => spliceAt(t, path, 1)),
+      });
+    }
+    col.textContent = "";
+    col.appendChild(form);
+    const first = form.querySelector("input, textarea");
+    if (first) first.focus();
+  }
+  // 変更点を作り直して描く（スクロール位置は保つ）
+  async function loadComparison() {
+    const y = window.scrollY;
+    const m = await call({ type: "compare" });
+    if (m.type === "error") {
+      // 編集欄が開いたまま固まらないよう、前の表示に描き直す
+      pendingOpen = null;
+      if (cmpShown) renderComparison();
+      cmpHint("err", "比較できませんでした：" + m.text); log(m.detail || m.text);
+      return;
+    }
+    cmpRows = m.rows; cmpBlocks = m.blocks || [];
+    const jump = !!pendingOpen;      // 新しく作った条・章へ移るときは、元の位置に戻さない
+    if (!jump) { renderComparison(); window.scrollTo(0, y); }
+    else renderComparison();
+  }
+
   function cmpHint(kind, text) { $("cmpHint").className = "hint" + (kind === "err" ? " err" : ""); $("cmpHint").textContent = text; }
   function renderComparison() {
     const notes = loadNotes();
@@ -691,7 +877,20 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       el.className = "cmp-block";
       el.dataset.kind = b.kind; el.dataset.unit = b.unit;
       el.appendChild(column(b.old, b.old_cls || [], "old"));
-      el.appendChild(column(b.new, b.new_cls || [], "new"));
+      const newCol = column(b.new, b.new_cls || [], "new");
+      if (b.new_path) {
+        // 改正案の条・章は押すと編集欄になる
+        newCol.classList.add("editable");
+        newCol.tabIndex = 0;
+        newCol.setAttribute("role", "button");
+        newCol.setAttribute("aria-label", "編集：" + ((b.new && b.new.length) ? b.new.map((s) => s.map(([t]) => t).join("")).find((t) => t) || "" : ""));
+        newCol.addEventListener("click", () => openEditor(b, newCol));
+        newCol.addEventListener("keydown", (e) => {
+          if (e.target === newCol && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openEditor(b, newCol); }
+        });
+        b.el = newCol;
+      }
+      el.appendChild(newCol);
       const r = b.row_id ? rowById.get(b.row_id) : null;
       if (r) {
         const box = document.createElement("div");
@@ -725,6 +924,15 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     });
     list.hidden = cmpBlocks.length === 0;
     cmpShown = true;
+    editingEl = null;
+    refreshEditBar();
+    // 「この後に条を追加」などで作った条・章は、描き直したあとにすぐ編集欄を開く
+    if (pendingOpen) {
+      const want = JSON.stringify(pendingOpen);
+      pendingOpen = null;
+      const b = cmpBlocks.find((x) => x.new_path && JSON.stringify(x.new_path) === want);
+      if (b && b.el) { openEditor(b, b.el, true); b.el.scrollIntoView({ block: "center" }); }
+    }
     $("cmpSave").hidden = cmpRows.length === 0;
     cmpHint("ok", cmpRows.length ? `変更点 ${cmpRows.length} 件` : "変更点はありません。");
   }
@@ -740,11 +948,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       $("parseHint").textContent = "docx 形式のファイルを選んでください（.doc は Word で docx に保存し直してください）。";
       return;
     }
-    file = f; parsedKey = null;
+    file = f; parsedKey = null; edit = null; draftSaveFailed = false;
     clearComparison();
     $("fileName").textContent = f.name;
     $("result").innerHTML = ""; $("log").textContent = "";
-    await withBusy(() => parse(false));
+    await withBusy(async () => { if (await parse(false)) await restoreDraft(); });
   }
 
   $("file").addEventListener("change", async (e) => {
@@ -848,11 +1056,24 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     const problem = geminiKeyProblem();
     if (problem) { cmpHint("err", problem); return; }
     if (!(await ensureParsed((k, t) => cmpHint(k, t)))) return;
-    const m = await call({ type: "compare" });
-    if (m.type === "error") { cmpHint("err", "比較できませんでした：" + m.text); log(m.detail || m.text); return; }
-    cmpRows = m.rows; cmpBlocks = m.blocks || [];
-    renderComparison();
+    await loadComparison();
   }));
+
+  $("editUndo").addEventListener("click", () => {
+    if (!edit || !edit.undo.length || busy) return;
+    edit.tree = JSON.parse(edit.undo.pop());
+    syncEdit();
+  });
+  $("editDiscard").addEventListener("click", () => {
+    if (!edit || busy) return;
+    if (!confirm("この端末に保存した編集の下書きを削除しますか？編集した内容は元に戻せません。")) return;
+    withBusy(async () => {
+      try { await idb.del(draftKey()); } catch (e) { log("下書きを削除できませんでした：" + (e && e.message ? e.message : e)); }
+      edit = null; draftSaveFailed = false; pendingOpen = null;
+      if (await sendTrees()) await loadComparison();
+      else refreshEditBar();
+    });
+  });
   $("cmpOnly").addEventListener("change", () => $("cmpBody").classList.toggle("only", $("cmpOnly").checked));
 
   $("cmpSave").addEventListener("click", () => withBusy(async () => {

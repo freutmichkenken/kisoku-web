@@ -967,7 +967,8 @@ def apply_style(json_path, template_path, template_key, output_path,
                 source_docx=None, show_notice=True,
                 check_hyoki=False, hyoki_options=None,
                 keep_crossref=True, insert_toc=False,
-                auto_update_fields=True, verify=True, template_map=None):
+                auto_update_fields=True, verify=True, template_map=None,
+                base_json_path=None):
     """
     JSON構造をテンプレートに流し込んでスタイル適用済みdocxを生成する。
 
@@ -991,6 +992,8 @@ def apply_style(json_path, template_path, template_key, output_path,
     verify        : True にすると、出力後に原本と突き合わせて欠落・増加を
                     検出し、照合レポート（.md）を出力先と同じ場所に作る。
                     source_docx の指定が必要。
+    base_json_path: 画面で編集した木（json_path）の元になった解析結果。指定すると、
+                    照合レポートで編集による変更を欠落・増加と分けて示す。
     insert_toc    : True にすると、前付け（表紙）の直後に目次（TOCフィールド）を
                     挿入する。章・条見出しのスタイルを名指しで拾うので、
                     テンプレ2でも第1項の本文が目次に混ざらない。
@@ -1286,6 +1289,12 @@ def apply_style(json_path, template_path, template_key, output_path,
             _src = Document(source_docx)
             _out = Document(output_path)
             result = verify_report.compare(_src, _out)
+            if base_json_path and base_json_path != json_path:
+                with open(base_json_path, encoding="utf-8") as f:
+                    _base = json.load(f)
+                with open(json_path, encoding="utf-8") as f:
+                    _edited = json.load(f)
+                verify_report.split_edited(result, _base, _edited)
             base = os.path.splitext(output_path)[0]
             report_path = base + "_照合レポート.md"
             verify_report.write_report(

@@ -100,9 +100,11 @@ def _build_custom(custom_json, work_dir):
 
 def format_docx(src_path, json_path, template_key,
                 check_hyoki=False, insert_toc=False, keep_crossref=False,
-                custom_json=""):
+                custom_json="", edited_json_path=""):
     """
     解析済み JSON にテンプレートを適用し、出力ファイルのパスを返す。
+    edited_json_path があれば（画面で編集した木）そちらを整形し、
+    照合レポートでは編集による変更を欠落・増加と分けて示す。
     template_key が "custom" のときは custom_json（書式の設定）で
     テンプレートを作ってから適用する。
     """
@@ -125,7 +127,8 @@ def format_docx(src_path, json_path, template_key,
             os.remove(p)
 
     apply_style(
-        json_path=json_path,
+        json_path=edited_json_path or json_path,
+        base_json_path=json_path if edited_json_path else None,
         template_path=template_path,
         template_key=template_key,
         template_map=template_map,
@@ -145,12 +148,91 @@ def format_docx(src_path, json_path, template_key,
                       ensure_ascii=False)
 
 
-def compare_rows(json_path):
-    """新旧対照表の画面用データ {"blocks"（全文の並び）, "rows"（変更のあった章・条）} を JSON 文字列で返す。"""
-    return json.dumps(comparison.view_files(json_path), ensure_ascii=False)
+_TREE_TYPES = {"front_matter", "chapter", "article", "back_matter"}
 
 
-def make_comparison(src_path, json_path, notes_json=""):
+def _check_tree(tree):
+    """画面から受け取った木の形を確かめる（壊れた下書きで整形が落ちないように）。"""
+    if not isinstance(tree, list):
+        raise ValueError("編集内容の形式が正しくありません")
+
+    def text(v):
+        return v is None or isinstance(v, str)
+
+    def units(lst, kind):
+        if not isinstance(lst, list):
+            raise ValueError("編集内容の形式が正しくありません")
+        for u in lst:
+            if not isinstance(u, dict) or not text(u.get("body")):
+                raise ValueError("編集内容の形式が正しくありません")
+            if kind == "paragraph":
+                units(u.get("items", []), "item")
+            elif kind == "item":
+                units(u.get("sub_items", []), "sub")
+            elif kind == "sub":
+                # 解析結果では sub_items2 が null のことがある
+                v = u.get("sub_items2")
+                units([] if v is None else v, "sub2")
+
+    def numbered(u):
+        # 番号は整数、元の番号の文字列は文字列（比較・整形で文字列として扱うため）
+        n = u.get("number", 0)
+        if (n is not None and (isinstance(n, bool) or not isinstance(n, int))) or not text(u.get("number_str")):
+            raise ValueError("編集内容の形式が正しくありません")
+
+    def article(a):
+        if not isinstance(a, dict) or a.get("type") != "article" or not text(a.get("title")):
+            raise ValueError("編集内容の形式が正しくありません")
+        numbered(a)
+        units(a.get("paragraphs", []), "paragraph")
+
+    for node in tree:
+        if not isinstance(node, dict) or node.get("type") not in _TREE_TYPES:
+            raise ValueError("編集内容の形式が正しくありません")
+        if node["type"] == "chapter":
+            if not text(node.get("title")) or not isinstance(node.get("articles", []), list):
+                raise ValueError("編集内容の形式が正しくありません")
+            numbered(node)
+            for a in node.get("articles", []):
+                article(a)
+        elif node["type"] == "article":
+            article(node)
+        else:
+            # 前付け・後付けは編集しないが、壊れた下書きで整形が落ちないよう形だけ確かめる
+            idx, texts = node.get("indices", []), node.get("texts", [])
+            if (not isinstance(idx, list) or not all(isinstance(i, int) and not isinstance(i, bool) for i in idx)
+                    or not isinstance(texts, list) or not all(isinstance(s, str) for s in texts)):
+                raise ValueError("編集内容の形式が正しくありません")
+
+
+def read_tree(json_path):
+    """解析済みの木を JSON 文字列で返す（画面で編集を始めるときに使う）。"""
+    with open(json_path, encoding="utf-8") as f:
+        return f.read()
+
+
+def write_tree(path, tree_json):
+    """画面から受け取った木を確かめてから保存し、パスを返す。"""
+    try:
+        tree = json.loads(tree_json)
+    except ValueError:
+        raise ValueError("編集内容の形式が正しくありません")
+    _check_tree(tree)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(tree, f, ensure_ascii=False)
+    return path
+
+
+def compare_rows(json_path, edited_json_path=""):
+    """
+    新旧対照表の画面用データ {"blocks"（全文の並び）, "rows"（変更のあった章・条）} を JSON 文字列で返す。
+    改正案は、画面で編集した木（edited_json_path）があればそれ、無ければ解析結果そのもの。
+    """
+    return json.dumps(comparison.view_files(json_path, edited_json_path or None),
+                      ensure_ascii=False)
+
+
+def make_comparison(src_path, json_path, notes_json="", edited_json_path=""):
     """新旧対照表の docx を作り、パスを返す。notes_json は {行の id: 備考}。"""
     try:
         notes = json.loads(notes_json or "{}")
@@ -161,7 +243,7 @@ def make_comparison(src_path, json_path, notes_json=""):
     notes = {str(k): str(v) for k, v in notes.items()}
     base = os.path.splitext(os.path.basename(src_path))[0]
     out = os.path.join(os.path.dirname(src_path), f"{base}_新旧対照表.docx")
-    rows = comparison.compare_files(json_path)
+    rows = comparison.compare_files(json_path, edited_json_path or None)
     return comparison.build_docx(rows, notes, out,
                                  subtitle=os.path.basename(src_path))
 
