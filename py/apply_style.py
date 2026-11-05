@@ -1240,12 +1240,17 @@ def apply_style(json_path, template_path, template_key, output_path,
         elif t == "chapter":
             n_chapter += 1
             _add_p(node.get("title", ""), "chapter")
+            # 条に属さない本文（章の前文など）は、番号の付かない段落で残す
+            for txt in node.get("preamble", []):
+                doc.add_paragraph(txt)
             for art in node.get("articles", []):
                 emit_article(art)
             emit_tables(node)   # 章直下の表
             emit_drawings(node)
         elif t == "article":
             emit_article(node)
+        elif t == "plain":
+            doc.add_paragraph(node.get("body", ""))
         elif t == "table":
             _add_table(doc, node, table_style_id, src_tables,
                        src_styles, out_styles)
