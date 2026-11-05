@@ -95,6 +95,152 @@ with tempfile.TemporaryDirectory() as d:
           output_path=out2, source_docx=SAMPLE, show_notice=False)
     assert "画面の編集" not in open(os.path.splitext(out2)[0] + "_照合レポート.md", encoding="utf-8").read()
 
+# --- 画像の挿入・表の移動と削除（2回目）---
+import base64  # noqa: E402
+import struct  # noqa: E402
+import zlib  # noqa: E402
+from docx import Document  # noqa: E402,F811
+
+
+def png(w, h):
+    """w×h の白い PNG を作る（テスト用）。"""
+    raw = b"".join(b"\x00" + b"\xff\xff\xff" * w for _ in range(h))
+    chunk = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d))  # noqa: E731
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+wide = base64.b64encode(png(3000, 300)).decode()      # 本文の幅より広い → 縮める
+img_tree = copy.deepcopy(tree)
+img_tree[ci]["articles"][0]["paragraphs"][0]["drawings"] = [
+    {"type": "image", "name": "図1.png", "mime": "image/png", "data": wide}]
+with tempfile.TemporaryDirectory() as d:
+    p = web_entry.write_tree(os.path.join(d, "img.json"), json.dumps(img_tree, ensure_ascii=False))
+    out = os.path.join(d, "img.docx")
+    quiet(apply_style, json_path=p, template_path=TEMPLATE, template_key="t1",
+          output_path=out, source_docx=SAMPLE, show_notice=False)
+    doc = Document(out)
+    sec = doc.sections[-1]
+    shapes = list(doc.inline_shapes)
+    assert len(shapes) == 1, len(shapes)
+    assert shapes[0].width <= sec.page_width - sec.left_margin - sec.right_margin
+    assert abs(shapes[0].width / shapes[0].height - 10) < 0.1        # 縦横比を保つ
+    # 画像は第1項の本文の直後に出る
+    texts = [para.text for para in doc.paragraphs]
+    k = texts.index(tree[ci]["articles"][0]["paragraphs"][0]["body"].strip()) \
+        if tree[ci]["articles"][0]["paragraphs"][0]["body"].strip() in texts else None
+    pic_at = next(i for i, para in enumerate(doc.paragraphs) if para._p.xpath(".//pic:pic"))
+    assert k is None or pic_at == k + 1, (k, pic_at)
+
+    # 壊れた画像・形式の違う画像・大きすぎる画像は保存しない
+    def with_img(dw):
+        t = copy.deepcopy(tree)
+        t[ci]["articles"][0]["paragraphs"][0]["drawings"] = [dw]
+        return json.dumps(t, ensure_ascii=False)
+    jpeg_as_png = base64.b64encode(b"\xff\xd8\xff\xe0" + b"0" * 100).decode()
+    for bad in ({"type": "image", "mime": "image/png", "data": jpeg_as_png},          # 中身が JPEG
+                {"type": "image", "mime": "image/gif", "data": wide},                 # 形式が対象外
+                {"type": "image", "mime": "image/png", "data": "!!!"},                # base64 でない
+                {"type": "image", "mime": "image/png",
+                 "data": base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * (web_entry.IMAGE_MAX_BYTES + 1)).decode()},
+                {"type": "drawing", "index": "x"},
+                {"type": "drawing", "index": -1},
+                {"type": "drawing", "index": 3, "text": 5}):
+        try:
+            web_entry.write_tree(os.path.join(d, "bad.json"), with_img(bad))
+        except ValueError:
+            continue
+        raise AssertionError(f"壊れた画像を保存した: {str(bad)[:60]}")
+
+    # 表の rows が壊れていれば保存しない（index が正しくても rows を確かめる）
+    for rows in ("x", [1], [["a", 2]]):
+        t = copy.deepcopy(tree)
+        t[ci]["articles"][0]["paragraphs"][0]["tables"] = [{"type": "table", "index": 3, "rows": rows}]
+        try:
+            web_entry.write_tree(os.path.join(d, "bad.json"), json.dumps(t, ensure_ascii=False))
+        except ValueError:
+            continue
+        raise AssertionError(f"壊れた表を保存した: {rows}")
+
+    # 画像の合計が上限を超えれば保存しない（1枚の上限より小さい画像を何枚も）
+    old_total = web_entry.IMAGE_TOTAL_BYTES
+    web_entry.IMAGE_TOTAL_BYTES = len(base64.b64decode(wide)) * 2
+    try:
+        t = copy.deepcopy(tree)
+        t[ci]["articles"][0]["paragraphs"][0]["drawings"] = [
+            {"type": "image", "name": f"{k}.png", "mime": "image/png", "data": wide} for k in range(3)]
+        try:
+            web_entry.write_tree(os.path.join(d, "bad.json"), json.dumps(t, ensure_ascii=False))
+            raise AssertionError("画像の合計の上限を確かめていない")
+        except ValueError as e:
+            assert "合計" in str(e), e
+    finally:
+        web_entry.IMAGE_TOTAL_BYTES = old_total
+
+    # 縦長の画像は本文の高さに収める
+    tall = copy.deepcopy(tree)
+    tall[ci]["articles"][0]["paragraphs"][0]["drawings"] = [
+        {"type": "image", "name": "縦長.png", "mime": "image/png", "data": base64.b64encode(png(200, 4000)).decode()}]
+    p = web_entry.write_tree(os.path.join(d, "tall.json"), json.dumps(tall, ensure_ascii=False))
+    quiet(apply_style, json_path=p, template_path=TEMPLATE, template_key="t1",
+          output_path=os.path.join(d, "tall.docx"), source_docx=SAMPLE, show_notice=False)
+    doc = Document(os.path.join(d, "tall.docx"))
+    sec = doc.sections[-1]
+    sh = list(doc.inline_shapes)[0]
+    assert sh.height <= sec.page_height - sec.top_margin - sec.bottom_margin
+    assert abs(sh.height / sh.width - 20) < 0.2
+
+    # 新旧対照表には［画像］として出る
+    v = c.view(tree, img_tree)
+    ch_rows = [r for r in v["rows"] if r["kind"] == "changed"]
+    assert ch_rows and any("［画像］　図1.png" in "".join(s for s, _ in line) for line in ch_rows[0]["new"])
+
+# 表のある規程で、表を次の項へ移す・消す
+TSAMPLE = os.path.join(ROOT, "tests", "samples", "01_01_202601.docx")
+ttree = quiet(parse_kisoku, TSAMPLE)
+loc = None
+for ti, n in enumerate(ttree):
+    for ai, a in enumerate(n.get("articles", [])):
+        ps = a.get("paragraphs", [])
+        for pi, para in enumerate(ps[:-1]):
+            if para.get("tables") and not para.get("items"):
+                loc = (ti, ai, pi)
+                break
+        if loc:
+            break
+    if loc:
+        break
+assert loc, "表のある項（次の項もある）が見つかりません"
+ti, ai, pi = loc
+with tempfile.TemporaryDirectory() as d:
+    def body_order(t):
+        p = web_entry.write_tree(os.path.join(d, "t.json"), json.dumps(t, ensure_ascii=False))
+        out = os.path.join(d, "t.docx")
+        quiet(apply_style, json_path=p, template_path=os.path.join(ROOT, "templates", "就業規則テンプレ1.docx"),
+              template_key="t1", output_path=out, source_docx=TSAMPLE, show_notice=False)
+        doc = Document(out)
+        seq = []
+        for el in doc.element.body.iterchildren():
+            tag = el.tag.split("}")[1]
+            seq.append("T" if tag == "tbl" else "".join(el.itertext()).strip() if tag == "p" else "")
+        return seq
+    next_body = ttree[ti]["articles"][ai]["paragraphs"][pi + 1]["body"].strip()
+    before = body_order(ttree)
+    moved = copy.deepcopy(ttree)
+    ps = moved[ti]["articles"][ai]["paragraphs"]
+    ps[pi + 1]["tables"] = ps[pi].pop("tables") + ps[pi + 1].get("tables", [])
+    after = body_order(moved)
+    assert before.count("T") == after.count("T")
+    key = "".join(next_body.split())[:20]
+    find = lambda seq: next(i for i, s in enumerate(seq) if key in "".join(s.split()))  # noqa: E731
+    i_next = find(after)
+    assert after[i_next + 1] == "T", after[i_next - 2:i_next + 3]          # 表は次の項の直後に出る
+    assert before[find(before) - 1] == "T", before[find(before) - 2:find(before) + 2]  # 元は前の項の後ろ
+    deleted = copy.deepcopy(ttree)
+    deleted[ti]["articles"][ai]["paragraphs"][pi]["tables"] = []
+    n_del = len(ttree[ti]["articles"][ai]["paragraphs"][pi]["tables"])
+    assert body_order(deleted).count("T") == before.count("T") - n_del
+
 # --- 照合レポートの切り分け：本当の欠落は編集の分に入れない ---
 import verify_report as vr  # noqa: E402
 

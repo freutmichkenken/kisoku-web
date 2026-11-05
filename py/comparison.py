@@ -119,7 +119,10 @@ def _container_marks(node):
         cells = [c for row in tbl.get("rows", []) for c in row if c]
         marks.append("［表］" + ("　" + "／".join(cells)[:40] if cells else ""))
     for dw in node.get("drawings", []):
-        marks.append("［図］" + ("　" + dw["text"][:40] if dw.get("text") else ""))
+        if dw.get("type") == "image":           # 画面で足した画像
+            marks.append("［画像］" + ("　" + dw["name"][:40] if dw.get("name") else ""))
+        else:
+            marks.append("［図］" + ("　" + dw["text"][:40] if dw.get("text") else ""))
     return marks
 
 

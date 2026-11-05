@@ -209,6 +209,11 @@ def tree_texts(tree):
             n = normalize(node.get(key) or "")
             if n:
                 out.add(n)
+        # 図の中の文字（テキストボックスなど）も原本の段落として照合されるので集める
+        for dw in node.get("drawings") or []:
+            n = normalize(dw.get("text") or "") if isinstance(dw, dict) else ""
+            if n:
+                out.add(n)
         for key in ("articles", "paragraphs", "items", "sub_items", "sub_items2"):
             for child in node.get(key) or []:
                 walk(child)

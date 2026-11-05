@@ -273,6 +273,8 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .ed-tools .btn.small { min-height: 26px; padding: 0 8px; font-size: 12.5px; font-weight: 400; }
 .ed-form > .btn.small { justify-self: start; }
 .ed-mark { font-size: 13px; color: var(--muted); }
+.ed-fig { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.ed-thumb { max-height: 60px; max-width: 120px; border: 1px solid var(--rule); border-radius: 3px; }
 .ed-foot { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; border-top: 1px dashed var(--rule); }
 .btn.small.primary { width: auto; min-height: 0; font-size: 14px; }
 .cmp-auto { font-size: 13px; color: var(--muted); }
@@ -678,6 +680,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   let pendingOpen = null;      // 描き直したあとに編集欄を開く条・章の位置
   let draftSaveFailed = false;
   const UNDO_MAX = 50;
+  const UNDO_CHARS = 60 * 1024 * 1024;   // 元に戻す履歴の合計の上限（文字数）。画像の多い規程でメモリを使いすぎないように
   const draftKey = () => [file.name, file.size, file.lastModified].join("|");
   // 下書きは端末のブラウザ（IndexedDB）にファイルごとに残す。外部には送らない。
   const idb = (() => {
@@ -751,7 +754,9 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   // 木を変える。変える前の木を「元に戻す」用に残し、保存・反映・描き直しまで行う
   async function changeTree(mutate) {
     edit.undo.push(JSON.stringify(edit.tree));
-    if (edit.undo.length > UNDO_MAX) edit.undo.shift();
+    // 1つ分は木の全体（画像を含む）なので、回数と合計の大きさの両方で古いものから捨てる
+    let total = edit.undo.reduce((s, u) => s + u.length, 0);
+    while (edit.undo.length > 1 && (edit.undo.length > UNDO_MAX || total > UNDO_CHARS)) total -= edit.undo.shift().length;
     mutate(edit.tree);
     await syncEdit();
   }
