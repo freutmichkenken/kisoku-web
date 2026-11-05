@@ -18,6 +18,7 @@ py/             整形プログラム（Colab 版と同じもの）
   custom_template.py  カスタムテンプレートの組み立て（設定は docx に埋め込む）
   settings_reader.py  整形済み docx（手直し後も）からカスタムの設定を読み取る
   gemini_helper.py  ブラウザからも Gemini を呼べるよう改修済み
+  comparison.py     新旧対照表（現行＝読み込んだ docx、改正案＝整形後）を作る
 templates/      就業規則テンプレ1〜4.docx
 wheels/         python-docx 1.2.0（固定版）
 .nojekyll       GitHub Pages の加工を止めるための空ファイル
