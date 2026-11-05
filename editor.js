@@ -9,15 +9,55 @@
 
   // 子の一覧のキーと、新しく作る子の形
   const CHILD = { paragraph: "items", item: "sub_items", sub: "sub_items2" };
+  // 号の下位（sub）の level：multi＝号の下位その1（番号付き）、single＝号の下位その2（記号のみ）
   const NEW = {
     paragraph: () => ({ type: "paragraph", number: 0, body: "", items: [] }),
     item: () => ({ type: "item", number: 0, body: "" }),
-    sub: () => ({ type: "item_sub", number: 0, body: "" }),
+    sub: (level = "multi") => ({ type: "item_sub", number: 0, body: "", level }),
     sub2: () => ({ type: "item_sub2", number: 0, body: "" }),
   };
   const CHILD_KIND = { paragraph: "item", item: "sub", sub: "sub2" };
-  const ADD_LABEL = { paragraph: "号を追加", item: "細分を追加" };   // sub の下（さらに下）は追加しない
-  const INSIDE = { paragraph: "号・表・図", item: "細分・表・図", sub: "細分・表・図", sub2: "表・図" };
+  const INSIDE = { paragraph: "号・表・図", item: "号の下位・表・図", sub: "号の下位の下・表・図", sub2: "表・図" };
+
+  // ---------- 番号の書き方（③で選んだテンプレートの書き方。py/comparison.py の Marks と同じ）----------
+  let markSpec = {};
+  const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
+  const IROHA = "イロハニホヘトチリヌルヲワカヨタレソツネナラムウヰノオクヤマケフコエテアサキユメミシヱヒモセス";
+  const KANJI = "〇一二三四五六七八九";
+  function formatNumber(fmt, n) {
+    const seq = { decimalEnclosedCircle: CIRCLED, aiueoFullWidth: KANA, irohaFullWidth: IROHA }[fmt];
+    if (seq) return seq[n - 1] || ZEN(n);
+    if (fmt === "decimalFullWidth" || fmt === "decimalFullWidth2") return ZEN(n);
+    if (fmt === "japaneseCounting") {
+      if (n < 10) return KANJI[n];
+      const t = Math.floor(n / 10), o = n % 10;
+      return n < 100 ? (t === 1 ? "" : KANJI[t]) + "十" + (o ? KANJI[o] : "") : String(n);
+    }
+    if (fmt === "upperLetter") return n <= 26 ? String.fromCharCode(64 + n) : String(n);
+    if (fmt === "lowerLetter") return n <= 26 ? String.fromCharCode(96 + n) : String(n);
+    if (fmt === "none" || fmt === "bullet") return "";
+    return String(n);
+  }
+  const DEFAULT_MARK = { item: (n) => `（${ZEN(n)}）`, sub: (n) => kana(n), sub_single: () => "・", sub2: (n) => `（${kana(n)}）` };
+  // 階層 level の n 番目の記号（ラベル用なので後ろの空白は付けない）。テンプレートで記号が空なら「・」
+  function markOf(level, n) {
+    const s = markSpec[level];
+    if (!s) return DEFAULT_MARK[level](n);
+    const own = `%${Number(s.ilvl || 0) + 1}`;
+    const text = String(s.text || "").split(own).join(formatNumber(s.fmt, n)).replace(/%\d/g, "").trim();
+    return text || "・";
+  }
+  // 号の下位それぞれの level（整形・新旧対照表と同じ決め方：選んだ level、無ければ件数で）
+  function subLevels(subs) {
+    const legacy = subs.length >= 2 ? "multi" : "single";
+    const explicit = subs.some((s) => s.level === "multi" || s.level === "single");
+    return subs.map((s) => (explicit && (s.level === "multi" || s.level === "single") ? s.level : legacy));
+  }
+  // 号の下位を足す・切り替える前に、今の見え方（件数で決まっていたもの）を level として固定する
+  // （1つ足しただけで、残りの号の下位の書式が件数の決まりで変わらないように）
+  function freezeLevels(subs) {
+    subLevels(subs).forEach((lv, k) => { subs[k].level = lv; });
+  }
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -176,11 +216,16 @@
     });
     return out;
   }
-  function label(kind, i) {
-    if (kind === "paragraph") return `第${i}項`;
-    if (kind === "item") return `（${ZEN(i)}）`;
-    if (kind === "sub") return kana(i);
-    return `（${kana(i)}）`;
+  // 一覧 list の i 番目（0から）のラベル。号・号の下位はテンプレートの記号で出す
+  function label(kind, i, list) {
+    if (kind === "paragraph") return `第${i + 1}項`;
+    if (kind === "item") return markOf("item", i + 1);
+    if (kind === "sub") {
+      const lv = subLevels(list);
+      if (lv[i] === "single") return markOf("sub_single", 1);
+      return markOf("sub", lv.slice(0, i + 1).filter((x) => x === "multi").length);
+    }
+    return markOf("sub2", i + 1);
   }
 
   // 番号を位置で振り直す（整形の出力は位置で番号を付ける。第1項の書式は number===1 で決まる）
@@ -212,17 +257,24 @@
     const node = list[i];
     const box = el("div", "ed-unit ed-" + kind);
     const row = el("div", "ed-unit-row");
-    row.appendChild(el("span", "ed-label", label(kind, i + 1)));
+    const name = label(kind, i, list);
+    row.appendChild(el("span", "ed-label", name));
     const ta = el("textarea", "ed-text");
     ta.value = node.body || "";
     ta.rows = 1;
-    ta.setAttribute("aria-label", label(kind, i + 1));
+    ta.setAttribute("aria-label", name);
     ta.addEventListener("input", () => { node.body = ta.value; fit(ta); });
     // Ctrl+Enter（Cmd+Enter）：同じ階層の、この欄のすぐ後ろに新しい欄を足す
     ta.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey) || e.isComposing) return;
       e.preventDefault();
-      const added = NEW[kind]();
+      let added;
+      if (kind === "sub") {                 // 号の下位は、今の欄と同じ書式（その1／その2）で足す
+        freezeLevels(list);
+        added = NEW.sub(list[i].level);
+      } else {
+        added = NEW[kind]();
+      }
       list.splice(i + 1, 0, added);
       ctx.focusNext(added);
       redraw();
@@ -238,22 +290,35 @@
     down.disabled = i === list.length - 1; down.dataset.act = "down";
     const childKey = CHILD[kind];
     const items = [];
-    if (ADD_LABEL[kind]) {
-      items.push([ADD_LABEL[kind], () => {
-        node[childKey] = node[childKey] || [];
-        node[childKey].push(NEW[CHILD_KIND[kind]]());
+    const addChild = (make) => () => {
+      node[childKey] = node[childKey] || [];
+      if (kind === "item") freezeLevels(node[childKey]);
+      node[childKey].push(make());
+      redraw();
+    };
+    if (kind === "paragraph") items.push(["号を追加", addChild(NEW.item)]);
+    if (kind === "item") {
+      items.push(["号の下位その1を追加", addChild(() => NEW.sub("multi"))]);
+      items.push(["号の下位その2を追加", addChild(() => NEW.sub("single"))]);
+    }
+    if (kind === "sub") {
+      items.push(["号の下位の下を追加", addChild(NEW.sub2)]);
+      items.push([subLevels(list)[i] === "multi" ? "号の下位その2に切り替え" : "号の下位その1に切り替え", () => {
+        freezeLevels(list);
+        list[i].level = list[i].level === "multi" ? "single" : "multi";
         redraw();
       }]);
     }
     items.push(["画像を追加", () => pickImage(node, ctx)]);
     items.push(["削除", () => {
-      const what = label(kind, i + 1);
+      const what = name;
       const msg = hasInside(node) ? `${what}を削除しますか？中の${INSIDE[kind]}も消えます。` : `${what}を削除しますか？`;
       if (!confirm(msg)) return;
+      if (kind === "sub") freezeLevels(list);   // 消したあと、残りの書式が件数の決まりで変わらないように
       list.splice(i, 1);
       redraw();
     }]);
-    moreMenu(tools, items, `${label(kind, i + 1)}の操作`);
+    moreMenu(tools, items, `${name}の操作`);
     row.appendChild(tools);
     box.appendChild(row);
     figureRows(node, ctx).forEach((r) => box.appendChild(r));
@@ -389,5 +454,8 @@
     return form;
   }
 
-  window.KisokuEditor = { articleForm, chapterForm, newArticle, newChapter, renumber, clone };
+  // 新旧対照表を作り直すたびに、③のテンプレートの番号の書き方を受け取る
+  function setMarks(spec) { markSpec = spec && typeof spec === "object" ? spec : {}; }
+
+  window.KisokuEditor = { setMarks, articleForm, chapterForm, newArticle, newChapter, renumber, clone };
 })();
