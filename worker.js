@@ -122,14 +122,16 @@ async function handleFormat(msg) {
 
 async function handleCompare(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
-  const v = JSON.parse(entry.compare_rows(current.jsonPath, current.editedPath || ""));
-  post({ type: "compared", id: msg.id, rows: v.rows, blocks: v.blocks });
+  // 改正案の記号は、③で選んだテンプレートの書き方で表示する
+  const v = JSON.parse(entry.compare_rows(current.jsonPath, current.editedPath || "",
+    msg.templateKey || "", msg.custom || ""));
+  post({ type: "compared", id: msg.id, rows: v.rows, blocks: v.blocks, marks: v.marks });
 }
 
 async function handleComparisonDocx(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
   const path = entry.make_comparison(current.srcPath, current.jsonPath, msg.notes || "{}",
-    current.editedPath || "");
+    current.editedPath || "", msg.templateKey || "", msg.custom || "");
   const docx = readOut(path);
   post({ type: "comparisonDocx", id: msg.id, docxName: path.split("/").pop(), docx }, [docx]);
 }

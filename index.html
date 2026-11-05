@@ -949,10 +949,15 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     const first = form.querySelector("input, textarea");
     if (first) first.focus();
   }
+  // ③で選んだテンプレート（改正案の記号の書き方に使う）
+  function tplArgs() {
+    const tpl = tplValue();
+    return { templateKey: tpl, custom: tpl === "custom" ? JSON.stringify(KisokuCustom.get()) : "" };
+  }
   // 変更点を作り直して描く（スクロール位置は保つ）
   async function loadComparison() {
     const y = window.scrollY;
-    const m = await call({ type: "compare" });
+    const m = await call({ type: "compare", ...tplArgs() });
     if (m.type === "error") {
       // 編集欄が開いたまま固まらないよう、前の表示に描き直す
       pendingOpen = null;
@@ -961,6 +966,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       return;
     }
     cmpRows = m.rows; cmpBlocks = m.blocks || [];
+    KisokuEditor.setMarks(m.marks || {});    // 編集欄の号・号の下位のラベルも、テンプレートの書き方にする
     const jump = !!pendingOpen;      // 新しく作った条・章へ移るときは、元の位置に戻さない
     if (!jump) { renderComparison(); window.scrollTo(0, y); }
     else renderComparison();
@@ -1251,7 +1257,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     const notes = loadNotes();
     const ids = new Set(cmpRows.map((r) => r.id));
     const used = Object.fromEntries(Object.entries(notes).filter(([k]) => ids.has(k)));
-    const m = await call({ type: "comparisonDocx", notes: JSON.stringify(used) });
+    const m = await call({ type: "comparisonDocx", notes: JSON.stringify(used), ...tplArgs() });
     if (m.type === "error") { cmpHint("err", "保存できませんでした：" + m.text); log(m.detail || m.text); return; }
     const url = docxBlobUrl(m.docx);
     urls.push(url);
@@ -1301,7 +1307,21 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   // ---------- 入力の反映 ----------
   ["optLayout", "optToc", "optHyoki", "optXref", "optGemini"].forEach((id) =>
     $(id).addEventListener("change", () => { savePrefs(); refresh(); }));
-  document.querySelectorAll('input[name="tpl"]').forEach((r) => r.addEventListener("change", () => { savePrefs(); refresh(); }));
+  document.querySelectorAll('input[name="tpl"]').forEach((r) => r.addEventListener("change", () => { savePrefs(); refresh(); redrawForTemplate(); }));
+  // ③のテンプレートを変えたら、表示中の新旧対照表の改正案の記号を描き直す（編集欄を開いている間は待つ）
+  let tplTimer = null;
+  function redrawForTemplate() {
+    clearTimeout(tplTimer);
+    tplTimer = setTimeout(() => {
+      if (!cmpShown) return;
+      if (busy || editingEl) { redrawForTemplate(); return; }   // 処理中・編集中は、終わってから描き直す
+      withBusy(loadComparison);
+    }, 600);
+  }
+  // カスタムの設定を変えたときも（選んでいるときだけ）
+  ["input", "change"].forEach((ev) => $("customPanel").addEventListener(ev, () => {
+    if (tplValue() === "custom") redrawForTemplate();
+  }));
 
   $("optAgent").addEventListener("change", () => { savePrefs(); refresh(); });
   async function cancelAgent(id) {

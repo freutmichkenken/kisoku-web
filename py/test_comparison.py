@@ -292,4 +292,86 @@ for p in sorted(glob.glob(os.path.join(ROOT, "tests", "expected", "*.parsed.json
     if "messy_kisoku" in p:
         assert rows == [], rows
 
+# ============================================================
+# 記号：現行は元の文書の記号、改正案は③のテンプレートの書き方。記号の書き方だけの違いは変更にしない
+# ============================================================
+import apply_style  # noqa: E402
+
+spec_t1 = c.marks_spec_from_template(os.path.join(ROOT, "templates", "就業規則テンプレ1.docx"),
+                                     apply_style.TEMPLATE_MAP["t1"])
+assert {"chapter", "article", "para", "item", "sub", "sub_single", "sub2"} <= set(spec_t1), spec_t1
+m1 = c.Marks(spec_t1)
+assert (m1.mark("article", 5), m1.mark("para", 2), m1.mark("item", 1), m1.mark("sub", 2), m1.mark("sub2", 1)) \
+    == ("第５条", "2　", "(1)　", "2.　", "(ア)　"), (m1.mark("article", 5), m1.mark("para", 2), m1.mark("item", 1))
+assert c.format_number("decimalEnclosedCircle", 3) == "③" and c.format_number("japaneseCounting", 12) == "十二"
+
+marked = [chapter(1, "総則", art(1, "提出書類", "次の書類を出す。", "前項の書類に変更があれば届け出る。",
+                                 items={1: ["履歴書", "住民票"]}))]
+marked[0]["articles"][0]["paragraphs"][1]["mark"] = "２．　"          # 元の文書の記号
+for it, mk in zip(marked[0]["articles"][0]["paragraphs"][0]["items"], ("①　", "②　")):
+    it["mark"] = mk
+v = c.view(marked, marked, spec_t1)
+b = [x for x in v["blocks"] if x["unit"] == "article"][0]
+assert b["kind"] == "same", b["kind"]                                # 記号の書き方だけの違いは変更なし
+assert text(b["old"]).split("\n")[1:4] == ["第１条　次の書類を出す。", "①　履歴書", "②　住民票"], text(b["old"])
+assert text(b["new"]).split("\n")[1:4] == ["第１条　次の書類を出す。", "(1)　履歴書", "(2)　住民票"], text(b["new"])
+assert "２．　前項の" in text(b["old"]) and "2　前項の" in text(b["new"])
+assert v["rows"] == [] and v["marks"] == spec_t1
+
+# 番号が変わったときは記号に下線（書き方が違っても）。本文の変更は文字だけに下線
+moved = copy.deepcopy(marked)
+moved[0]["articles"][0]["paragraphs"][0]["items"].insert(0, {"type": "item", "number": 0, "body": "誓約書"})
+v = c.view(marked, moved, spec_t1)
+row = v["rows"][0]
+assert row["kind"] == "changed"
+new_lines = row["new"]
+assert any(segs == [["(1)　誓約書", True]] for segs in new_lines), new_lines      # 足した号は全部
+assert any(segs[:1] == [["(2)　", True]] and "".join(s for s, _ in segs) == "(2)　履歴書" for segs in new_lines), new_lines
+
+# 記号と本文は別々に比べる：本文の先頭が記号と同じ文字でも、記号に下線が化けない
+cross = [chapter(1, "総則", art(1, "書類", "次の書類を出す。", items={1: ["（１）の書類を出す"]}))]
+cross_new = copy.deepcopy(cross)
+cross_new[0]["articles"][0]["paragraphs"][0]["items"][0]["body"] = "所定の書類を出す"
+cross[0]["articles"][0]["paragraphs"][0]["items"][0]["mark"] = "①　"
+row = c.view(cross, cross_new, spec_t1)["rows"][0]
+old_item = [segs for segs in row["old"] if "書類を出す" in "".join(s for s, _ in segs) and "次の" not in "".join(s for s, _ in segs)][0]
+assert old_item[0] == ["①　", False], old_item                   # 番号は同じなので記号に下線なし
+assert underlined([old_item]) == "（１）", old_item                 # 本文の消した「（１）」だけ（「の」は新しい本文にもある）
+
+# 現行で元の記号が無い番号なしの細分（1つだけの号の下位）は、比べる用の「＊」を出さない
+single = [chapter(1, "総則", art(1, "定義", "用語は次のとおり。", items={1: ["従業員"]}))]
+single[0]["articles"][0]["paragraphs"][0]["items"][0]["sub_items"] = [{"type": "item_sub", "number": 1, "body": "正社員"}]
+old_lines = text([x for x in c.view(single, single)["blocks"] if x["unit"] == "article"][0]["old"]).split("\n")
+assert "＊" not in "".join(old_lines) and "　正社員" in old_lines, old_lines
+
+# 号の下位その1／その2：level があればそのとおり、無ければ件数で（2つ以上ならその1、1つならその2）
+assert c.sub_levels([{}]) == ["single"] and c.sub_levels([{}, {}]) == ["multi", "multi"]
+assert c.sub_levels([{"level": "single"}, {"level": "multi"}, {"level": "multi"}]) == ["single", "multi", "multi"]
+subs = [chapter(1, "総則", art(1, "定義", "用語は次のとおり。", items={1: ["従業員"]}))]
+it = subs[0]["articles"][0]["paragraphs"][0]["items"][0]
+it["sub_items"] = [{"type": "item_sub", "number": 1, "body": "正社員", "level": "multi"},
+                   {"type": "item_sub", "number": 2, "body": "注記", "level": "single"},
+                   {"type": "item_sub", "number": 3, "body": "契約社員", "level": "multi",
+                    "sub_items2": [{"type": "item_sub2", "number": 1, "body": "有期"}]}]
+lines = text([x for x in c.view(subs, subs, spec_t1)["blocks"] if x["unit"] == "article"][0]["new"]).split("\n")
+assert lines[3:7] == ["　1.　正社員", "　……　注記", "　2.　契約社員", "　　(ア)　有期"], lines
+
+# 整形でも level のとおりの書式で出す（その1・その2・その下）。level の無い細分は今までどおり
+with tempfile.TemporaryDirectory() as d:
+    jp = os.path.join(d, "s.json")
+    with open(jp, "w", encoding="utf-8") as f:
+        json.dump(subs, f, ensure_ascii=False)
+    out = os.path.join(d, "s.docx")
+    import contextlib  # noqa: E402
+    import io  # noqa: E402
+    with contextlib.redirect_stdout(io.StringIO()):
+        apply_style.apply_style(json_path=jp, template_path=os.path.join(ROOT, "templates", "就業規則テンプレ1.docx"),
+                                template_key="t1", output_path=out, show_notice=False, verify=False)
+    from docx import Document  # noqa: E402,F811
+    doc = Document(out)
+    style_of = {p.text: p.style.style_id for p in doc.paragraphs if p.text in ("正社員", "注記", "契約社員", "有期")}
+    M = apply_style.TEMPLATE_MAP["t1"]
+    assert style_of["正社員"] == style_of["契約社員"] == M["item_sub_multi"][0], style_of
+    assert style_of["注記"] == M["item_sub_single"][0] and style_of["有期"] == M["item_sub2"][0], style_of
+
 print("OK")

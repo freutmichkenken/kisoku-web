@@ -226,6 +226,8 @@ def _check_tree(tree):
         for i, u in enumerate(lst, 1):
             if not isinstance(u, dict) or not text(u.get("body")):
                 raise ValueError(f"{i}番目の{name}の本文の形式が正しくありません")
+            if not text(u.get("mark")) or u.get("level") not in (None, "multi", "single"):
+                raise ValueError(f"{i}番目の{name}の記号の形式が正しくありません")
             try:
                 figures(u)
                 if kind == "paragraph":
@@ -315,16 +317,49 @@ def write_tree(path, tree_json):
     return path
 
 
-def compare_rows(json_path, edited_json_path=""):
+_marks_cache = {}
+
+
+def _marks_spec(template_key, custom_json, work_dir):
     """
-    新旧対照表の画面用データ {"blocks"（全文の並び）, "rows"（変更のあった章・条）} を JSON 文字列で返す。
+    ③で選んだテンプレートの、階層ごとの番号の書き方（新旧対照表の改正案の表示に使う）。
+    読み取れなければ空（これまでの表示になる）。カスタムは設定から作ったテンプレートを読む。
+    """
+    if not template_key:
+        return {}
+    ck = (template_key, custom_json if template_key == "custom" else "")
+    if ck in _marks_cache:
+        return _marks_cache[ck]
+    try:
+        if template_key == "custom":
+            path, M = _build_custom(custom_json, work_dir)
+        elif template_key in TEMPLATES:
+            path, M = os.path.join(TEMPLATE_DIR, TEMPLATES[template_key]), TEMPLATE_MAP[template_key]
+        else:
+            return {}
+        spec = comparison.marks_spec_from_template(path, M)
+    except Exception as e:      # 読めなくても新旧対照表は作る（記号はこれまでの表示）。失敗は覚えない
+        print(f"  ※ テンプレートの番号の書き方を読み取れませんでした: {e}")
+        return {}
+    if len(_marks_cache) >= 20:     # カスタムの設定を変えるたびに増えるので、古いものから捨てる
+        _marks_cache.pop(next(iter(_marks_cache)))
+    _marks_cache[ck] = spec
+    return spec
+
+
+def compare_rows(json_path, edited_json_path="", template_key="", custom_json=""):
+    """
+    新旧対照表の画面用データ {"blocks"（全文の並び）, "rows"（変更のあった章・条）, "marks"} を JSON 文字列で返す。
     改正案は、画面で編集した木（edited_json_path）があればそれ、無ければ解析結果そのもの。
+    改正案の記号は、③で選んだテンプレート（template_key・custom_json）の書き方で表示する。
     """
-    return json.dumps(comparison.view_files(json_path, edited_json_path or None),
+    spec = _marks_spec(template_key, custom_json, os.path.dirname(json_path))
+    return json.dumps(comparison.view_files(json_path, edited_json_path or None, spec),
                       ensure_ascii=False)
 
 
-def make_comparison(src_path, json_path, notes_json="", edited_json_path=""):
+def make_comparison(src_path, json_path, notes_json="", edited_json_path="",
+                    template_key="", custom_json=""):
     """新旧対照表の docx を作り、パスを返す。notes_json は {行の id: 備考}。"""
     try:
         notes = json.loads(notes_json or "{}")
@@ -335,7 +370,8 @@ def make_comparison(src_path, json_path, notes_json="", edited_json_path=""):
     notes = {str(k): str(v) for k, v in notes.items()}
     base = os.path.splitext(os.path.basename(src_path))[0]
     out = os.path.join(os.path.dirname(src_path), f"{base}_新旧対照表.docx")
-    rows = comparison.compare_files(json_path, edited_json_path or None)
+    spec = _marks_spec(template_key, custom_json, os.path.dirname(src_path))
+    rows = comparison.compare_files(json_path, edited_json_path or None, spec)
     return comparison.build_docx(rows, notes, out,
                                  subtitle=os.path.basename(src_path))
 

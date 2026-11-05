@@ -1475,6 +1475,30 @@ def _expand_article_ranges(flat):
     return out
 
 
+
+def _mk(node):
+    """元の行頭の記号（「２　」「（１）」「①」など）を木の要素に引き継ぐ（新旧対照表の現行の表示用）。"""
+    m = node.get('mark') if isinstance(node, dict) else None
+    return {'mark': m} if m else {}
+
+
+def _lead_mark(text, body):
+    """
+    行の先頭から本文の直前までを、元の行頭の記号として返す（無ければ ''）。
+    例：「（１）住民票」「（１）」、「２　前項の…」「２　」、「①　履歴書」「①　」
+    """
+    full = (text or '').strip()
+    b = (body or '').strip()
+    if not full or not b:
+        return ''
+    # まず「行の末尾が本文と同じ」なら、その前を記号とする（本文が短くても記号の中に当たらない）
+    if full.endswith(b) and 0 < len(full) - len(b) <= 12:
+        return full[:len(full) - len(b)]
+    i = full.find(b[:12])
+    # 記号は短い。本文が見つからない・遠すぎるときは記号とみなさない
+    return full[:i] if 0 < i <= 12 else ''
+
+
 def build_tree(flat):
     """
     分類済みのフラットなdictリストを、
@@ -1544,7 +1568,7 @@ def build_tree(flat):
         if (t == 'paragraph' and node.get('_list') and cur_paragraph is not None
                 and _has_forecast(cur_paragraph['body'])):
             # Word の段落番号の段落で、直前の項が「次の書類を…」と予告している → 号
-            node = {'type': 'item', 'number': 0, 'body': node['body']}
+            node = {'type': 'item', 'number': 0, 'body': node['body'], **_mk(node)}
             t = 'item'
 
         if t == 'section':
@@ -1611,7 +1635,7 @@ def build_tree(flat):
                 cur_paragraph = {
                     'type': 'paragraph',
                     'number': 1,
-                    'body': node['body'],
+                    'body': node['body'], **_mk(node),
                     'items': []
                 }
                 cur_article['paragraphs'].append(cur_paragraph)
@@ -1636,7 +1660,7 @@ def build_tree(flat):
                 cur_paragraph = {
                     'type': 'paragraph',
                     'number': num,
-                    'body': node['body'],
+                    'body': node['body'], **_mk(node),
                     'items': []
                 }
                 cur_article['paragraphs'].append(cur_paragraph)
@@ -1650,7 +1674,7 @@ def build_tree(flat):
                 cur_paragraph['items'].append({
                     'type': 'item',
                     'number': num,
-                    'body': node['body'],
+                    'body': node['body'], **_mk(node),
                     '_marker': node.get('marker'),   # 記号の種類（_maru_items_to_paragraphs 用）
                 })
             elif cur_article is not None:
@@ -1669,7 +1693,7 @@ def build_tree(flat):
                 cur_paragraph['items'].append({
                     'type': 'item',
                     'number': num,
-                    'body': node['body'],
+                    'body': node['body'], **_mk(node),
                     '_marker': node.get('marker'),   # 記号の種類（_maru_items_to_paragraphs 用）
                 })
             else:
@@ -1697,7 +1721,7 @@ def build_tree(flat):
                 num = node['number'] or (len(cur_paragraph['items']) + 1)
                 cur_paragraph['items'].append({
                     'type': 'item', 'number': num,
-                    'body': node['body'], '_promoted': True
+                    'body': node['body'], **_mk(node), '_promoted': True
                 })
             elif cur_paragraph is not None and cur_paragraph.get('items'):
                 parent = cur_paragraph['items'][-1]
@@ -1707,14 +1731,14 @@ def build_tree(flat):
                 parent.setdefault('sub_items', []).append({
                     'type': 'item_sub',
                     'number': num,
-                    'body': node['body']
+                    'body': node['body'], **_mk(node)
                 })
             elif cur_paragraph is not None:
                 # 号が無いのに下位項目が来た場合は、本文に混ぜてしまうと
                 # 内容が埋もれるため、号に格上げして独立させる
                 num = node['number'] or (len(cur_paragraph.get('items', [])) + 1)
                 cur_paragraph.setdefault('items', []).append({
-                    'type': 'item', 'number': num, 'body': node['body'],
+                    'type': 'item', 'number': num, 'body': node['body'], **_mk(node),
                     '_promoted': True
                 })
             else:
@@ -1731,14 +1755,14 @@ def build_tree(flat):
             if parent is not None:
                 num = node['number'] or (len(parent.get('sub_items2', [])) + 1)
                 parent.setdefault('sub_items2', []).append({
-                    'type': 'item_sub2', 'number': num, 'body': node['body']
+                    'type': 'item_sub2', 'number': num, 'body': node['body'], **_mk(node)
                 })
             elif cur_paragraph is not None and cur_paragraph.get('items'):
                 # 受け皿が無ければ号の下位に格上げして残す
                 it = cur_paragraph['items'][-1]
                 num = node['number'] or (len(it.get('sub_items', [])) + 1)
                 it.setdefault('sub_items', []).append({
-                    'type': 'item_sub', 'number': num, 'body': node['body']
+                    'type': 'item_sub', 'number': num, 'body': node['body'], **_mk(node)
                 })
             elif cur_paragraph is not None or cur_article is not None:
                 # 号も無ければ号に格上げして残す（消さない）
@@ -1746,7 +1770,7 @@ def build_tree(flat):
                     cur_paragraph = _new_paragraph1()
                 num = node['number'] or (len(cur_paragraph['items']) + 1)
                 cur_paragraph['items'].append({
-                    'type': 'item', 'number': num, 'body': node['body'],
+                    'type': 'item', 'number': num, 'body': node['body'], **_mk(node),
                     '_promoted': True
                 })
             else:
@@ -1856,7 +1880,7 @@ def _maru_items_to_paragraphs(article):
         return
     new = []
     for it in items:
-        p = {'type': 'paragraph', 'number': it['number'], 'body': it['body'], 'items': []}
+        p = {'type': 'paragraph', 'number': it['number'], 'body': it['body'], 'items': [], **_mk(it)}
         for sub in it.get('sub_items', []):
             ni = {k: v for k, v in sub.items() if k != 'sub_items2'}
             ni['type'] = 'item'
@@ -2541,6 +2565,11 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
         else:  # 'text'
             node = classify_line(val, depth=depths.get(id(val)),
                                  number=kana_nums.get(id(val)))
+            if node and node.get('type') in ('paragraph', 'item', 'item_sub', 'item_sub2'):
+                # 元の行頭の記号を残す（新旧対照表の現行を、元の文書のまま見せるため）
+                mk = _lead_mark(val.text, node.get('body'))
+                if mk:
+                    node['mark'] = mk
             if node:
                 # 'text'（＝どのパターンにも該当せず本文扱い）は判定不能候補。
                 # 括弧書きの注記（「（中途採用者を除く）」）は本文と分かっているので除く

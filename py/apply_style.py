@@ -1233,13 +1233,26 @@ def apply_style(json_path, template_path, template_key, output_path,
                     n_comment += 1
                 # 号の下位項目（複数なら item_sub_multi、単体なら item_sub_single）
                 subs = it.get("sub_items", [])
+                # 画面の編集で「号の下位その1／その2」を選んだ細分は level を持つ。
+                # 1つも持たなければ、これまでどおり件数で決める（2つ以上ならその1、1つならその2）
+                explicit = any(su.get("level") in ("multi", "single") for su in subs)
                 if subs:
                     sub_key = "item_sub_multi" if len(subs) >= 2 else "item_sub_single"
                     if sub_key not in M:
                         sub_key = "item_sub_multi"
                     if sub_key in M:
+                        multi_no = 0
                         for su_no, su in enumerate(subs, 1):
-                            _add_p(su.get("body", ""), sub_key, su_no)
+                            if explicit:
+                                key = {"multi": "item_sub_multi", "single": "item_sub_single"}.get(
+                                    su.get("level"), sub_key)
+                                if key not in M:
+                                    key = "item_sub_multi"
+                                if key == "item_sub_multi":
+                                    multi_no += 1
+                                _add_p(su.get("body", ""), key, multi_no if key == "item_sub_multi" else 1)
+                            else:
+                                _add_p(su.get("body", ""), sub_key, su_no)
                             # 号の下位に紐づく表・図（さらに下より前）
                             emit_tables(su)
                             emit_drawings(su)

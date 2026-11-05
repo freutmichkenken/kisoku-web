@@ -49,6 +49,8 @@ with tempfile.TemporaryDirectory() as d:
                 '[{"type": "article", "title": "a", "paragraphs": [{"body": 3}]}]',
                 '[{"type": "article", "title": "a", "paragraphs": [{"body": "x", "items": "y"}]}]',
                 '[{"type": "article", "title": "a", "number": "5", "paragraphs": []}]',
+                '[{"type": "article", "title": "a", "paragraphs": [{"body": "x", "mark": 3}]}]',
+                '[{"type": "article", "title": "a", "paragraphs": [{"body": "x", "items": [{"body": "y", "sub_items": [{"body": "z", "level": "x"}]}]}]}]',
                 '[{"type": "article", "title": "a", "number_str": 5, "paragraphs": []}]',
                 '[{"type": "chapter", "title": "a", "number": null, "number_str": [], "articles": []}]',
                 '[{"type": "front_matter", "indices": ["x"], "texts": []}]',
