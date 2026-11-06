@@ -374,4 +374,17 @@ with tempfile.TemporaryDirectory() as d:
     assert style_of["正社員"] == style_of["契約社員"] == M["item_sub_multi"][0], style_of
     assert style_of["注記"] == M["item_sub_single"][0] and style_of["有期"] == M["item_sub2"][0], style_of
 
+# --- 条を足して、本文中の参照（第6条→第7条）を直しただけの条は「番号のみ」でまとめる ---
+refs_old = [art(i, f"条{i}", f"第{i + 4}条の規定による。") for i in range(1, 7)] + \
+    [art(i, f"条{i}", "定める。") for i in range(7, 11)]
+refs_new = [art(1, "新設", "新しい規定。")] + \
+    [art(i + 1, f"条{i}", f"第{i + 5}条の規定による。") for i in range(1, 7)] + \
+    [art(i + 1, f"条{i}", "定める。") for i in range(7, 11)]
+kinds = [r["kind"] for r in c.compare(refs_old, refs_new)]
+assert kinds == ["added", "renumbered", "renumbered", "summary"], kinds
+# 参照先が付け替えと合わない（中身の変更）なら「変更」のまま
+bad = copy.deepcopy(refs_new)
+bad[1]["paragraphs"][0]["body"] = "第9条の規定による。"
+assert c.compare(refs_old, bad)[1]["kind"] == "changed"
+
 print("OK")
