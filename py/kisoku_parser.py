@@ -2166,8 +2166,9 @@ def _restore_tables(old_paragraphs, new_paragraphs):
         new_paragraphs[target].setdefault('tables', []).append(t)
 
 
-def apply_gemini_split(tree, length_threshold=100, verbose=True):
+def apply_gemini_split(tree, length_threshold=100, verbose=True, mode='paragraph'):
     """
+    mode: 'agent' のときは Antigravity エージェントにまとめて送る。
     疑わしい項・号を含む「条」を丸ごと Gemini に送り、
     返ってきた構造で条の中身を差し替える。
     Gemini が使えない場合は何もしない。
@@ -2199,19 +2200,31 @@ def apply_gemini_split(tree, length_threshold=100, verbose=True):
             print(f"  - {art.get('number_str','')} {art.get('title','')}: "
                   f"{', '.join(reasons[:3])}")
 
-    n_changed = 0
+    # 図形やレイアウト行を含む条は、本文だけを見せると内容が
+    # 欠けて見えるため、AIが空欄を推測で埋めてしまう恐れがある。
+    # そのような条はAIに送らず、元の構造のまま残す。
+    sendable = []
     for art, reasons in targets:
-        old_paragraphs = art.get('paragraphs', [])
-
-        # 図形やレイアウト行を含む条は、本文だけを見せると内容が
-        # 欠けて見えるため、AIが空欄を推測で埋めてしまう恐れがある。
-        # そのような条はAIに送らず、元の構造のまま残す。
-        has_fig = any(p.get('drawings') for p in old_paragraphs)
-        if has_fig:
+        if any(p.get('drawings') for p in art.get('paragraphs', [])):
             if verbose:
                 print(f"  {art.get('number_str','')}: 図形を含むためAI再構成をスキップ")
             continue
-        new_simple = restructure_article_with_gemini(art, reasons=reasons)
+        sendable.append((art, reasons))
+
+    # まとめて判定（agent）のときは、条をまとめて Antigravity に送る。
+    # 失敗した条は通常の Gemini でやり直さず、元の構造のまま残す。
+    agent_answers = None
+    if mode == 'agent' and sendable:
+        from gemini_helper import restructure_articles_with_agent
+        agent_answers = restructure_articles_with_agent(sendable)
+
+    n_changed = 0
+    for si, (art, reasons) in enumerate(sendable):
+        old_paragraphs = art.get('paragraphs', [])
+        if agent_answers is not None:
+            new_simple = agent_answers.get(si)
+        else:
+            new_simple = restructure_article_with_gemini(art, reasons=reasons)
         if not new_simple:
             continue
 
@@ -2661,12 +2674,8 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             print(f"後付け（附則等）を保持: {len(back_indices)}要素")
 
     # --- Gemini による「押し込まれた項・号」の分割（後処理）---
-    # ponytail: まとめて判定（agent）でも、条の再構成は通常の Gemini（REST）で行う。
-    #   Antigravity で行うなら restructure_article_with_gemini をエージェント経由に切り替える。
     if use_gemini:
-        if gemini_mode == 'agent':
-            print("Gemini再構成: 条の再構成は通常の Gemini モデルで行います（Antigravity は段落の判定だけ）")
-        apply_gemini_split(tree, length_threshold=100, verbose=True)
+        apply_gemini_split(tree, length_threshold=100, verbose=True, mode=gemini_mode)
 
     return tree
 

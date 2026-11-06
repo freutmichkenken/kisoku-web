@@ -579,7 +579,42 @@ def restructure_article_with_gemini(article, reasons=None):
     if model is None:
         return None
 
-    # 送信用に簡略化した構造を作る（表は含めない）
+    prompt = _RESTRUCTURE_PROMPT.format(
+        article_json=json.dumps(_simple_article(article), ensure_ascii=False, indent=1),
+        reasons_block=_reasons_block(reasons))
+
+    try:
+        resp = _generate_with_retry(model, prompt)
+        text = (resp.text or "").strip()
+        data = json.loads(text)
+        return _check_paragraphs(data.get("paragraphs"))
+    except Exception as e:
+        print(f"[gemini_helper] 条の再構成に失敗（元のまま使用）: {e}")
+        return None
+
+
+def _check_paragraphs(paragraphs):
+    """再構成の回答の paragraphs が使える形なら返す。使えなければ None。"""
+    if not isinstance(paragraphs, list) or not paragraphs:
+        return None
+    for p in paragraphs:
+        if not isinstance(p, dict) or "body" not in p:
+            return None
+    return paragraphs
+
+
+def _reasons_block(reasons):
+    """機械側の検出理由を伝える（重点的に見てほしい箇所のヒント）"""
+    if not reasons:
+        return ""
+    lines = "\n".join(f"- {r}" for r in reasons)
+    return ("\n【この条が疑わしいと判定された理由】\n"
+            f"{lines}\n"
+            "上記の箇所を重点的に見直してください。\n")
+
+
+def _simple_article(article):
+    """送信用に簡略化した構造を作る（表は含めない）"""
     simple = {"paragraphs": []}
     for p in article.get("paragraphs", []):
         sp = {"body": p.get("body", ""), "items": []}
@@ -598,37 +633,7 @@ def restructure_article_with_gemini(article, reasons=None):
                 si["sub_items"] = sub_list
             sp["items"].append(si)
         simple["paragraphs"].append(sp)
-
-    article_json = json.dumps(simple, ensure_ascii=False, indent=1)
-
-    # 機械側の検出理由を伝える（重点的に見てほしい箇所のヒント）
-    reasons_block = ""
-    if reasons:
-        lines = "\n".join(f"- {r}" for r in reasons)
-        reasons_block = (
-            "\n【この条が疑わしいと判定された理由】\n"
-            f"{lines}\n"
-            "上記の箇所を重点的に見直してください。\n"
-        )
-
-    prompt = _RESTRUCTURE_PROMPT.format(
-        article_json=article_json, reasons_block=reasons_block)
-
-    try:
-        resp = _generate_with_retry(model, prompt)
-        text = (resp.text or "").strip()
-        data = json.loads(text)
-        paragraphs = data.get("paragraphs")
-        if not isinstance(paragraphs, list) or not paragraphs:
-            return None
-        # 妥当性チェック: 各項に body があること
-        for p in paragraphs:
-            if not isinstance(p, dict) or "body" not in p:
-                return None
-        return paragraphs
-    except Exception as e:
-        print(f"[gemini_helper] 条の再構成に失敗（元のまま使用）: {e}")
-        return None
+    return simple
 
 
 # ============================================================
@@ -953,3 +958,142 @@ def classify_document_with_agent(lines, targets):
         except Exception as ex:
             print(f"[gemini_helper] まとめて判定：チャンク{ci}に失敗（ルールの判定のまま）: {ex}")
     return results or None
+
+
+# ============================================================
+# 条の再構成（Antigravity エージェント）
+#   疑わしい条を1条ずつ送ると1条ごとに数分かかるため、複数の条を1回の依頼にまとめる。
+#   指示（階層ルール・厳守事項）は _RESTRUCTURE_PROMPT と同じものを使う。
+# ============================================================
+
+def _restructure_rules():
+    """_RESTRUCTURE_PROMPT の「階層ルール」から「指示」までを取り出す（{} を含まない部分）。"""
+    s = _RESTRUCTURE_PROMPT.index("【就業規則の階層ルール】")
+    e = _RESTRUCTURE_PROMPT.index("出力は必ず次のJSON形式のみ")
+    return _RESTRUCTURE_PROMPT[s:e]
+
+
+_AGENT_RESTRUCTURE_HEAD = """あなたは日本の就業規則の文書構造を校正する専門家です。
+以下は就業規則のいくつかの条を、機械的に構造化した結果です。
+階層（項・号・号の下位）の判定に誤りがある可能性があります。
+条ごとに【条 番号】で区切って示します。条ごとに独立して判定してください。
+
+"""
+
+_AGENT_RESTRUCTURE_TAIL = """
+【回答の形式】
+JSONだけを返すこと。説明や前置きは書かないこと。
+すべての条について、【条 番号】の番号をキーにして、組み直した paragraphs を返すこと。
+誤りが無い条も、現在の構造をそのまま返すこと。
+{"articles": {"0": {"paragraphs": [
+  {"body": "項の本文",
+   "items": [{"body": "号の本文",
+              "sub_items": [{"body": "下位の本文",
+                             "sub_items2": [{"body": "さらに下の本文"}]}]}]}
+]}}}
+sub_items・sub_items2 は、入力に該当する階層がある場合のみ含めること。
+
+"""
+
+
+def _parse_agent_articles(text, expected):
+    """{条の番号: paragraphs} を返す。読めなければ None。形の悪い条だけ落とす。"""
+    text = (text or "").strip()
+    m = _AGENT_FENCE.match(text)
+    if m:
+        text = m.group(1)
+    data = None
+    try:
+        data = json.loads(text)
+    except ValueError:
+        # JSONの前後に説明文が付いた回答もあるので、{ の位置から順に読み、articles を持つものを使う
+        dec = json.JSONDecoder()
+        pos = text.find("{")
+        while pos >= 0:
+            try:
+                obj, _ = dec.raw_decode(text, pos)
+                if isinstance(obj, dict) and "articles" in obj:
+                    data = obj
+                    break
+            except ValueError:
+                pass
+            pos = text.find("{", pos + 1)
+    arts = data.get("articles") if isinstance(data, dict) else None
+    if not isinstance(arts, dict):
+        print("[gemini_helper] 条の再構成（Antigravity）：回答のJSONを読めませんでした（この依頼の条は元のまま）")
+        return None
+    out = {}
+    for k, v in arts.items():
+        try:
+            idx = int(k)
+        except (TypeError, ValueError):
+            continue
+        if idx not in expected:
+            continue
+        paras = _check_paragraphs(v.get("paragraphs") if isinstance(v, dict) else None)
+        if paras is None:
+            print(f"[gemini_helper] 条の再構成（Antigravity）：条{idx}の回答の形が不正です（元のまま）")
+            continue
+        out[idx] = paras
+    return out
+
+
+def restructure_articles_with_agent(items):
+    """
+    疑わしい条をまとめて Antigravity エージェントに送り、階層を組み直させる。
+
+    items: [(article, reasons), ...]
+    返り値: {items の添字: paragraphs}。失敗した条は含めない（元の構造のまま残す）。
+    """
+    key = _get_api_key()
+    if not key or not items:
+        return {}
+    rules = _restructure_rules()
+    blocks = []
+    for i, (art, reasons) in enumerate(items):
+        blocks.append(f"【条 {i}】\n"
+                      + json.dumps(_simple_article(art), ensure_ascii=False, indent=1)
+                      + _reasons_block(reasons) + "\n")
+    # ponytail: 条の途中では切らないので、1条だけで上限を超える条は送らない。
+    chunks, cur, size = [], [], 0
+    for i, b in enumerate(blocks):
+        if cur and size + len(b) > _AGENT_CHUNK_CHARS:
+            chunks.append(cur)
+            cur, size = [], 0
+        cur.append(i)
+        size += len(b)
+    if cur:
+        chunks.append(cur)
+
+    results = {}
+    prev_tokens = None
+    for ci, idxs in enumerate(chunks, 1):
+        try:
+            prompt = (_AGENT_READ_ONLY_PREAMBLE + _AGENT_RESTRUCTURE_HEAD + rules
+                      + _AGENT_RESTRUCTURE_TAIL + "".join(blocks[i] for i in idxs))
+            if len(prompt) > _AGENT_PROMPT_MAX:
+                print(f"[gemini_helper] 条の再構成（Antigravity）：依頼{ci}が{len(prompt)}文字あり上限"
+                      f"（{_AGENT_PROMPT_MAX}文字）を超えるため送りません")
+                continue
+            if prev_tokens is not None:
+                wait = math.ceil(60 * prev_tokens / 100000) + 1
+                print(f"[gemini_helper] 入力トークンの上限のため{wait}秒待ちます")
+                _sleep(wait)
+            est = _estimate_input_tokens(prompt)
+            prev_tokens = est
+            print(f"[gemini_helper] 条の再構成（Antigravity）：依頼{ci}/{len(chunks)}を送信"
+                  f"（{len(idxs)}条・{len(prompt)}文字）")
+            result = _agent_run(key, prompt, min(100000, est))
+            status = result.get("status")
+            if status == "cancelled":
+                print("[gemini_helper] 中止しました")
+                break
+            if status not in ("completed", "incomplete"):
+                print(f"[gemini_helper] 条の再構成（Antigravity）：依頼{ci}は {status} で終わりました（元のまま）")
+                continue
+            got = _parse_agent_articles(_agent_text(result), set(idxs))
+            if got:
+                results.update(got)
+        except Exception as ex:
+            print(f"[gemini_helper] 条の再構成（Antigravity）：依頼{ci}に失敗（元のまま）: {ex}")
+    return results
