@@ -554,7 +554,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 
   <footer>
     照合レポート（原本との文字数の突き合わせ）も作られます。<br>
-    作業はこの端末のブラウザに保存されます。ブラウザのデータを消すと消えるため、残したい作業は「書き出し」で保存してください。
+    作業はこの端末のブラウザに自動で保存されます。閲覧データの削除などで消えることがあるため、残したい作業は「書き出し」でファイルにしてください。
   </footer>
 </main>
 
@@ -823,7 +823,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         if (!db.objectStoreNames.contains("drafts")) db.createObjectStore("drafts");
         if (!db.objectStoreNames.contains("works")) db.createObjectStore("works");
       };
-      r.onsuccess = () => res(r.result);
+      r.onsuccess = () => {
+        // 別のタブで新しい版のページを開いたら、この接続を閉じて版上げを止めないようにする（次の操作で開き直す）
+        r.result.onversionchange = () => { r.result.close(); opening = null; };
+        res(r.result);
+      };
       r.onerror = () => { opening = null; rej(r.error); };
       r.onblocked = () => { opening = null; rej(new Error("このページを別のタブでも開いています。ほかのタブを閉じてから再読み込みしてください。")); };
     }));
@@ -892,20 +896,30 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   }
   // 設定・備考・編集が変わったら、今の作業の設定と保存日時を更新する（作業が消されていれば作り直さない）
   let touchTimer = null;
+  let touchPending = null;
   function touchWork() {
     if (!file) return;
     const id = draftKey();
+    const opts = () => collectOpts();
     clearTimeout(touchTimer);
-    touchTimer = setTimeout(async () => {
+    touchPending = async () => {
+      touchPending = null;
       try {
         const w = await idb.works.get(id);
         if (!w) return;
-        w.opts = collectOpts(); w.savedAt = Date.now();
+        w.opts = opts(); w.savedAt = Date.now();
         await idb.works.put(id, w);
         await renderWorks();
       } catch (e) { log("作業を保存できませんでした：" + workErr(e)); }
-    }, 800);
+    };
+    touchTimer = setTimeout(() => touchPending && touchPending(), 800);
   }
+  // 別のファイルに切り替える前に、待っている保存を今の作業に対して済ませる
+  async function flushTouch() {
+    clearTimeout(touchTimer);
+    if (touchPending) await touchPending();
+  }
+  const cancelTouch = () => { clearTimeout(touchTimer); touchPending = null; };
   const fmtDate = (t) => new Date(t).toLocaleString("ja-JP", { dateStyle: "short", timeStyle: "short" });
   async function renderWorks() {
     let list = [];
@@ -941,10 +955,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     let w;
     try { w = await idb.works.get(id); } catch (e) { $("worksHint").textContent = "開けませんでした：" + workErr(e); return; }
     if (!w) { await renderWorks(); return; }
+    await flushTouch();
     applyOpts(w.opts);
-    clearTimeout(touchTimer);    // 開く前の作業に、開く作業の設定を書き込まないように
-    await useFile(new File([w.bytes], w.fileName, { type: DOCX_TYPE, lastModified: w.lastModified }));
+    cancelTouch();    // 開く前の作業に、開く作業の設定を書き込まないように
     $("worksHint").textContent = "";
+    await useFile(new File([w.bytes], w.fileName, { type: DOCX_TYPE, lastModified: w.lastModified }));
   }
   async function renameWork(id) {
     const w = await idb.works.get(id).catch(() => null);
@@ -958,15 +973,16 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   async function deleteWork(id) {
     const w = await idb.works.get(id).catch(() => null);
     if (!w) return;
-    if (!confirm(`「${w.name}」をこの端末から削除しますか？docx・編集内容・備考が消え、元に戻せません。`)) return;
+    if (!confirm(`「${w.name}」を削除しますか？\n編集内容や備考もすべて消え、元に戻せません。`)) return;
+    if (file && draftKey() === id) cancelTouch();
     try {
-      await idb.works.del(id);
+      // 一覧（works）は最後に消す。途中で失敗しても一覧に残り、もう一度削除できるように
       await idb.del(id);
       store.del("kisoku.notes." + id);
+      await idb.works.del(id);
     } catch (e) { $("worksHint").textContent = "削除できませんでした：" + workErr(e); return; }
     if (file && draftKey() === id) {
       // 表示中の作業を消したら、画面も未選択に戻す（このあと下書きが作り直されないように）
-      clearTimeout(touchTimer);
       file = null; parsedKey = null; edit = null;
       clearComparison();
       $("fileName").textContent = "未選択"; $("parseHint").textContent = ""; $("result").innerHTML = "";
@@ -1004,7 +1020,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         notes,
       };
       const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
-      urls.push(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);   // 大きいので、保存が始まったころに解放する
       download(url, w.name.replace(/[\\/:*?"<>|]/g, "_") + "_作業.json");
     } catch (e) { $("worksHint").textContent = "書き出せませんでした：" + workErr(e); }
   }
@@ -1028,26 +1044,28 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     try { o = JSON.parse(await f.text()); } catch { hint.textContent = "作業ファイルではありません。"; return; }
     const problem = checkWorkFile(o);
     if (problem) { hint.textContent = "読み込めませんでした：" + problem; return; }
-    try { bytes = fromB64(o.docx); } catch { hint.textContent = "読み込めませんでした：docx が壊れています。"; return; }
+    try { bytes = fromB64(o.docx); } catch { hint.textContent = "読み込めませんでした：作業ファイル内の docx が壊れています。"; return; }
     // docx は zip なので先頭は "PK"
     const head = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
-    if (head[0] !== 0x50 || head[1] !== 0x4b) { hint.textContent = "読み込めませんでした：docx が壊れています。"; return; }
+    if (head[0] !== 0x50 || head[1] !== 0x4b) { hint.textContent = "読み込めませんでした：作業ファイル内の docx が壊れています。"; return; }
     const id = [o.fileName, bytes.byteLength, o.lastModified].join("|");
     const name = (typeof o.name === "string" && o.name.trim() ? o.name.trim() : o.fileName.replace(/\.docx$/i, "")).slice(0, 100);
+    await flushTouch();   // 待っている保存が、このあと読み込む内容を古い設定で上書きしないように
     const exists = await idb.works.get(id).catch(() => null);
-    if (exists && !confirm(`「${exists.name}」はこの端末にもあります。読み込んだ内容で上書きしますか？`)) return;
+    if (exists && !confirm(`「${exists.name}」はすでに保存されています。上書きしますか？`)) return;
     try {
       await idb.works.put(id, {
         id, name, fileName: o.fileName, lastModified: o.lastModified, bytes,
         opts: o.opts && typeof o.opts === "object" ? o.opts : {},
-        savedAt: typeof o.savedAt === "number" ? o.savedAt : Date.now(),
+        savedAt: Number.isFinite(o.savedAt) && o.savedAt > 0 && o.savedAt < 8.64e15 ? o.savedAt : Date.now(),
       });
       if (o.draft) await idb.put(id, { base: o.draft.base, tree: o.draft.tree, name: o.fileName, savedAt: Date.now() });
       else await idb.del(id);
       if (o.notes) store.set("kisoku.notes." + id, JSON.stringify(o.notes));
+      else store.del("kisoku.notes." + id);
     } catch (e) { hint.textContent = "読み込めませんでした：" + workErr(e); return; }
-    hint.textContent = `「${name}」を読み込みました。`;
     await openWork(id);
+    hint.textContent = `「${name}」を読み込みました。`;
   }
 
   async function saveDraft() {
@@ -1342,6 +1360,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       $("parseHint").textContent = "docx 形式のファイルを選んでください（.doc は Word で docx に保存し直してください）。";
       return;
     }
+    if (file) await flushTouch();
     file = f; parsedKey = null; edit = null; draftSaveFailed = false;
     clearComparison();
     $("fileName").textContent = f.name;
@@ -1586,7 +1605,10 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   $("workImport").addEventListener("change", (e) => {
     const f = e.target.files && e.target.files[0];
     e.target.value = "";
-    if (f && !busy) importWork(f);
+    if (!f || busy) return;
+    // 読み込み・保存の間はほかの操作を止める（開く処理は useFile の中で改めて止める）
+    busy = true; refresh();
+    importWork(f).finally(() => { busy = false; refresh(); });
   });
 
   refresh();
