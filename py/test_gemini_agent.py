@@ -184,6 +184,31 @@ prompts[:] = []
 res, out = quiet(gh.classify_document_with_agent, ["あ" * 45000, "b"], [0])
 assert res is None and prompts == []
 
+# --- 条の再構成（Antigravity）---
+ART = {"paragraphs": [{"body": "次の書類を提出すること。履歴書誓約書", "items": []}]}
+ART2 = {"paragraphs": [{"body": "賃金は次のとおりとする。", "items": [{"body": "基本給"}]}]}
+fixed = [{"body": "次の書類を提出すること。", "items": [{"body": "履歴書"}, {"body": "誓約書"}]}]
+ans = json.dumps({"articles": {"0": {"paragraphs": fixed},
+                               "1": {"paragraphs": "壊れた形"}}}, ensure_ascii=False)
+calls = install([_output("説明です\n" + ans)])
+res, out = quiet(gh.restructure_articles_with_agent, [(ART, ["押し込み"]), (ART2, [])])
+assert res == {0: fixed}, res                       # 形の悪い条1だけ落とす
+post = [c for c in calls if c[0] == "POST" and c[1].endswith("/interactions")]
+assert len(post) == 1                               # 2条を1回の依頼にまとめる
+p = post[0][2]["input"]
+assert "【条 0】" in p and "【条 1】" in p and "押し込み" in p and "入力に存在しない文言" in p
+assert "依頼1/1を送信（2条" in out
+
+# 回答が読めない・失敗・中止のときは空（元の構造のまま）。2条目以降の依頼は中止で送らない
+install([_output("JSONではない")])
+assert quiet(gh.restructure_articles_with_agent, [(ART, [])])[0] == {}
+install([_output("", status="failed")])
+assert quiet(gh.restructure_articles_with_agent, [(ART, [])])[0] == {}
+big = {"paragraphs": [{"body": "あ" * 20000, "items": []}]}
+calls = install([_output("", status="cancelled")])
+assert quiet(gh.restructure_articles_with_agent, [(big, []), (big, [])])[0] == {}
+assert len([c for c in calls if c[0] == "POST" and c[1].endswith("/interactions")]) == 1
+
 # --- parse_kisoku 統合 ---
 import kisoku_parser as kp  # noqa: E402
 
@@ -218,6 +243,8 @@ def fake_agent(lines, targets):
 
 
 gh.classify_document_with_agent = fake_agent
+restructure_agent_calls = []
+gh.restructure_articles_with_agent = lambda items: (restructure_agent_calls.append(items), {})[1]
 base, _ = quiet(kp.parse_kisoku, SAMPLE, use_gemini=False)
 del auto_calls[:]
 tree, out = quiet(kp.parse_kisoku, SAMPLE, use_gemini=True, gemini_mode="agent")
@@ -228,6 +255,25 @@ assert ("paragraph", t0) in auto_calls                                  # 項は
 assert not any(c[0] == "chapter" and c[1] == t1 for c in auto_calls)   # 章は反映されない
 assert "1/2段落を再判定しました" in out, out
 assert tree == base
+
+# 条の再構成：agent では Antigravity にまとめて送り、1条ずつの Gemini は呼ばない
+rest_calls = []
+gh.restructure_article_with_gemini = lambda *a, **k: (rest_calls.append(1), None)[1]
+_orig_collect = kp._collect_suspicious_articles
+kp._collect_suspicious_articles = lambda t, n: [(a, ["テスト"]) for a in _articles(t)[:2]]
+
+
+def _articles(t):
+    return [a for n in t if n.get("type") == "chapter" for a in n.get("articles", [])]
+
+
+quiet(kp.parse_kisoku, SAMPLE, use_gemini=True, gemini_mode="agent")
+assert len(restructure_agent_calls[-1]) == 2 and rest_calls == []
+quiet(kp.parse_kisoku, SAMPLE, use_gemini=True)
+assert len(rest_calls) == 2
+kp._collect_suspicious_articles = _orig_collect
+gh.restructure_article_with_gemini = lambda *a, **k: None
+paragraph_calls[:] = []
 
 # 使えなかった（None）ときはルールの判定のまま。1段落ずつの方式には落とさない
 gh.classify_document_with_agent = lambda l, t: None
