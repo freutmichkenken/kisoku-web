@@ -492,22 +492,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   <section class="step" aria-labelledby="h4">
     <div class="no" aria-hidden="true">④</div>
     <div class="body">
-      <h2 id="h4">整形して保存</h2>
-      <button type="button" class="btn primary" id="run" disabled>整形してダウンロード</button>
-      <button type="button" class="btn small" id="agentCancel" hidden>中止</button>
-      <p class="hint" id="runHint"></p>
-      <div class="result" id="result" aria-live="polite"></div>
-      <details class="log" id="logBox">
-        <summary>処理の記録</summary>
-        <pre id="log"></pre>
-      </details>
-    </div>
-  </section>
-
-  <section class="step" aria-labelledby="h5">
-    <div class="no" aria-hidden="true">⑤</div>
-    <div class="body">
-      <h2 id="h5">新旧対照表</h2>
+      <h2 id="h4">新旧対照表</h2>
       <p class="hint">現行は読み込んだ docx、改正案は整形後の内容です。</p>
       <button type="button" class="btn" id="cmpShow" disabled>変更点を表示</button>
       <p class="hint" id="cmpHint" aria-live="polite"></p>
@@ -534,6 +519,21 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         </div>
       </div>
       <button type="button" class="btn primary" id="cmpSave" hidden>新旧対照表を保存</button>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="h5">
+    <div class="no" aria-hidden="true">⑤</div>
+    <div class="body">
+      <h2 id="h5">保存</h2>
+      <button type="button" class="btn primary" id="run" disabled>ダウンロード</button>
+      <button type="button" class="btn small" id="agentCancel" hidden>中止</button>
+      <p class="hint" id="runHint"></p>
+      <div class="result" id="result" aria-live="polite"></div>
+      <details class="log" id="logBox">
+        <summary>処理の記録</summary>
+        <pre id="log"></pre>
+      </details>
     </div>
   </section>
 
@@ -852,7 +852,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     return true;
   }
   let sendError = "";
-  // 編集欄の上にエラーを出す（⑤ の上の表示だけでは、編集欄の位置から見えないため）
+  // 編集欄の上にエラーを出す（④ の上の表示だけでは、編集欄の位置から見えないため）
   function showFormError(text) {
     if (!editingEl) return;
     let box = editingEl.querySelector(".ed-err");
@@ -866,7 +866,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (!d || !Array.isArray(d.base) || !Array.isArray(d.tree)) return;
     edit = { base: d.base, tree: d.tree, undo: [] };
     if (!(await sendTrees())) { edit = null; return; }
-    $("parseHint").textContent += "前回の編集の下書きを読み込みました（⑤ で削除できます）。";
+    $("parseHint").textContent += "前回の編集の下書きを読み込みました（④ で削除できます）。";
   }
   const nodeAt = (tree, path) => (path.length === 1 ? tree[path[0]] : tree[path[0]]?.articles?.[path[1]]);
   function setAt(tree, path, node) {
