@@ -104,6 +104,15 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
   outline: 3px solid var(--ai); outline-offset: 2px;
 }
 .file .name { font-size: 14px; word-break: break-all; }
+.works { margin-top: 16px; }
+.works h3 { margin: 0 0 6px; font-size: 15px; }
+.works ul { list-style: none; margin: 0 0 10px; padding: 0; }
+.works li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 0; border-top: 1px solid var(--line, #ddd); }
+.works li .w-name { flex: 1 1 12em; min-width: 0; word-break: break-all; }
+.works li .w-date { display: block; font-size: 12.5px; color: var(--muted); }
+.works li.cur .w-name { font-weight: 700; }
+.works .btn.small { min-height: 36px; padding: 0 10px; }
+.works input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .drop {
   position: fixed; inset: 0; z-index: 10; display: none;
   align-items: center; justify-content: center; padding: 16px;
@@ -347,6 +356,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       <li>条・項・号の判定を誤ることがあります。元ファイルと照合してください。</li>
       <li>AI が再構成した条には Word のコメントが付きます。確認してください。</li>
       <li>ファイルはこの端末のブラウザ内だけで処理され、外部には送られません（Gemini を使う場合のみ、判定対象の文章が Google に送られます）。</li>
+      <li>読み込んだ docx と編集内容は、この端末のブラウザに残ります。共用の端末では、使い終わったら「続きから」で削除してください。</li>
     </ul>
   </details>
 
@@ -362,6 +372,13 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         <span class="name" id="fileName">未選択</span>
       </div>
       <p class="hint" id="parseHint" aria-live="polite"></p>
+      <div class="works">
+        <h3 id="worksHead" hidden>続きから</h3>
+        <ul id="worksList" aria-labelledby="worksHead"></ul>
+        <input type="file" id="workImport" accept=".json,application/json">
+        <label for="workImport" class="btn small" id="workImportBtn">作業ファイルを読み込む</label>
+        <p class="hint" id="worksHint" aria-live="polite"></p>
+      </div>
     </div>
   </section>
 
@@ -537,7 +554,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 
   <footer>
     照合レポート（原本との文字数の突き合わせ）も作られます。<br>
-    ファイルはブラウザ内で処理され、ページを閉じると消えます。
+    作業はこの端末のブラウザに保存されます。ブラウザのデータを消すと消えるため、残したい作業は「書き出し」で保存してください。
   </footer>
 </main>
 
@@ -607,6 +624,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       layout: $("optLayout").checked, toc: $("optToc").checked,
       hyoki: $("optHyoki").checked, xref: $("optXref").checked, gemini: $("optGemini").checked, agent: $("optAgent").checked, tpl: tplValue(),
     }));
+    touchWork();
   }
   const tplValue = () => (document.querySelector('input[name="tpl"]:checked') || {}).value || "t1";
 
@@ -630,6 +648,9 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     refreshEditBar();
     $("file").disabled = busy;
     $("fileBtn").setAttribute("aria-disabled", busy ? "true" : "false");
+    $("workImport").disabled = busy;
+    $("workImportBtn").setAttribute("aria-disabled", busy ? "true" : "false");
+    document.querySelectorAll("#worksList button").forEach((b) => { b.disabled = busy; });
     const hint = $("runHint");
     if (!file) hint.textContent = "① でファイルを選ぶと押せるようになります。";
     else if (!engineReady) hint.textContent = "準備が終わり次第、処理を始めます。";
@@ -795,32 +816,245 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   const idb = (() => {
     let opening = null;
     const open = () => opening || (opening = new Promise((res, rej) => {
-      const r = indexedDB.open("kisoku", 1);
-      r.onupgradeneeded = () => r.result.createObjectStore("drafts");
+      // 版2で「作業」（docx 本体と設定）の置き場を足した。版1の下書きはそのまま残る
+      const r = indexedDB.open("kisoku", 2);
+      r.onupgradeneeded = () => {
+        const db = r.result;
+        if (!db.objectStoreNames.contains("drafts")) db.createObjectStore("drafts");
+        if (!db.objectStoreNames.contains("works")) db.createObjectStore("works");
+      };
       r.onsuccess = () => res(r.result);
       r.onerror = () => { opening = null; rej(r.error); };
+      r.onblocked = () => { opening = null; rej(new Error("このページを別のタブでも開いています。ほかのタブを閉じてから再読み込みしてください。")); };
     }));
-    const run = async (mode, fn) => {
+    const run = async (store, mode, fn) => {
       const db = await open();
       return new Promise((res, rej) => {
-        const tx = db.transaction("drafts", mode);
-        const req = fn(tx.objectStore("drafts"));
+        const tx = db.transaction(store, mode);
+        const req = fn(tx.objectStore(store));
         tx.oncomplete = () => res(req.result);
         tx.onerror = () => rej(tx.error);
         tx.onabort = () => rej(tx.error);
       });
     };
-    return {
-      get: (k) => run("readonly", (s) => s.get(k)),
-      put: (k, v) => run("readwrite", (s) => s.put(v, k)),
-      del: (k) => run("readwrite", (s) => s.delete(k)),
-    };
+    const of = (store) => ({
+      get: (k) => run(store, "readonly", (s) => s.get(k)),
+      put: (k, v) => run(store, "readwrite", (s) => s.put(v, k)),
+      del: (k) => run(store, "readwrite", (s) => s.delete(k)),
+      all: () => run(store, "readonly", (s) => s.getAll()),
+    });
+    return { ...of("drafts"), works: of("works") };
   })();
+
+  // ---------- 作業（中断・再開） ----------
+  // 作業の ID は下書きと同じ「ファイル名|サイズ|更新日時」。作業から開き直すときも同じ値の File を作るので、
+  // 下書き（IndexedDB）と備考（localStorage）はこれまでの仕組みのまま引き継がれる。
+  const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const TPL_KEYS = ["t1", "t2", "t3", "t4", "custom"];
+  const workErr = (e) => (e && e.message ? e.message : String(e));
+  function collectOpts() {
+    return {
+      layout: $("optLayout").checked, toc: $("optToc").checked, hyoki: $("optHyoki").checked,
+      xref: $("optXref").checked, gemini: $("optGemini").checked, agent: $("optAgent").checked,
+      tpl: tplValue(), custom: KisokuCustom.get(),
+    };
+  }
+  function applyOpts(o) {
+    if (!o || typeof o !== "object") return;
+    ["layout", "toc", "hyoki", "xref", "gemini", "agent"].forEach((k) => {
+      const id = "opt" + k[0].toUpperCase() + k.slice(1);
+      if (typeof o[k] === "boolean") $(id).checked = o[k];
+    });
+    if (o.custom) KisokuCustom.set(o.custom);    // 形式が正しくなければ set が受け付けない
+    if (TPL_KEYS.includes(o.tpl)) $(o.tpl).checked = true;
+    savePrefs();
+    refresh();
+  }
+  let persistAsked = false;
+  async function ensureWork() {
+    const id = draftKey();
+    try {
+      const old = await idb.works.get(id);
+      const bytes = old ? old.bytes : await file.arrayBuffer();
+      await idb.works.put(id, {
+        id, name: old ? old.name : file.name.replace(/\.docx$/i, ""),
+        fileName: file.name, lastModified: file.lastModified, bytes,
+        opts: collectOpts(), savedAt: Date.now(),
+      });
+      if (!persistAsked && navigator.storage && navigator.storage.persist) {
+        persistAsked = true;
+        navigator.storage.persist().catch(() => {});   // ブラウザが自動で消しにくくする（断られても動作は同じ）
+      }
+    } catch (e) {
+      log("作業を保存できませんでした：" + workErr(e));
+    }
+    await renderWorks();
+  }
+  // 設定・備考・編集が変わったら、今の作業の設定と保存日時を更新する（作業が消されていれば作り直さない）
+  let touchTimer = null;
+  function touchWork() {
+    if (!file) return;
+    const id = draftKey();
+    clearTimeout(touchTimer);
+    touchTimer = setTimeout(async () => {
+      try {
+        const w = await idb.works.get(id);
+        if (!w) return;
+        w.opts = collectOpts(); w.savedAt = Date.now();
+        await idb.works.put(id, w);
+        await renderWorks();
+      } catch (e) { log("作業を保存できませんでした：" + workErr(e)); }
+    }, 800);
+  }
+  const fmtDate = (t) => new Date(t).toLocaleString("ja-JP", { dateStyle: "short", timeStyle: "short" });
+  async function renderWorks() {
+    let list = [];
+    try { list = await idb.works.all(); } catch (e) { $("worksHint").textContent = "保存した作業を読めませんでした：" + workErr(e); }
+    list.sort((a, b) => b.savedAt - a.savedAt);
+    const ul = $("worksList");
+    ul.textContent = "";
+    $("worksHead").hidden = list.length === 0;
+    const cur = file ? draftKey() : null;
+    list.forEach((w) => {
+      const li = document.createElement("li");
+      if (w.id === cur) li.className = "cur";
+      const nm = document.createElement("span");
+      nm.className = "w-name";
+      nm.textContent = w.name + (w.id === cur ? "（表示中）" : "");
+      const dt = document.createElement("span");
+      dt.className = "w-date"; dt.textContent = fmtDate(w.savedAt);
+      nm.appendChild(dt);
+      li.appendChild(nm);
+      [["開く", () => openWork(w.id)], ["名前", () => renameWork(w.id)],
+       ["書き出し", () => exportWork(w.id)], ["削除", () => deleteWork(w.id)]].forEach(([label, fn]) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "btn small"; b.textContent = label;
+        b.setAttribute("aria-label", `${label}：${w.name}`);
+        b.disabled = busy;
+        b.addEventListener("click", () => { if (!busy) fn(); });
+        li.appendChild(b);
+      });
+      ul.appendChild(li);
+    });
+  }
+  async function openWork(id) {
+    let w;
+    try { w = await idb.works.get(id); } catch (e) { $("worksHint").textContent = "開けませんでした：" + workErr(e); return; }
+    if (!w) { await renderWorks(); return; }
+    applyOpts(w.opts);
+    clearTimeout(touchTimer);    // 開く前の作業に、開く作業の設定を書き込まないように
+    await useFile(new File([w.bytes], w.fileName, { type: DOCX_TYPE, lastModified: w.lastModified }));
+    $("worksHint").textContent = "";
+  }
+  async function renameWork(id) {
+    const w = await idb.works.get(id).catch(() => null);
+    if (!w) return;
+    const v = prompt("作業の名前", w.name);
+    if (v === null || !v.trim()) return;
+    w.name = v.trim().slice(0, 100);
+    try { await idb.works.put(id, w); } catch (e) { $("worksHint").textContent = "変更できませんでした：" + workErr(e); }
+    await renderWorks();
+  }
+  async function deleteWork(id) {
+    const w = await idb.works.get(id).catch(() => null);
+    if (!w) return;
+    if (!confirm(`「${w.name}」をこの端末から削除しますか？docx・編集内容・備考が消え、元に戻せません。`)) return;
+    try {
+      await idb.works.del(id);
+      await idb.del(id);
+      store.del("kisoku.notes." + id);
+    } catch (e) { $("worksHint").textContent = "削除できませんでした：" + workErr(e); return; }
+    if (file && draftKey() === id) {
+      // 表示中の作業を消したら、画面も未選択に戻す（このあと下書きが作り直されないように）
+      clearTimeout(touchTimer);
+      file = null; parsedKey = null; edit = null;
+      clearComparison();
+      $("fileName").textContent = "未選択"; $("parseHint").textContent = ""; $("result").innerHTML = "";
+      refresh();
+    }
+    $("worksHint").textContent = "削除しました。";
+    await renderWorks();
+  }
+
+  // 作業ファイル（JSON）。docx は base64 で入れる
+  const WORK_FORMAT = "kisoku-work";
+  function toB64(buf) {
+    const u8 = new Uint8Array(buf);
+    let s = "";
+    for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function fromB64(s) {
+    const bin = atob(s);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8.buffer;
+  }
+  async function exportWork(id) {
+    try {
+      const w = await idb.works.get(id);
+      if (!w) return;
+      const d = await idb.get(id);
+      let notes = {};
+      try { notes = JSON.parse(store.get("kisoku.notes." + id) || "{}") || {}; } catch {}
+      const data = {
+        format: WORK_FORMAT, version: 1, name: w.name, fileName: w.fileName, lastModified: w.lastModified,
+        savedAt: w.savedAt, opts: w.opts, docx: toB64(w.bytes),
+        draft: d && Array.isArray(d.base) && Array.isArray(d.tree) ? { base: d.base, tree: d.tree } : null,
+        notes,
+      };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
+      urls.push(url);
+      download(url, w.name.replace(/[\\/:*?"<>|]/g, "_") + "_作業.json");
+    } catch (e) { $("worksHint").textContent = "書き出せませんでした：" + workErr(e); }
+  }
+  // 外から来たファイルなので、形を確かめてから保存する
+  function checkWorkFile(o) {
+    if (!o || typeof o !== "object" || o.format !== WORK_FORMAT || o.version !== 1) return "作業ファイルではありません。";
+    if (typeof o.fileName !== "string" || !/\.docx$/i.test(o.fileName) || o.fileName.length > 255) return "docx のファイル名が正しくありません。";
+    if (typeof o.lastModified !== "number" || !Number.isFinite(o.lastModified)) return "更新日時が正しくありません。";
+    if (typeof o.docx !== "string" || !o.docx) return "docx が入っていません。";
+    if (o.draft !== null && o.draft !== undefined &&
+        !(typeof o.draft === "object" && Array.isArray(o.draft.base) && Array.isArray(o.draft.tree))) return "編集内容の形式が正しくありません。";
+    if (o.notes !== undefined && (typeof o.notes !== "object" || o.notes === null || Array.isArray(o.notes) ||
+        Object.values(o.notes).some((v) => typeof v !== "string"))) return "備考の形式が正しくありません。";
+    return null;
+  }
+  async function importWork(f) {
+    const hint = $("worksHint");
+    // ponytail: ファイル全体をメモリに読む。画像の多い規程で重いなら、読み込みを分割する。
+    if (f.size > 200 * 1024 * 1024) { hint.textContent = "ファイルが大きすぎます（200MB まで）。"; return; }
+    let o, bytes;
+    try { o = JSON.parse(await f.text()); } catch { hint.textContent = "作業ファイルではありません。"; return; }
+    const problem = checkWorkFile(o);
+    if (problem) { hint.textContent = "読み込めませんでした：" + problem; return; }
+    try { bytes = fromB64(o.docx); } catch { hint.textContent = "読み込めませんでした：docx が壊れています。"; return; }
+    // docx は zip なので先頭は "PK"
+    const head = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
+    if (head[0] !== 0x50 || head[1] !== 0x4b) { hint.textContent = "読み込めませんでした：docx が壊れています。"; return; }
+    const id = [o.fileName, bytes.byteLength, o.lastModified].join("|");
+    const name = (typeof o.name === "string" && o.name.trim() ? o.name.trim() : o.fileName.replace(/\.docx$/i, "")).slice(0, 100);
+    const exists = await idb.works.get(id).catch(() => null);
+    if (exists && !confirm(`「${exists.name}」はこの端末にもあります。読み込んだ内容で上書きしますか？`)) return;
+    try {
+      await idb.works.put(id, {
+        id, name, fileName: o.fileName, lastModified: o.lastModified, bytes,
+        opts: o.opts && typeof o.opts === "object" ? o.opts : {},
+        savedAt: typeof o.savedAt === "number" ? o.savedAt : Date.now(),
+      });
+      if (o.draft) await idb.put(id, { base: o.draft.base, tree: o.draft.tree, name: o.fileName, savedAt: Date.now() });
+      else await idb.del(id);
+      if (o.notes) store.set("kisoku.notes." + id, JSON.stringify(o.notes));
+    } catch (e) { hint.textContent = "読み込めませんでした：" + workErr(e); return; }
+    hint.textContent = `「${name}」を読み込みました。`;
+    await openWork(id);
+  }
 
   async function saveDraft() {
     try {
       await idb.put(draftKey(), { base: edit.base, tree: edit.tree, name: file.name, savedAt: Date.now() });
       draftSaveFailed = false;
+      touchWork();
     } catch (e) {
       draftSaveFailed = true;
       log("下書きを保存できませんでした：" + (e && e.message ? e.message : e));
@@ -1064,7 +1298,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         const ta = document.createElement("textarea");
         ta.placeholder = "改正理由・備考"; ta.setAttribute("aria-label", "備考：" + heading);
         ta.value = notes[r.id] || "";
-        ta.addEventListener("input", () => { const n = loadNotes(); n[r.id] = ta.value; saveNotes(n); });
+        ta.addEventListener("input", () => { const n = loadNotes(); n[r.id] = ta.value; saveNotes(n); touchWork(); });
         box.appendChild(ta);
         el.appendChild(box);
       }
@@ -1112,7 +1346,9 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     clearComparison();
     $("fileName").textContent = f.name;
     $("result").innerHTML = ""; $("log").textContent = "";
-    await withBusy(async () => { if (await parse(false)) await restoreDraft(); });
+    await withBusy(async () => {
+      if (await parse(false)) { await restoreDraft(); await ensureWork(); }
+    });
   }
 
   $("file").addEventListener("change", async (e) => {
@@ -1318,7 +1554,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   }
   // カスタムの設定を変えたときも（選んでいるときだけ）
   ["input", "change"].forEach((ev) => $("customPanel").addEventListener(ev, () => {
-    if (tplValue() === "custom") redrawForTemplate();
+    if (tplValue() === "custom") { redrawForTemplate(); touchWork(); }
   }));
 
   $("optAgent").addEventListener("change", () => { savePrefs(); refresh(); });
@@ -1346,7 +1582,15 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     store.del(K.key); $("apiKey").value = ""; $("saveKey").checked = false;
   });
 
+  $("workImportBtn").addEventListener("click", (e) => { if (busy) e.preventDefault(); });
+  $("workImport").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (f && !busy) importWork(f);
+  });
+
   refresh();
+  renderWorks();
 })();
 </script>
 </body>
