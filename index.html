@@ -12,6 +12,7 @@ try {
   if (v.theme === "light" || v.theme === "dark") r.dataset.theme = v.theme;
   if (v.size === "large") r.dataset.size = "large";
   if (v.sideHidden === true) r.dataset.side = "hidden";
+  r.dataset.view = "list";   // 最初は規程一覧を出す
 } catch {}
 </script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>">
@@ -437,6 +438,31 @@ body::before {
 .cmp-note textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; min-height: 2.6em; padding: 6px 8px; font: inherit; font-size: 14px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); color: var(--ink); resize: vertical; }
 #cmpSave { margin-top: 12px; }
 
+/* ---------- 画面の切り替え（規程一覧／編集） ---------- */
+:root[data-view="list"] main { display: none; }
+:root:not([data-view="list"]) #viewList { display: none; }
+:root[data-view="list"] .side-steps { display: none; }
+.lv { max-width: 1100px; margin: 0 auto; padding: 28px 24px 64px; }
+.lv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.lv-bar h1 { margin: 0 auto 0 0; font-family: var(--mincho); font-size: 26px; letter-spacing: .08em; }
+.lv-table { width: 100%; margin-top: 12px; border-collapse: collapse; background: var(--surface); font-size: 14.5px; }
+.lv-table th { text-align: left; padding: 0; border-bottom: 2px solid var(--rule); }
+.lv-sort { width: 100%; padding: 8px 12px; border: 0; background: none; font: inherit; font-weight: 700; color: var(--ink); text-align: left; cursor: pointer; }
+.lv-table th[aria-sort="ascending"] .lv-sort::after { content: " ▲" / ""; color: var(--muted); }
+.lv-table th[aria-sort="descending"] .lv-sort::after { content: " ▼" / ""; color: var(--muted); }
+.lv-table td { padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+.lv-table th.lv-date, .lv-table td.lv-date { width: 11em; white-space: nowrap; }
+.lv-table td.lv-ops { width: 1%; white-space: nowrap; text-align: right; }
+.lv-table td.lv-ops .btn.small { min-height: 30px; padding: 0 10px; font-size: 13px; font-weight: 400; margin-left: 4px; }
+.lv-table tbody tr { cursor: default; user-select: none; }
+.lv-table tbody tr:hover { background: var(--hover-bg); }
+.lv-table tbody tr:focus-visible { outline: 3px solid var(--ai); outline-offset: -3px; }
+.lv-name { font-weight: 700; }
+.lv-badge { display: inline-block; margin-left: 8px; padding: 0 6px; border-radius: 4px; background: var(--ai); color: var(--surface); font-size: 12px; font-weight: 700; line-height: 1.6; }
+.lv-dirty { margin-left: 6px; color: var(--caution); font-size: 12.5px; }
+.ed-head { display: flex; align-items: center; gap: 12px; }
+.ed-head h1 { min-width: 0; overflow-wrap: anywhere; }
+
 details.log { margin-top: 12px; font-size: 13px; }
 details.log summary { cursor: pointer; color: var(--muted); }
 details.log pre {
@@ -457,18 +483,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 <div class="side-backdrop" id="sideBackdrop" hidden></div>
 <aside class="side" id="side" aria-label="メニュー">
   <div class="side-head" aria-hidden="true">メニュー</div>
-  <details class="side-sec" id="secWorks" open>
-    <summary>作業ファイル</summary>
-    <div class="works">
-      <ul id="worksList" aria-label="作業ファイル"></ul>
-      <p class="hint" id="worksEmpty">保存した作業はありません。</p>
-      <input type="file" id="workImport" class="vh" accept=".json,application/json">
-      <label for="workImport" class="btn small" id="workImportBtn">書き出した作業（.json）を読み込む</label>
-      <p class="hint" id="worksHint" aria-live="polite"></p>
-    </div>
-  </details>
 
-  <details class="side-sec" open>
+  <details class="side-sec side-steps" open>
     <summary>手順</summary>
     <ol class="side-nav">
       <li><a href="#h1">① 整形前の docx</a></li>
@@ -563,9 +579,32 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   </details>
 </aside>
 
+<input type="file" id="file" class="vh" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+<section class="lv" id="viewList" aria-labelledby="lvHead">
+  <div class="lv-bar">
+    <h1 id="lvHead">規程一覧</h1>
+    <label for="file" class="btn small" id="lvNewBtn">docx を読み込む</label>
+    <input type="file" id="workImport" class="vh" accept=".json,application/json">
+    <label for="workImport" class="btn small" id="workImportBtn">作業（.json）を読み込む</label>
+  </div>
+  <p class="hint" id="worksHint" aria-live="polite"></p>
+  <table class="lv-table">
+    <thead><tr>
+      <th aria-sort="ascending"><button type="button" class="lv-sort" data-key="name">名前</button></th>
+      <th class="lv-date" aria-sort="none"><button type="button" class="lv-sort" data-key="savedAt">最終更新</button></th>
+      <th class="lv-ops"><span class="vh">操作</span></th>
+    </tr></thead>
+    <tbody id="worksList"></tbody>
+  </table>
+  <p class="hint" id="worksEmpty">規程はまだありません。「docx を読み込む」か、docx をこの画面にドロップしてください。</p>
+</section>
+
 <main>
   <header>
-    <h1>就業規則 整形</h1>
+    <div class="ed-head">
+      <button type="button" class="btn small" id="backList">← 規程一覧</button>
+      <h1 id="edTitle">就業規則 整形</h1>
+    </div>
     <div class="engine" id="engine" data-state="loading" role="status" aria-live="polite">
       <span class="dot" aria-hidden="true"></span><span id="engineText">準備中（初回は数十秒）</span>
     </div>
@@ -578,7 +617,6 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     <div class="body">
       <h2 id="h1">整形前の docx を選ぶ</h2>
       <div class="file">
-        <input type="file" id="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
         <label for="file" class="btn" id="fileBtn">ファイルを選ぶ</label>
         <span class="name" id="fileName">未選択</span>
       </div>
@@ -895,6 +933,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $("file").disabled = busy;
     $("fileBtn").setAttribute("aria-disabled", busy ? "true" : "false");
     $("workImport").disabled = busy;
+    $("backList").disabled = busy;
+    $("lvNewBtn").setAttribute("aria-disabled", busy ? "true" : "false");
     $("workImportBtn").setAttribute("aria-disabled", busy ? "true" : "false");
     document.querySelectorAll("#worksList button").forEach((b) => { b.disabled = busy; });
     const hint = $("runHint");
@@ -1138,6 +1178,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         opts: collectOpts(), savedAt: Date.now(),
       });
       versions = old && Array.isArray(old.versions) ? old.versions : [];
+      if (old) $("edTitle").textContent = old.name;
       // 版がまだ無ければ、読み込んだ内容を第1版として登録する（元の番号のまま比べる original）
       if (!versions.length) {
         const trees = await currentTrees();
@@ -1181,41 +1222,80 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   }
   const cancelTouch = () => { clearTimeout(touchTimer); touchPending = null; };
   const fmtDate = (t) => new Date(t).toLocaleString("ja-JP", { dateStyle: "short", timeStyle: "short" });
-  let worksOpenInit = false;
+  // ---------- 規程一覧 ----------
+  let worksSort = { key: "name", dir: 1 };
+  const lastTree = (w) => {
+    const v = Array.isArray(w.versions) && w.versions.length ? w.versions[w.versions.length - 1] : null;
+    return v ? JSON.stringify(v.tree) : null;
+  };
   async function renderWorks() {
-    let list = [], readFailed = false;
-    try { list = await idb.works.all(); } catch (e) { readFailed = true; $("worksHint").textContent = "保存した作業を読めませんでした：" + workErr(e); }
-    list.sort((a, b) => b.savedAt - a.savedAt);
-    const ul = $("worksList");
-    ul.textContent = "";
+    let list = [];
+    try { list = await idb.works.all(); } catch (e) { $("worksHint").textContent = "保存した規程を読めませんでした：" + workErr(e); }
+    const { key, dir } = worksSort;
+    list.sort((a, b) => dir * (key === "name" ? a.name.localeCompare(b.name, "ja", { numeric: true }) : a.savedAt - b.savedAt));
+    document.querySelectorAll(".lv-sort").forEach((b) => {
+      b.parentElement.setAttribute("aria-sort", b.dataset.key === key ? (dir > 0 ? "ascending" : "descending") : "none");
+    });
+    // 未確定の変更：下書きの改正案が、最後に確定した版と違う
+    // ponytail: 規程ごとに下書きを読んで JSON で比べる。件数・画像が多く遅いなら、保存時に印を残す。
+    const dirty = await Promise.all(list.map(async (w) => {
+      try { const d = await idb.get(w.id); return !!(d && Array.isArray(d.tree) && JSON.stringify(d.tree) !== lastTree(w)); }
+      catch { return false; }
+    }));
+    const tb = $("worksList");
+    tb.textContent = "";
     $("worksEmpty").hidden = list.length > 0;
-    // 初回だけ：作業が無ければ閉じておく（読めなかったときはエラーが見えるよう開く）
-    if (readFailed) $("secWorks").open = true;
-    else if (!worksOpenInit) $("secWorks").open = list.length > 0;
-    worksOpenInit = true;
-    const cur = file ? draftKey() : null;
-    list.forEach((w) => {
-      const li = document.createElement("li");
-      if (w.id === cur) li.className = "cur";
+    list.forEach((w, i) => {
+      const tr = document.createElement("tr");
+      tr.tabIndex = 0;
+      const td1 = document.createElement("td");
       const nm = document.createElement("span");
-      nm.className = "w-name";
-      nm.textContent = w.name + (w.id === cur ? "（表示中）" : "");
-      const dt = document.createElement("span");
-      dt.className = "w-date"; dt.textContent = fmtDate(w.savedAt);
-      nm.appendChild(dt);
-      li.appendChild(nm);
+      nm.className = "lv-name"; nm.textContent = w.name;
+      td1.appendChild(nm);
+      const vs = Array.isArray(w.versions) ? w.versions : [];
+      if (vs.length) {
+        const b = document.createElement("span");
+        b.className = "lv-badge"; b.textContent = `第${Math.max(...vs.map((v) => v.no))}版`;
+        td1.appendChild(b);
+      }
+      if (dirty[i]) {
+        const m = document.createElement("span");
+        m.className = "lv-dirty"; m.textContent = "✎ 未確定の変更あり";
+        td1.appendChild(m);
+      }
+      const td2 = document.createElement("td");
+      td2.className = "lv-date"; td2.textContent = fmtDate(w.savedAt);
+      const td3 = document.createElement("td");
+      td3.className = "lv-ops";
       [["開く", () => openWork(w.id)], ["名前変更", () => renameWork(w.id)],
-       ["書き出し", () => exportWork(w.id)], ["削除", () => deleteWork(w.id)]].filter(([label]) => !(label === "開く" && w.id === cur)).forEach(([label, fn]) => {
+       ["書き出し", () => exportWork(w.id)], ["削除", () => deleteWork(w.id)]].forEach(([label, fn]) => {
         const b = document.createElement("button");
         b.type = "button"; b.className = "btn small"; b.textContent = label;
         b.setAttribute("aria-label", `${label}：${w.name}`);
         b.disabled = busy;
-        b.addEventListener("click", () => { if (!busy) fn(); });
-        li.appendChild(b);
+        b.addEventListener("click", (e) => { e.stopPropagation(); if (!busy) fn(); });
+        td3.appendChild(b);
       });
-      ul.appendChild(li);
+      tr.append(td1, td2, td3);
+      tr.addEventListener("dblclick", () => { if (!busy) openWork(w.id); });
+      tr.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target === tr && !busy) openWork(w.id); });
+      tb.appendChild(tr);
     });
   }
+  document.querySelectorAll(".lv-sort").forEach((b) => b.addEventListener("click", () => {
+    worksSort = worksSort.key === b.dataset.key ? { key: b.dataset.key, dir: -worksSort.dir } : { key: b.dataset.key, dir: b.dataset.key === "name" ? 1 : -1 };
+    renderWorks();
+  }));
+  function setView(v) {
+    document.documentElement.dataset.view = v;
+    window.scrollTo(0, 0);
+  }
+  $("backList").addEventListener("click", async () => {
+    if (busy) return;
+    await flushTouch();
+    setView("list");
+    await renderWorks();
+  });
   async function openWork(id) {
     let w;
     try { w = await idb.works.get(id); } catch (e) { $("worksHint").textContent = "開けませんでした：" + workErr(e); return; }
@@ -1233,6 +1313,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (v === null || !v.trim()) return;
     w.name = v.trim().slice(0, 100);
     try { await idb.works.put(id, w); } catch (e) { $("worksHint").textContent = "変更できませんでした：" + workErr(e); }
+    if (file && draftKey() === id) $("edTitle").textContent = w.name;
     await renderWorks();
   }
   async function deleteWork(id) {
@@ -1978,6 +2059,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       return;
     }
     if (file) await flushTouch();
+    setView("edit");
+    $("edTitle").textContent = f.name.replace(/\.docx$/i, "");
     file = f; parsedKey = null; edit = null; draftSaveFailed = false; versionView = null; versions = [];
     clearComparison();
     $("fileName").textContent = f.name;
