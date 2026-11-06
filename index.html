@@ -282,6 +282,18 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .cmp-old .u { background: var(--del-strong); }
 .cmp-new .u { background: var(--ins-strong); }
 .cmp-note { grid-column: 1 / -1; margin-top: 6px; }
+.ver-form { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; max-width: 520px; }
+.ver-form input { min-height: 40px; padding: 0 8px; font: inherit; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); color: var(--ink); min-width: 0; }
+.ver-form .btn { grid-column: 1 / -1; }
+.ver-scroll { overflow-x: auto; margin-top: 12px; }
+.ver-table { border-collapse: collapse; font-size: 14px; min-width: 100%; }
+.ver-table th, .ver-table td { border-bottom: 1px solid var(--rule); padding: 6px 8px; text-align: left; vertical-align: top; }
+.ver-table th { white-space: nowrap; }
+.ver-table td.chg { min-width: 12em; }
+.ver-table td.ops { white-space: nowrap; }
+.ver-table td.ops .btn { min-height: 34px; padding: 0 8px; margin: 0 4px 4px 0; }
+.ver-cmp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.ver-cmp select { min-height: 40px; font: inherit; max-width: 100%; }
 .cmp-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; }
 .cmp-edit[hidden] { display: none; }
 .cmp-edit .hint { margin: 0; flex: 1 1 100%; }
@@ -515,6 +527,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         <span class="hint" id="editHint"></span>
         <button type="button" class="btn small" id="editUndo" disabled>元に戻す</button>
         <button type="button" class="btn small" id="editDiscard" hidden>下書きを削除</button>
+        <button type="button" class="btn small" id="verBack" hidden>編集に戻る</button>
       </div>
       <div class="cmp-list" id="cmpList" hidden>
         <div class="cmp-bar" id="cmpBar">
@@ -549,6 +562,37 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         <summary>処理の記録</summary>
         <pre id="log"></pre>
       </details>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="h6">
+    <div class="no" aria-hidden="true">⑥</div>
+    <div class="body">
+      <h2 id="h6">版と改訂履歴</h2>
+      <p class="hint" id="verNoFile">① でファイルを選ぶと使えます。</p>
+      <div id="verBox" hidden>
+        <div class="ver-form">
+          <label class="field" for="verDate">施行日</label>
+          <input type="date" id="verDate">
+          <label class="field" for="verMemo">メモ</label>
+          <input type="text" id="verMemo" maxlength="200" placeholder="例：育児介護休業法改正への対応">
+          <button type="button" class="btn" id="verAdd">改正案を版として確定</button>
+        </div>
+        <p class="hint" id="verHint" aria-live="polite"></p>
+        <div class="ver-scroll" id="verTableBox" hidden>
+          <table class="ver-table">
+            <thead><tr><th>版</th><th>施行日</th><th>メモ</th><th>変更した条</th><th></th></tr></thead>
+            <tbody id="verBody"></tbody>
+          </table>
+        </div>
+        <div class="ver-cmp" id="verCmp" hidden>
+          <label for="verA">比べる</label>
+          <select id="verA"></select>
+          <span aria-hidden="true">→</span>
+          <select id="verB" aria-label="比べる先"></select>
+          <button type="button" class="btn small" id="verShow">新旧対照表を表示</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -640,11 +684,12 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $("cfSample").disabled = busy || !engineReady;
     $("cfImport").disabled = busy || !engineReady;
     $("cfImportBtn").setAttribute("aria-disabled", busy || !engineReady ? "true" : "false");
-    $("run").disabled = busy || !file;
+    $("run").disabled = busy || !file || !!versionView;   // 版を比べている間は、どの木を整形するか紛らわしいので止める
+    refreshVersionBox();
     $("cmpShow").disabled = busy || !file;
     $("cmpSave").disabled = busy;
     // 解析のオプションを変えたら、表示中の変更点は古いので消す（保存で古い解析を使わないように）
-    if (!busy && cmpShown && !edit && parsedKey !== parseKeyNow()) clearComparison();
+    if (!busy && cmpShown && !edit && !versionView && parsedKey !== parseKeyNow()) clearComparison();
     refreshEditBar();
     $("file").disabled = busy;
     $("fileBtn").setAttribute("aria-disabled", busy ? "true" : "false");
@@ -711,7 +756,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 
   // オプションが前回の解析と違えば解析し直す。show(kind, text) で状況を出す。
   async function ensureParsed(show) {
-    if (edit) return true;    // 編集中は解析し直さない（解析のオプションも変えられないようにしている）
+    if (edit || versionView) return true;    // 編集中・版の比較中は解析し直さない（解析のオプションも変えられないようにしている）
     if (parsedKey === parseKeyNow()) return true;
     clearComparison();        // 表示中の変更点は前の解析のものなので消す
     show("busy", "オプションが変わったので、構造を解析し直しています…");
@@ -789,7 +834,9 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       toc.appendChild(btn);
     });
   }
-  const notesKey = () => "kisoku.notes." + [file.name, file.size, file.lastModified].join("|");
+  // 版どうしを比べているときの備考は、比べている版の組ごとに分けて残す（編集中の改正案の備考と混ざらないように）
+  const notesKey = () => "kisoku.notes." + [file.name, file.size, file.lastModified].join("|") +
+    (versionView ? `|v${versionView.a}-${versionView.b}` : "");
   function loadNotes() {
     try { const v = JSON.parse(store.get(notesKey()) || "{}"); return v && typeof v === "object" ? v : {}; }
     catch { return {}; }
@@ -883,8 +930,10 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       await idb.works.put(id, {
         id, name: old ? old.name : file.name.replace(/\.docx$/i, ""),
         fileName: file.name, lastModified: file.lastModified, bytes,
+        versions: old && Array.isArray(old.versions) ? old.versions : [],
         opts: collectOpts(), savedAt: Date.now(),
       });
+      versions = old && Array.isArray(old.versions) ? old.versions : [];
       if (!persistAsked && navigator.storage && navigator.storage.persist) {
         persistAsked = true;
         navigator.storage.persist().catch(() => {});   // ブラウザが自動で消しにくくする（断られても動作は同じ）
@@ -893,6 +942,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       log("作業を保存できませんでした：" + workErr(e));
     }
     await renderWorks();
+    renderVersions();
   }
   // 設定・備考・編集が変わったら、今の作業の設定と保存日時を更新する（作業が消されていれば作り直さない）
   let touchTimer = null;
@@ -979,12 +1029,15 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       // 一覧（works）は最後に消す。途中で失敗しても一覧に残り、もう一度削除できるように
       await idb.del(id);
       store.del("kisoku.notes." + id);
+      // 版どうしの比較の備考（kisoku.notes.<id>|v1-2 など）も消す
+      delPairNotes(id, () => true);
       await idb.works.del(id);
     } catch (e) { $("worksHint").textContent = "削除できませんでした：" + workErr(e); return; }
     if (file && draftKey() === id) {
       // 表示中の作業を消したら、画面も未選択に戻す（このあと下書きが作り直されないように）
-      file = null; parsedKey = null; edit = null;
+      file = null; parsedKey = null; edit = null; versionView = null; versions = [];
       clearComparison();
+      renderVersions();
       $("fileName").textContent = "未選択"; $("parseHint").textContent = ""; $("result").innerHTML = "";
       refresh();
     }
@@ -1016,7 +1069,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       const data = {
         format: WORK_FORMAT, version: 1, name: w.name, fileName: w.fileName, lastModified: w.lastModified,
         savedAt: w.savedAt, opts: w.opts, docx: toB64(w.bytes),
-        draft: d && Array.isArray(d.base) && Array.isArray(d.tree) ? { base: d.base, tree: d.tree } : null,
+        draft: d && Array.isArray(d.base) && Array.isArray(d.tree) ? { base: d.base, tree: d.tree, from: d.from } : null,
+        versions: Array.isArray(w.versions) ? w.versions : [],
         notes,
       };
       const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
@@ -1034,6 +1088,16 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         !(typeof o.draft === "object" && Array.isArray(o.draft.base) && Array.isArray(o.draft.tree))) return "編集内容の形式が正しくありません。";
     if (o.notes !== undefined && (typeof o.notes !== "object" || o.notes === null || Array.isArray(o.notes) ||
         Object.values(o.notes).some((v) => typeof v !== "string"))) return "備考の形式が正しくありません。";
+    const strMap = (x) => x && typeof x === "object" && !Array.isArray(x) && Object.values(x).every((s) => typeof s === "string");
+    if (o.versions !== undefined && (!Array.isArray(o.versions) || o.versions.length > 1000 || o.versions.some((v, i, a) =>
+        !v || typeof v !== "object" || !Number.isInteger(v.no) || v.no < 1 || a.findIndex((x) => x && x.no === v.no) !== i ||
+        !Array.isArray(v.tree) || typeof v.memo !== "string" || v.memo.length > 200 ||
+        typeof v.effective !== "string" || (v.effective !== "" && !validDate(v.effective)) ||
+        !(v.from === undefined || (Number.isInteger(v.from) && v.from >= 1)) ||
+        (Array.isArray(v.changes) && v.changes.length > 5000) ||
+        !(v.changes === null || (Array.isArray(v.changes) && v.changes.every((c) => typeof c === "string"))) ||
+        !strMap(v.notes) || !Number.isFinite(v.savedAt) ||
+        !(v.original === undefined || typeof v.original === "boolean")))) return "版の形式が正しくありません。";
     return null;
   }
   async function importWork(f) {
@@ -1057,20 +1121,267 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       await idb.works.put(id, {
         id, name, fileName: o.fileName, lastModified: o.lastModified, bytes,
         opts: o.opts && typeof o.opts === "object" ? o.opts : {},
+        versions: (o.versions || []).slice().sort((a, b) => a.no - b.no),
         savedAt: Number.isFinite(o.savedAt) && o.savedAt > 0 && o.savedAt < 8.64e15 ? o.savedAt : Date.now(),
       });
-      if (o.draft) await idb.put(id, { base: o.draft.base, tree: o.draft.tree, name: o.fileName, savedAt: Date.now() });
+      if (o.draft) await idb.put(id, { base: o.draft.base, tree: o.draft.tree,
+        from: Number.isInteger(o.draft.from) ? o.draft.from : undefined, name: o.fileName, savedAt: Date.now() });
       else await idb.del(id);
       if (o.notes) store.set("kisoku.notes." + id, JSON.stringify(o.notes));
       else store.del("kisoku.notes." + id);
+      // この端末に残っていた版どうしの比較の備考は、読み込んだ版のもの（v.notes）と混ざらないよう消す
+      delPairNotes(id, () => true);
     } catch (e) { hint.textContent = "読み込めませんでした：" + workErr(e); return; }
     await openWork(id);
     hint.textContent = `「${name}」を読み込みました。`;
   }
 
+  // ---------- 版と改訂履歴 ----------
+  // 版は作業（works）の versions に、確定した時点の木（JSON）として残す。
+  // { no, effective（施行日 "YYYY-MM-DD" か ""）, memo, tree, changes（前の版から変わった条の見出し。最初の版は null）, notes（確定時の備考）, savedAt }
+  // 版どうしの比較は、Worker の「現行の木・改正案の木」に2つの版を渡して、いつもの新旧対照表で行う。
+  let versions = [];
+  let versionView = null;    // 版どうしを比べている間だけ { a, b }（版の番号）
+  const verLabel = (no) => `第${no}版`;
+  const verByNo = (no) => versions.find((v) => v.no === no);
+  // 版を「現行」として比べるときの木。新旧対照表は現行の側だけ元の docx の番号（number・number_str・mark）を使うので、
+  // 確定した版（改正案＝通し番号で表示していたもの）は、番号を通し番号に置き換えてから渡す。
+  // 読み込んだ内容そのものの版（original）は、元の番号のまま。
+  function asOld(v) {
+    if (v.original) return v.tree;
+    const t = KisokuEditor.clone(v.tree);
+    let ch = 0, art = 0;
+    // 読み込んだ作業ファイルの木は形が崩れていることがあるので、配列・オブジェクトでなければ触らない
+    // （形の検査は Worker 側の write_tree が行い、そこでエラーとして表示される）
+    const isObj = (x) => x && typeof x === "object" && !Array.isArray(x);
+    const each = (list, fn) => { if (Array.isArray(list)) list.forEach((x, i) => { if (isObj(x)) fn(x, i); }); };
+    const units = (list) => each(list, (u, i) => {
+      u.number = i + 1; u.mark = null;
+      units(u.items); units(u.sub_items); units(u.sub_items2);
+    });
+    const article = (a) => { a.number = ++art; a.number_str = ""; a.branch = 0; units(a.paragraphs); };
+    each(t, (n) => {
+      if (n.type === "chapter") { n.number = ++ch; n.number_str = ""; each(n.articles, article); }
+      else if (n.type === "article") article(n);
+    });
+    return t;
+  }
+  // 版どうしの比較の備考（kisoku.notes.<id>|v<a>-<b>）のうち、test(a, b) に当たるものを消す
+  function delPairNotes(id, test) {
+    const pre = "kisoku.notes." + id + "|v";
+    try {
+      Object.keys(localStorage).filter((k) => k.startsWith(pre)).forEach((k) => {
+        const m = k.slice(pre.length).match(/^(\d+)-(\d+)$/);
+        if (m && test(Number(m[1]), Number(m[2]))) store.del(k);
+      });
+    } catch {}
+  }
+  // "YYYY-MM-DD" で、実在する日付か
+  function validDate(s) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    const d = new Date(s + "T00:00:00Z");
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }
+  function verHint(kind, text) { $("verHint").className = "hint" + (kind ? " " + kind : ""); $("verHint").textContent = text; }
+  async function saveVersions() {
+    const id = draftKey();
+    const w = await idb.works.get(id);
+    if (!w) throw new Error("この作業は削除されています");
+    w.versions = versions; w.savedAt = Date.now();
+    await idb.works.put(id, w);
+    await renderWorks();
+  }
+  // 今の「現行」と「改正案」の木。編集していなければ、どちらも解析した木
+  async function currentTrees() {
+    if (edit) return { base: edit.base, tree: edit.tree };
+    const m = await call({ type: "getTree" });
+    if (m.type === "error") throw new Error(m.text);
+    const t = JSON.parse(m.tree);
+    return { base: t, tree: t };
+  }
+  // Worker に渡す木を、今の表示（版の比較か、編集中の改正案）に戻す
+  async function restoreTrees() {
+    if (versionView) {
+      const a = verByNo(versionView.a), b = verByNo(versionView.b);
+      if (a && b) {
+        const m = await call({ type: "useTrees", base: JSON.stringify(asOld(a)), edited: JSON.stringify(b.tree) });
+        if (m.type !== "error") return true;
+        log(m.detail || m.text);
+      }
+      versionView = null;
+    }
+    return sendTrees();
+  }
+  function rowSummary(r) {
+    if (r.kind === "added") return `${r.new_heading}（新設）`;
+    if (r.kind === "deleted") return `${r.old_heading}（削除）`;
+    if (r.kind === "summary" || r.kind === "renumbered") return `${r.old_heading}→${r.new_heading}（番号のみ）`;
+    return r.old_heading === r.new_heading ? r.new_heading : `${r.old_heading}→${r.new_heading}`;
+  }
+  // 2つの木の間で変わった条の見出しの一覧
+  async function diffSummary(a, b) {
+    try {
+      let m = await call({ type: "useTrees", base: JSON.stringify(a), edited: JSON.stringify(b) });
+      if (m.type === "error") throw new Error(m.text);
+      m = await call({ type: "compare", ...tplArgs() });
+      if (m.type === "error") throw new Error(m.text);
+      return (m.rows || []).map(rowSummary);
+    } finally {
+      await restoreTrees();
+    }
+  }
+  function currentNotes() { try { return JSON.parse(store.get(notesKey()) || "{}") || {}; } catch { return {}; } }
+
+  $("verAdd").addEventListener("click", () => withBusy(async () => {
+    if (versionView) return;
+    if (editingEl) { verHint("err", "編集中の条を閉じてから確定してください。"); return; }
+    const effective = $("verDate").value;
+    if (effective && !validDate(effective)) { verHint("err", "施行日の形式が正しくありません。"); return; }
+    const memo = $("verMemo").value.trim().slice(0, 200);
+    // 編集していなければ、② のオプションを変えた後でも今のオプションの解析結果を版にする
+    if (!edit && !(await ensureParsed((k, t) => verHint(k === "err" ? "err" : "", t)))) return;
+    let trees;
+    try { trees = await currentTrees(); } catch (e) { verHint("err", "確定できませんでした：" + workErr(e)); return; }
+    const last = versions[versions.length - 1];
+    // 比べる元は、改定を始めた版（「この版から改定」で途中の版に戻っていればその版）。無ければ最後の版
+    const from = (edit && Number.isInteger(edit.from) && verByNo(edit.from)) || last;
+    if (from && JSON.stringify(from.tree) === JSON.stringify(trees.tree)) { verHint("err", `${verLabel(from.no)}と同じ内容です。`); return; }
+    const add = [];
+    let no = last ? last.no : 0;
+    // 最初の確定で、読み込んだ内容から編集していれば、読み込んだ内容も版として残す（比べる元になるように）
+    if (!last && edit) add.push({ no: ++no, effective: "", memo: "読み込んだ内容", tree: trees.base, original: true, changes: null, notes: {}, savedAt: Date.now() });
+    const fromNo = from ? from.no : (edit ? no : null);
+    const prevTree = from ? asOld(from) : (edit ? trees.base : null);
+    let changes = null;
+    if (prevTree) {
+      try { changes = await diffSummary(prevTree, trees.tree); }
+      catch (e) { verHint("err", "確定できませんでした：" + workErr(e)); return; }
+    }
+    const notes = currentNotes();
+    // 一度も編集せずに最初の版を確定したときは、読み込んだ内容そのもの（元の番号のまま比べる）
+    const v = { no: ++no, effective, memo, tree: trees.tree, original: !last && !edit, changes, notes, savedAt: Date.now() };
+    if (fromNo) v.from = fromNo;
+    add.push(v);
+    const before = versions;
+    versions = versions.concat(add);
+    try { await saveVersions(); }
+    catch (e) { versions = before; verHint("err", "確定できませんでした：" + workErr(e)); return; }
+    // 備考は確定した版に移し（v.notes）、改定を始めた版との比較でも見られるようにする
+    if (fromNo && Object.keys(notes).length) store.set(notesKey() + `|v${fromNo}-${no}`, JSON.stringify(notes));
+    store.del(notesKey());
+    // 次の改定は、いま確定した版を現行として始める
+    renderVersions();
+    await startFrom(v, false);
+    $("verDate").value = ""; $("verMemo").value = "";
+    verHint("ok", `${verLabel(v.no)}を確定しました。続けて次の改定を編集できます。`);
+  }));
+
+  // 版を現行にして改定を始める（ask: 未確定の編集を捨てる確認をするか）
+  async function startFrom(v, ask) {
+    // 確定していない編集があるときだけ確かめる
+    const cur = edit && JSON.stringify(edit.tree);
+    if (ask && edit && cur !== JSON.stringify(edit.base) && !versions.some((x) => JSON.stringify(x.tree) === cur) &&
+        !confirm(`未確定の編集内容は消えます。${verLabel(v.no)}から改定を始めますか？`)) return false;
+    versionView = null;          // 先に戻す（備考のキーが、比べている版の組のものにならないように）
+    if (ask) store.del(notesKey());
+    edit = { base: asOld(v), tree: KisokuEditor.clone(v.tree), from: v.no, undo: [] };
+    if (!(await sendTrees())) return false;
+    await saveDraft();
+    await loadComparison();
+    return true;
+  }
+
+  function renderVersions() {
+    const body = $("verBody");
+    body.textContent = "";
+    [...versions].reverse().forEach((v) => {
+      const tr = document.createElement("tr");
+      const td = (text, cls) => { const c = document.createElement("td"); if (cls) c.className = cls; c.textContent = text; tr.appendChild(c); return c; };
+      td(verLabel(v.no));
+      td(v.effective ? v.effective.replace(/-/g, "/") : "—");
+      td(v.memo || "—");
+      const ch = v.changes;
+      // ponytail: 変わった条は先頭の20件だけ出す。全部見たいときは「④ に表示」で比べる。
+      td(ch === null || ch === undefined ? "—" : ch.length === 0 ? "変更なし"
+        : ch.slice(0, 20).join("、") + (ch.length > 20 ? `ほか ${ch.length - 20} 件` : ""), "chg");
+      const ops = td("", "ops");
+      [["この版から改定", () => withBusy(() => startFrom(v, true))], ["削除", () => deleteVersion(v.no)]].forEach(([label, fn]) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "btn small"; b.textContent = label;
+        b.setAttribute("aria-label", `${label}：${verLabel(v.no)}`);
+        b.addEventListener("click", () => { if (!busy) fn(); });
+        ops.appendChild(b);
+      });
+      body.appendChild(tr);
+    });
+    const fill = (sel, pick) => {
+      const keep = Number(sel.value);
+      sel.textContent = "";
+      versions.forEach((v) => {
+        const o = document.createElement("option");
+        o.value = String(v.no);
+        o.textContent = verLabel(v.no) + (v.effective ? `（${v.effective.replace(/-/g, "/")}）` : "");
+        sel.appendChild(o);
+      });
+      sel.value = String(verByNo(keep) ? keep : pick);
+    };
+    const n = versions.length;
+    if (n) {
+      fill($("verA"), versions[Math.max(0, n - 2)].no);
+      fill($("verB"), versions[n - 1].no);
+    }
+    refreshVersionBox();
+  }
+  function refreshVersionBox() {
+    $("verNoFile").hidden = !!file;
+    $("verBox").hidden = !file;
+    $("verAdd").disabled = busy || !!versionView;
+    $("verTableBox").hidden = versions.length === 0;
+    $("verCmp").hidden = versions.length < 2;
+    $("verShow").disabled = busy;
+    document.querySelectorAll("#verBody button").forEach((b) => { b.disabled = busy; });
+  }
+  async function deleteVersion(no) {
+    if (!confirm(`${verLabel(no)}を削除しますか？元に戻せません。`)) return;
+    await withBusy(async () => {
+      const before = versions;
+      versions = versions.filter((v) => v.no !== no);
+      delPairNotes(draftKey(), (a, b) => a === no || b === no);
+      try { await saveVersions(); }
+      catch (e) { versions = before; verHint("err", "削除できませんでした：" + workErr(e)); return; }
+      if (versionView && (versionView.a === no || versionView.b === no)) {
+        versionView = null;
+        if (await sendTrees()) await loadComparison();
+      }
+      verHint("ok", `${verLabel(no)}を削除しました。`);
+      renderVersions();
+    });
+  }
+  $("verShow").addEventListener("click", () => withBusy(async () => {
+    const a = Number($("verA").value), b = Number($("verB").value);
+    if (a === b) { verHint("err", "違う版を選んでください。"); return; }
+    if (editingEl) { verHint("err", "編集中の条を閉じてから表示してください。"); return; }
+    if (!verByNo(a) || !verByNo(b)) return;
+    versionView = { a, b };
+    if (!(await restoreTrees())) { verHint("err", "表示できませんでした。「処理の記録」を確認してください。"); return; }
+    verHint("", "");
+    // 確定のときに版へ移した備考は、改定を始めた版との比較でこの端末に無ければ戻す（作業ファイルを読み込んだときなど）
+    const vb = verByNo(b);
+    if (vb.from === a && vb.notes && Object.keys(vb.notes).length && !store.get(notesKey())) store.set(notesKey(), JSON.stringify(vb.notes));
+    clearComparison();
+    await loadComparison();
+    $("h4").scrollIntoView({ block: "start" });
+  }));
+  $("verBack").addEventListener("click", () => withBusy(async () => {
+    versionView = null;
+    clearComparison();
+    if (await sendTrees()) await loadComparison();
+  }));
+
   async function saveDraft() {
     try {
-      await idb.put(draftKey(), { base: edit.base, tree: edit.tree, name: file.name, savedAt: Date.now() });
+      // from: どの版から改定しているか（版から始めていなければ無し）
+      await idb.put(draftKey(), { base: edit.base, tree: edit.tree, from: edit.from, name: file.name, savedAt: Date.now() });
       draftSaveFailed = false;
       touchWork();
     } catch (e) {
@@ -1080,14 +1391,19 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   }
   function refreshEditBar() {
     // 編集中は、全部の条を消しても「元に戻す」「下書きを削除」を押せるように出し続ける
-    $("cmpEdit").hidden = !cmpShown || (!cmpBlocks.length && !edit);
+    $("cmpEdit").hidden = !cmpShown || (!cmpBlocks.length && !edit && !versionView);
     $("editUndo").disabled = busy || !edit || !edit.undo.length;
-    $("editDiscard").hidden = !edit;
+    $("editDiscard").hidden = !edit || !!versionView;
+    $("editUndo").hidden = !!versionView;
+    $("verBack").hidden = !versionView;
+    $("verBack").disabled = busy;
     $("editDiscard").disabled = busy;
     let t = edit ? "編集中は、② の解析のオプションを変えられません。" : "改正案の条・章を押すと編集できます。";
     if (edit && draftSaveFailed) t += "この端末に保存できないため、ページを閉じると編集は消えます。";
     $("editHint").textContent = t;
-    ["optLayout", "optGemini", "optAgent"].forEach((id) => { $(id).disabled = !!edit; });
+    if (versionView) t = `${verLabel(versionView.a)} → ${verLabel(versionView.b)} を比較中です（編集はできません）。`;
+    $("editHint").textContent = t;
+    ["optLayout", "optGemini", "optAgent"].forEach((id) => { $(id).disabled = !!edit || !!versionView; });
   }
   // 編集した木を Worker に渡す（null なら編集なし）
   async function sendTrees() {
@@ -1114,7 +1430,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     let d = null;
     try { d = await idb.get(draftKey()); } catch { return; }
     if (!d || !Array.isArray(d.base) || !Array.isArray(d.tree)) return;
-    edit = { base: d.base, tree: d.tree, undo: [] };
+    edit = { base: d.base, tree: d.tree, from: Number.isInteger(d.from) ? d.from : undefined, undo: [] };
     if (!(await sendTrees())) { edit = null; return; }
     $("parseHint").textContent += "前回の編集の下書きを読み込みました（④ で削除できます）。";
   }
@@ -1152,7 +1468,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   }
   // force: 描き直しの中から開くとき（処理中の表示のまま開く）
   async function openEditor(b, col, force = false) {
-    if ((busy && !force) || editingEl) return;
+    if ((busy && !force) || editingEl || versionView) return;
     editingEl = col;            // 木を受け取るのを待つ間に、ほかの条が開かれないように先に押さえる
     if (!edit) {
       const m = await call({ type: "getTree" });
@@ -1275,7 +1591,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       el.dataset.kind = b.kind; el.dataset.unit = b.unit;
       el.appendChild(column(b.old, b.old_cls || [], "old"));
       const newCol = column(b.new, b.new_cls || [], "new");
-      if (b.new_path) {
+      if (b.new_path && !versionView) {
         // 改正案の条・章は押すと編集欄になる
         newCol.classList.add("editable");
         newCol.tabIndex = 0;
@@ -1361,7 +1677,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       return;
     }
     if (file) await flushTouch();
-    file = f; parsedKey = null; edit = null; draftSaveFailed = false;
+    file = f; parsedKey = null; edit = null; draftSaveFailed = false; versionView = null; versions = [];
     clearComparison();
     $("fileName").textContent = f.name;
     $("result").innerHTML = ""; $("log").textContent = "";
