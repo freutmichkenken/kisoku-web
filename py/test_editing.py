@@ -103,6 +103,7 @@ import base64  # noqa: E402
 import struct  # noqa: E402
 import zlib  # noqa: E402
 from docx import Document  # noqa: E402,F811
+from docx.oxml.ns import qn  # noqa: E402
 
 
 def png(w, h):
@@ -332,6 +333,12 @@ with tempfile.TemporaryDirectory() as d:
         t = found[0]
         assert [[cl.text for cl in r.cells] for r in t.rows] == \
             [["区分", "割増率"], ["時間外労働", "２５％"], ["休日労働", "３５％\n（法定休日）"]], key
+        # 罫線がある（テンプレートに Table Grid が無ければ直接付ける）。tblBorders は tblLook より前に置く
+        tp = t._tbl.tblPr
+        names = [ch.tag.split('}')[1] for ch in tp]
+        assert "tblBorders" in names or tp.find(qn('w:tblStyle')) is not None, (key, names)
+        if "tblBorders" in names and "tblLook" in names:
+            assert names.index("tblBorders") < names.index("tblLook"), (key, names)
         # 表は第1項の本文の直後（間に段落を挟まない）
         prev = t._tbl.getprevious()
         first = p0["body"].strip()
@@ -376,5 +383,88 @@ with tempfile.TemporaryDirectory() as d:
 v = c.view(tree, tbl_tree)
 ch_rows = [r for r in v["rows"] if r["kind"] == "changed"]
 assert ch_rows and any("［表］　区分／割増率" in "".join(s for s, _ in line) for line in ch_rows[0]["new"])
+
+# 照合レポート：画面で足した表のセルは「編集で足した文章」、消した元の表のセルは「編集で消した文章」になる
+base_texts, tbl_texts = vr.tree_texts(tree), vr.tree_texts(tbl_tree)
+assert {vr.normalize(s) for s in ("区分", "時間外労働", "３５％", "（法定休日）")} <= tbl_texts - base_texts
+res = vr.split_edited({"missing": [], "added": [("時間外労働", vr.normalize("時間外労働")),
+                                                 ("（法定休日）", vr.normalize("（法定休日）"))]}, tree, tbl_tree)
+assert res["added"] == [] and len(res["edit_added"]) == 2, res
+# 元の文書の表（index あり）を画面で消したとき（サンプルの第1章には表が無いので、木に元の表を置いて確かめる）
+with_src = copy.deepcopy(tree)
+with_src[ci]["articles"][0]["paragraphs"][0]["tables"] = [{"type": "table", "index": 0, "rows": [["元の表のセル", "賃金区分表"]]}]
+res = vr.split_edited({"missing": [("賃金区分表", vr.normalize("賃金区分表"))], "added": []}, with_src, tree)
+assert res["missing"] == [] and len(res["edit_removed"]) == 1, res
+# 残っている表のセルは、出力で欠けていれば本当の欠落のまま（編集の分にしない）
+res = vr.split_edited({"missing": [("賃金区分表", vr.normalize("賃金区分表"))], "added": []}, with_src, with_src)
+assert len(res["missing"]) == 1 and res["edit_removed"] == [], res
+
+# --- 画面で足した数式：Word の数式（分数）で、項の本文の直後に出る ---
+M = "{http://schemas.openxmlformats.org/officeDocument/2006/math}"
+fml = {"type": "formula", "before": "時間外労働割増賃金 ＝", "num": "基本給＋〇〇手当",
+       "den": "1か月平均所定労働時間数", "after": "× 1.25 × 時間外労働時間数"}
+f_tree = copy.deepcopy(tree)
+fp0 = f_tree[ci]["articles"][0]["paragraphs"][0]
+fp0["drawings"] = [dict(fml), {"type": "formula", "before": "", "num": "", "den": "", "after": ""},
+                   {"type": "formula", "before": "月平均 ＝ 160時間"},
+                   {"type": "formula", "before": "賃金 ＝", "num": "基本給", "den": "", "after": "× 1.25"},
+                   {"type": "formula", "num": " ", "den": "12"}]
+with tempfile.TemporaryDirectory() as d:
+    p = web_entry.write_tree(os.path.join(d, "f.json"), json.dumps(f_tree, ensure_ascii=False))
+    for key in ("t1", "t2", "t3", "t4"):
+        out = os.path.join(d, f"f_{key}.docx")
+        quiet(apply_style, json_path=p, template_path=os.path.join(ROOT, "templates", f"就業規則テンプレ{key[1]}.docx"),
+              template_key=key, output_path=out, source_docx=SAMPLE, show_notice=False)
+        doc = Document(out)
+        maths = [para for para in doc.paragraphs if para._p.find(M + "oMathPara") is not None]
+        assert len(maths) == 4, (key, len(maths))                 # 空の数式は出さない
+        assert [t.text for t in maths[3]._p.iter(M + "t")] == ["12"], key   # 分子が空白だけなら分母の文字を出す
+        # 分母が空なら分数にせず、文字だけを並べる
+        assert maths[2]._p.find(".//" + M + "f") is None \
+            and [t.text for t in maths[2]._p.iter(M + "t")] == ["賃金 ＝", "基本給", "× 1.25"], key
+        m0 = maths[0]._p
+        texts = lambda e: [t.text for t in e.iter(M + "t")]     # noqa: E731
+        f = m0.find(".//" + M + "f")
+        assert f is not None and texts(f.find(M + "num")) == ["基本給＋〇〇手当"] \
+            and texts(f.find(M + "den")) == ["1か月平均所定労働時間数"], key
+        assert texts(m0) == ["時間外労働割増賃金 ＝", "基本給＋〇〇手当", "1か月平均所定労働時間数",
+                             "× 1.25 × 時間外労働時間数"], (key, texts(m0))
+        assert all(r.find(M + "rPr/" + M + "nor") is not None for r in m0.iter(M + "r"))   # 標準テキスト
+        assert maths[1]._p.find(".//" + M + "f") is None and texts(maths[1]._p) == ["月平均 ＝ 160時間"]
+        # 本文の直後に出る（間に段落を挟まない）
+        prev = maths[0]._p.getprevious()
+        assert fp0["body"].strip() in "".join(prev.itertext()), key
+
+    # 形の壊れた数式・長すぎる数式は保存しない
+    for bad in ({"type": "formula", "num": 3},
+                {"type": "formula", "den": ["x"]},
+                {"type": "formula", "after": "あ" * (web_entry.FORMULA_PART_MAX + 1)},
+                {"type": "formula", "num": "基本給\n＋手当"},
+                {"type": "formula", "den": "時間\x00数"}):
+        t = copy.deepcopy(tree)
+        t[ci]["articles"][0]["paragraphs"][0]["drawings"] = [bad]
+        try:
+            web_entry.write_tree(os.path.join(d, "bad.json"), json.dumps(t, ensure_ascii=False))
+        except ValueError:
+            continue
+        raise AssertionError(f"壊れた数式を保存した: {str(bad)[:60]}")
+
+# 1行の文字（新旧対照表に出す書き方）
+assert c.formula_text(fml) == "時間外労働割増賃金 ＝ （基本給＋〇〇手当）÷1か月平均所定労働時間数 × 1.25 × 時間外労働時間数"
+assert c.formula_text({"num": "（365 － 年間所定休日日数）× 8", "den": "12"}) == "（（365 － 年間所定休日日数）× 8）÷12"
+assert c.formula_text({"num": "（a＋b）", "den": "c"}) == "（a＋b）÷c"
+assert c.formula_text({"num": "(a+b)", "den": "c"}) == "(a+b)÷c"                     # 半角の括弧も1組と見る
+assert c.formula_text({"num": "（a＋b）＋（c＋d）", "den": "e"}) == "（（a＋b）＋（c＋d））÷e"   # 先頭の括弧が途中で閉じる
+assert c.formula_text({"num": "基本給", "den": "", "after": "× 1.25"}) == "基本給 × 1.25"
+assert c.formula_text({"before": "x", "num": "", "den": "", "after": ""}) == "x"
+assert c.formula_text({}) == ""
+v = c.view(tree, f_tree)
+ch_rows = [r for r in v["rows"] if r["kind"] == "changed"]
+assert ch_rows and any("［数式］　時間外労働割増賃金 ＝ （基本給＋〇〇手当）÷" in "".join(s for s, _ in line)
+                       for line in ch_rows[0]["new"])
+# 数式の中身だけ変えても、新旧対照表の変更として出る
+f2 = copy.deepcopy(f_tree)
+f2[ci]["articles"][0]["paragraphs"][0]["drawings"][0]["after"] = "× 1.30 × 時間外労働時間数"
+assert [r for r in c.view(f_tree, f2)["rows"] if r["kind"] == "changed"], "数式の変更が対照表に出ない"
 
 print("OK")

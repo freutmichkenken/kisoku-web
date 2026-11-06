@@ -276,6 +276,31 @@ def _article_lines(art, number_label, old, marks=None, disp_label=None):
     return out
 
 
+_OPS = re.compile(r"[＋+－−\-×÷*/]")
+
+
+def formula_text(dw):
+    """画面で足した数式を1行の文字にする（例：基本給＋〇〇手当 → （基本給＋〇〇手当）÷1か月…）。"""
+    def enclosed(s):
+        """全体が1組の括弧で囲まれているか（「（a＋b）＋（c＋d）」は先頭の括弧が途中で閉じるので False）。"""
+        if len(s) < 2 or s[0] not in "（(" or s[-1] not in "）)":
+            return False
+        depth = 0
+        for i, ch in enumerate(s):
+            depth += ch in "（("
+            depth -= ch in "）)"
+            if depth == 0 and i < len(s) - 1:
+                return False
+        return depth == 0
+
+    def wrap(s):
+        s = s.strip()
+        return f"（{s}）" if _OPS.search(s) and not enclosed(s) else s
+    num, den = (dw.get("num") or "").strip(), (dw.get("den") or "").strip()
+    mid = f"{wrap(num)}÷{wrap(den)}" if num and den else (num or den)
+    return " ".join(s for s in ((dw.get("before") or "").strip(), mid, (dw.get("after") or "").strip()) if s)
+
+
 def _container_marks(node):
     """表・図は中身を比べず、置き場所だけを示す。"""
     marks = []
@@ -285,6 +310,9 @@ def _container_marks(node):
     for dw in node.get("drawings", []):
         if dw.get("type") == "image":           # 画面で足した画像
             marks.append("［画像］" + ("　" + dw["name"][:40] if dw.get("name") else ""))
+        elif dw.get("type") == "formula":       # 画面で足した数式（中身の変更も分かるように全文を出す）
+            t = formula_text(dw)
+            marks.append("［数式］" + ("　" + t if t else ""))
         else:
             marks.append("［図］" + ("　" + dw["text"][:40] if dw.get("text") else ""))
     return marks

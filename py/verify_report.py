@@ -214,6 +214,15 @@ def tree_texts(tree):
             n = normalize(dw.get("text") or "") if isinstance(dw, dict) else ""
             if n:
                 out.add(n)
+        # 表のセルの文字も原本・出力の段落として照合されるので集める（画面で足した表・消した表を編集の分にするため）。
+        # セルの中の改行は出力では別の段落になるので、行ごとに分ける
+        for tbl in node.get("tables") or []:
+            for row in (tbl.get("rows") or []) if isinstance(tbl, dict) else []:
+                for cell in row or []:
+                    for line in (cell or "").split("\n"):
+                        n = normalize(line)
+                        if n:
+                            out.add(n)
         for key in ("articles", "paragraphs", "items", "sub_items", "sub_items2"):
             for child in node.get(key) or []:
                 walk(child)

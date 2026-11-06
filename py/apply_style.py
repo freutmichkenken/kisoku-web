@@ -912,6 +912,51 @@ def _emit_image(doc, node):
         return False
 
 
+_M = "{http://schemas.openxmlformats.org/officeDocument/2006/math}"
+
+
+def _emit_formula(doc, node):
+    """
+    画面で足した数式（前の文字・分子・分母・後ろの文字）を、Word の数式（OMML）で中央に入れる。
+    分子・分母のどちらかが空なら分数にせず、文字だけを並べる（新旧対照表の formula_text と同じ）。すべて空なら何も出さない。
+    文字は「標準テキスト」（m:nor）にして、和文が斜体の数式用フォントにならないようにする。
+    """
+    from lxml import etree
+    part = {k: (node.get(k) or "") for k in ("before", "num", "den", "after")}
+    if not any(v.strip() for v in part.values()):
+        return False
+
+    def run(text):
+        r = etree.Element(_M + "r")
+        etree.SubElement(etree.SubElement(r, _M + "rPr"), _M + "nor")
+        t = etree.SubElement(r, _M + "t")
+        t.text = text
+        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        return r
+
+    try:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        para = etree.SubElement(p._p, _M + "oMathPara")
+        jc = etree.SubElement(etree.SubElement(para, _M + "oMathParaPr"), _M + "jc")
+        jc.set(_M + "val", "center")
+        math = etree.SubElement(para, _M + "oMath")
+        if part["before"]:
+            math.append(run(part["before"]))
+        if part["num"].strip() and part["den"].strip():
+            f = etree.SubElement(math, _M + "f")
+            for key in ("num", "den"):
+                etree.SubElement(f, _M + key).append(run(part[key]))
+        elif part["num"].strip() or part["den"].strip():
+            math.append(run(part["num"] if part["num"].strip() else part["den"]))
+        if part["after"]:
+            math.append(run(part["after"]))
+        return True
+    except Exception as e:
+        print(f"  ※ 数式を入れられませんでした: {e}")
+        return False
+
+
 def _add_table(doc, tbl_node, style_id, src_tables=None,
                src_styles=None, out_styles=None):
     """
@@ -956,7 +1001,23 @@ def _add_table(doc, tbl_node, style_id, src_tables=None,
     try:
         table.style = doc.styles["Table Grid"]
     except KeyError:
-        pass
+        # テンプレートに「Table Grid」が無いと罫線の無い表になるので、細い実線の罫線を表に直接付ける
+        tblPr = table._tbl.tblPr
+        borders = OxmlElement('w:tblBorders')
+        for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+            b = OxmlElement(f'w:{side}')
+            b.set(qn('w:val'), 'single')
+            b.set(qn('w:sz'), '4')
+            b.set(qn('w:space'), '0')
+            b.set(qn('w:color'), 'auto')
+            borders.append(b)
+        # 子要素の順番は決まっている（tblBorders は shd・tblLayout・tblCellMar・tblLook より前）。順番が違うと Word が修復を求める
+        after = next((c for c in tblPr if c.tag in {qn(f'w:{t}') for t in (
+            "shd", "tblLayout", "tblCellMar", "tblLook", "tblCaption", "tblDescription", "tblPrChange")}), None)
+        if after is not None:
+            after.addprevious(borders)
+        else:
+            tblPr.append(borders)
     for i, row in enumerate(rows):
         for j in range(n_cols):
             text = row[j] if j < len(row) else ""
@@ -1177,11 +1238,13 @@ def apply_style(json_path, template_path, template_key, output_path,
             n_table += 1
 
     def emit_drawings(container):
-        """dict内の drawings（図形・画像）を元のまま出力する。画面で足した画像（type=image）は新しく入れる"""
+        """dict内の drawings（図形・画像）を元のまま出力する。画面で足した画像・数式（type=image/formula）は新しく入れる"""
         nonlocal n_draw
         for dw in container.get("drawings", []):
             if dw.get("type") == "image":
                 ok = _emit_image(doc, dw)
+            elif dw.get("type") == "formula":
+                ok = _emit_formula(doc, dw)
             else:
                 ok = _emit_drawing(doc, dw, src_body, src_doc, src_styles, out_styles)
             if ok:
