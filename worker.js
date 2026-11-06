@@ -131,7 +131,8 @@ async function handleCompare(msg) {
 async function handleComparisonDocx(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
   const path = entry.make_comparison(current.srcPath, current.jsonPath, msg.notes || "{}",
-    current.editedPath || "", msg.templateKey || "", msg.custom || "");
+    current.editedPath || "", msg.templateKey || "", msg.custom || "",
+    JSON.stringify(msg.labels || []));
   const docx = readOut(path);
   post({ type: "comparisonDocx", id: msg.id, docxName: path.split("/").pop(), docx }, [docx]);
 }

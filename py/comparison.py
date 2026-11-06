@@ -703,7 +703,8 @@ def compare(old_tree, new_tree, marks_spec=None):
 # Word の表にする
 # ============================================================
 
-def build_docx(rows, notes, out_path, title="新旧対照表", subtitle=""):
+def build_docx(rows, notes, out_path, title="新旧対照表", subtitle="",
+               old_label="現行", new_label="改正案"):
     """
     rows: compare() の結果。notes: {行の id: 備考の文字列}（画面で入力したもの）。
     まとめ行の備考は、自動の説明のあとに入力した備考を続ける。
@@ -757,7 +758,7 @@ def build_docx(rows, notes, out_path, title="新旧対照表", subtitle=""):
     rep = OxmlElement("w:tblHeader")           # ページをまたいでも見出し行を繰り返す
     rep.set(qn("w:val"), "true")
     trpr.append(rep)
-    for cell, text in zip(head.cells, ("現行", "改正案", "備考")):
+    for cell, text in zip(head.cells, (old_label, new_label, "備考")):
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.add_run(text).bold = True

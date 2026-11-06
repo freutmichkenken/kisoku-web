@@ -387,8 +387,9 @@ def compare_rows(json_path, edited_json_path="", template_key="", custom_json=""
 
 
 def make_comparison(src_path, json_path, notes_json="", edited_json_path="",
-                    template_key="", custom_json=""):
-    """新旧対照表の docx を作り、パスを返す。notes_json は {行の id: 備考}。"""
+                    template_key="", custom_json="", labels_json=""):
+    """新旧対照表の docx を作り、パスを返す。notes_json は {行の id: 備考}。
+    labels_json は表の見出し ["（第1版）", "改正案"]。正しくなければ「現行」「改正案」。"""
     try:
         notes = json.loads(notes_json or "{}")
     except ValueError:
@@ -400,8 +401,16 @@ def make_comparison(src_path, json_path, notes_json="", edited_json_path="",
     out = os.path.join(os.path.dirname(src_path), f"{base}_新旧対照表.docx")
     spec = _marks_spec(template_key, custom_json, os.path.dirname(src_path))
     rows = comparison.compare_files(json_path, edited_json_path or None, spec)
+    try:
+        labels = json.loads(labels_json or "[]")
+    except ValueError:
+        labels = []
+    if not (isinstance(labels, list) and len(labels) == 2
+            and all(isinstance(x, str) and 0 < len(x) <= 200 for x in labels)):
+        labels = ["現行", "改正案"]
     return comparison.build_docx(rows, notes, out,
-                                 subtitle=os.path.basename(src_path))
+                                 subtitle=os.path.basename(src_path),
+                                 old_label=labels[0], new_label=labels[1])
 
 
 def make_sample(custom_json, tree_json, work_dir):
