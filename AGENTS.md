@@ -23,10 +23,12 @@ python3 py/test_editing.py
 python3 tests/regression.py
 python3 tests/test_misdetection.py
 python3 tests/test_format_variation.py
+node tests/test_refs.js
 ```
 
 - GitHub Actions（`.github/workflows/test.yml`）でも、PR と main への push のたびに同じテストを実行する。
 - `tests/samples/` の就業規則サンプル（`messy_kisoku.docx` は `tests/make_messy_sample.py` で作った書式の乱れたもの）を解析・整形（テンプレ t1〜t4）し、`tests/expected/` の基準と比べる。サンプルの記述内容そのものは検証しない。
 - 誤判定例（`tests/test_misdetection.py`）：`tests/cases/misdetection_cases.json` の例を、期待する構造（`expected_outline`）と比べる。既知の失敗（`known_failure`）は数えるだけで落とさない。直ったら表示されるので `known_failure` を外す。仕様未決（`pending_spec`）は比べない。
+- 参照の書き換え（`tests/test_refs.js`）：`refs.js` が、条の追加・削除で本文中の「第◯条」を新しい番号に書き換え、法令・ほかの規程への参照は書き換えないことを確かめる。
 - 書式ゆらぎ（`tests/test_format_variation.py`）：サンプルの標準形と、書式を崩した形（折り返し・数字の空白・タイトル別行・項の「２．」）との違いを条ごとに数える。`tests/cases/format_variation_known.json` に無い不一致が出たら失敗。
 - 差分が出た場合、意図した変更かどうかをユーザーに確認し、了承を得てから `python3 tests/regression.py --update` で基準を更新する。

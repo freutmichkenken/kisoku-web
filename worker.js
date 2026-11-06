@@ -136,10 +136,31 @@ async function handleComparisonDocx(msg) {
   post({ type: "comparisonDocx", id: msg.id, docxName: path.split("/").pop(), docx }, [docx]);
 }
 
-// 編集を始めるときの木（現行）を返す
+// 編集を始めるときの木（現行）を返す。parsed なら、比較の表示中でも解析した木そのもの
 async function handleGetTree(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
-  post({ type: "tree", id: msg.id, tree: entry.read_tree(current.jsonPath) });
+  post({ type: "tree", id: msg.id, tree: entry.read_tree(msg.parsed ? current.parsedPath : current.jsonPath) });
+}
+
+// 比べる相手の docx を解析して木だけ返す（今の作業の解析結果は変えない）
+async function handleParseOther(msg) {
+  runNo += 1;
+  const dir = `/work/other_${runNo}`;
+  py.FS.mkdirTree(dir);
+  const srcPath = `${dir}/${safeName(msg.name)}`;
+  py.FS.writeFile(srcPath, new Uint8Array(msg.bytes));
+  try {
+    const res = JSON.parse(entry.parse(srcPath, false, !!msg.layoutAsFigure, "", "paragraph"));
+    post({ type: "otherTree", id: msg.id, tree: entry.read_tree(res.json_path),
+      chapters: res.chapters, articles: res.articles });
+  } finally {
+    // 比べるたびにメモリ上のファイルが増えないよう、使い終わったら消す
+    // （消せなくても比較はできるので、失敗は無視する）
+    try {
+      for (const f of py.FS.readdir(dir)) if (f !== "." && f !== "..") py.FS.unlink(`${dir}/${f}`);
+      py.FS.rmdir(dir);
+    } catch {}
+  }
 }
 
 // 画面の編集内容を受け取る。base: 下書きの現行の木（null ならこの解析の結果）、edited: 編集した木（null なら編集なし）
@@ -183,6 +204,7 @@ self.onmessage = async (ev) => {
     else if (msg.type === "sample") await handleSample(msg);
     else if (msg.type === "compare") await handleCompare(msg);
     else if (msg.type === "getTree") await handleGetTree(msg);
+    else if (msg.type === "parseOther") await handleParseOther(msg);
     else if (msg.type === "useTrees") await handleUseTrees(msg);
     else if (msg.type === "comparisonDocx") await handleComparisonDocx(msg);
     else if (msg.type === "readCustom") await handleReadCustom(msg);
