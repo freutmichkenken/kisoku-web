@@ -733,7 +733,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         </div>
         <div class="cmp-scroll">
           <div class="cmp-inner">
-            <div class="cmp-head"><div>現行</div><div>改正案</div></div>
+            <div class="cmp-head"><div id="cmpHeadOld">現行</div><div id="cmpHeadNew">改正案</div></div>
             <div class="cmp-body" id="cmpBody"></div>
           </div>
         </div>
@@ -1138,6 +1138,12 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         opts: collectOpts(), savedAt: Date.now(),
       });
       versions = old && Array.isArray(old.versions) ? old.versions : [];
+      // 版がまだ無ければ、読み込んだ内容を第1版として登録する（元の番号のまま比べる original）
+      if (!versions.length) {
+        const trees = await currentTrees();
+        versions = [{ no: 1, effective: "", memo: "読み込んだ内容", tree: trees.base, original: true, changes: null, notes: {}, savedAt: Date.now() }];
+        await saveVersions();
+      }
       if (!persistAsked && navigator.storage && navigator.storage.persist) {
         persistAsked = true;
         navigator.storage.persist().catch(() => {});   // ブラウザが自動で消しにくくする（断られても動作は同じ）
@@ -1357,6 +1363,16 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   let versionView = null;
   const verLabel = (no) => `第${no}版`;
   const verByNo = (no) => versions.find((v) => v.no === no);
+  // 新旧対照表の見出し [左, 右]。左は比べる元の版、右は確定前なら「改正案」（画面と Word で同じ）
+  function cmpLabels() {
+    if (versionView) {
+      if (versionView.a) return [`（${versionView.labelA}）`, `（${versionView.labelB}）`];
+      return [versionView.labelA, versionView.labelB];
+    }
+    const from = edit && Number.isInteger(edit.from) ? verByNo(edit.from) : null;
+    const base = from || (versions[0] && versions[0].original ? versions[0] : null);
+    return [base ? `（${verLabel(base.no)}）` : "現行", "改正案"];
+  }
   // 版を「現行」として比べるときの木。新旧対照表は現行の側だけ元の docx の番号（number・number_str・mark）を使うので、
   // 確定した版（改正案＝通し番号で表示していたもの）は、番号を通し番号に置き換えてから渡す。
   // 読み込んだ内容そのものの版（original）は、元の番号のまま。
@@ -1650,6 +1666,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       t += `参照先の無い条番号があります（${list}${dead.length > 5 ? ` ほか${dead.length - 5}件` : ""}）。「${KisokuRefs.DEAD}」の箇所を直してください。`;
     }
     $("editHint").textContent = t;
+    const [hOld, hNew] = cmpLabels();
+    $("cmpHeadOld").textContent = hOld; $("cmpHeadNew").textContent = hNew;
     if (versionView) t = `${versionView.labelA} → ${versionView.labelB} を比較中です（編集はできません）。`;
     $("editHint").textContent = t;
     ["optLayout", "optGemini", "optAgent"].forEach((id) => { $(id).disabled = !!edit || !!versionView; });
@@ -2097,7 +2115,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     const notes = loadNotes();
     const ids = new Set(cmpRows.map((r) => r.id));
     const used = Object.fromEntries(Object.entries(notes).filter(([k]) => ids.has(k)));
-    const m = await call({ type: "comparisonDocx", notes: JSON.stringify(used), ...tplArgs() });
+    const m = await call({ type: "comparisonDocx", notes: JSON.stringify(used), labels: cmpLabels(), ...tplArgs() });
     if (m.type === "error") { cmpHint("err", "保存できませんでした：" + m.text); log(m.detail || m.text); return; }
     const url = docxBlobUrl(m.docx);
     urls.push(url);

@@ -230,6 +230,9 @@ with tempfile.TemporaryDirectory() as d:
     w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
     assert tbl._tbl.tblPr.find(w + "tblLayout").get(w + "type") == "fixed"
     assert [round(col.width.mm) for col in tbl.columns] == [72, 72, 26]
+    # 見出しは版の表示に変えられる（画面と同じ「（第1版）」など）
+    path3 = c.build_docx(rows, {}, os.path.join(d, "v.docx"), old_label="（第1版）", new_label="（第2版）")
+    assert [cell.text for cell in Document(path3).tables[0].rows[0].cells] == ["（第1版）", "（第2版）", "備考"]
     path2 = c.build_docx([], {}, os.path.join(d, "e.docx"))
     d2 = Document(path2)
     assert "変更点はありません。" in [p.text for p in d2.paragraphs] and not d2.tables
