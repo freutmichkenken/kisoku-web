@@ -469,6 +469,13 @@
     });
   }
 
+  // 編集欄に、開いたときから変わったか（dirty）と確定（commit）を付ける。ほかの条を押したときなどに使う
+  function track(form, getNode, prepare, h) {
+    const key = () => JSON.stringify(prepare(clone(getNode())));
+    const start = key();
+    form.kisokuEdit = { dirty: () => key() !== start, commit: () => h.commit(prepare(getNode())) };
+  }
+
   // 条の編集欄。h: { commit(art), cancel(), insertAfter(art), remove() }
   function articleForm(article, h) {
     closeMenu();                 // 前の編集欄で開いたままのメニューを閉じる
@@ -544,6 +551,7 @@
     };
     let boxNode = new WeakMap();
     shortcuts(form, { commit: h.commit, cancel: h.cancel, prepare: renumber }, () => art);
+    track(form, () => art, renumber, h);
     if (window.ResizeObserver) new ResizeObserver(() => form.querySelectorAll(".ed-text").forEach(fit)).observe(form);
     redraw();
     return form;
@@ -562,6 +570,7 @@
     t.appendChild(inp);
     form.appendChild(t);
     shortcuts(form, h, () => ch);
+    track(form, () => ch, (x) => x, h);
     form.appendChild(footer([
       withTitle(button("確定", () => h.commit(ch), "btn small primary"), "Ctrl+S"),
       withTitle(button("取消", () => h.cancel()), "Esc"),
@@ -592,6 +601,7 @@
     ta.addEventListener("input", () => { s.body = ta.value; });
     form.append(t, ta);
     shortcuts(form, h, () => s);
+    track(form, () => s, (x) => x, h);
     form.appendChild(footer([
       withTitle(button("確定", () => h.commit(s), "btn small primary"), "Ctrl+S"),
       withTitle(button("取消", () => h.cancel()), "Esc"),

@@ -1430,6 +1430,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   }
   $("backList").addEventListener("click", async () => {
     if (busy) return;
+    if (!(await settleEdit())) return;
     await flushTouch();
     setView("list");
     await renderWorks();
@@ -1668,12 +1669,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       note.className = "chk-note"; note.textContent = x.note;
       b.append(head, note);
       b.addEventListener("click", () => {
-        const want = JSON.stringify(x.path);
-        const blk = cmpBlocks.find((y) => y.new_path && JSON.stringify(y.new_path) === want);
-        if (!blk || !blk.el || busy) return;
-        if (blk.blockEl) blk.blockEl.classList.remove("folded");
-        openEditor(blk, blk.el);
-        blk.el.scrollIntoView({ block: "center" });
+        if (!busy) requestEdit(x.path);
       });
       li.appendChild(b);
       ul.appendChild(li);
@@ -1718,7 +1714,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 
   $("verAdd").addEventListener("click", () => withBusy(async () => {
     if (versionView) return;
-    if (editingEl) { verHint("err", "編集中の条を閉じてから確定してください。"); return; }
+    if (editingEl) { verHint("err", editingMsg() + "編集中の条を閉じてから確定してください。"); return; }
     const effective = $("verDate").value;
     if (effective && !validDate(effective)) { verHint("err", "施行日の形式が正しくありません。"); return; }
     const memo = $("verMemo").value.trim().slice(0, 200);
@@ -1859,7 +1855,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   $("verShow").addEventListener("click", () => withBusy(async () => {
     const a = Number($("verA").value), b = Number($("verB").value);
     if (a === b) { verHint("err", "違う版を選んでください。"); return; }
-    if (editingEl) { verHint("err", "編集中の条を閉じてから表示してください。"); return; }
+    if (editingEl) { verHint("err", editingMsg() + "編集中の条を閉じてから表示してください。"); return; }
     if (!verByNo(a) || !verByNo(b)) return;
     versionView = { a, b, labelA: verLabel(a), labelB: verLabel(b), treeA: asOld(verByNo(a)), treeB: verByNo(b).tree, tag: `v${a}-${b}` };
     if (!(await restoreTrees())) { verHint("err", "表示できませんでした。「処理の記録」を確認してください。"); return; }
@@ -1879,7 +1875,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (!f || busy || !file) return;
     withBusy(async () => {
       if (!/\.docx$/i.test(f.name)) { cmpHint("err", "docx 形式のファイルを選んでください。"); return; }
-      if (editingEl) { cmpHint("err", "編集中の条を閉じてから比べてください。"); return; }
+      if (editingEl) { cmpHint("err", editingMsg() + "編集中の条を閉じてから比べてください。"); return; }
       cmpHint("", `${f.name} を解析しています…`);
       const bytes = await f.arrayBuffer();
       const m = await call({ type: "parseOther", name: f.name, bytes, layoutAsFigure: $("optLayout").checked }, [bytes]);
@@ -2029,11 +2025,64 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       await loadComparison();
     });
   }
+  // 編集中の条・章の呼び名（「第５条」「第２章」「附則」）。改正案の列の表示から取る
+  function blockLabel(b) {
+    const lines = (b.new || []).map((s) => s.map(([t]) => t).join("").trim()).filter((t) => t);
+    if (b.unit === "supplement") return "附則";
+    const m = lines.join("\n").match(/第[0-9０-９一二三四五六七八九十百]+[条章](の[0-9０-９一二三四五六七八九十]+)?/);
+    return m ? m[0] : (lines[0] || "").slice(0, 20) || (b.unit === "chapter" ? "章" : "条");
+  }
+  const editingMsg = () => `${(editingEl && editingEl.kisokuLabel) || "条"}が編集中です。`;
+  function focusEditing() {
+    if (!editingEl) return;
+    editingEl.scrollIntoView({ block: "center" });
+    const f = editingEl.querySelector("input, textarea");
+    if (f) f.focus();
+  }
+  // 開いている編集欄を片付ける。編集していなければ閉じ、編集していれば確定するか確かめる。
+  // 編集欄が閉じたら true（キャンセル・確定の失敗のときは編集欄に戻って false）
+  async function settleEdit() {
+    if (!editingEl) return true;
+    const ed = editingEl.kisokuForm && editingEl.kisokuForm.kisokuEdit;
+    if (!ed || busy) { focusEditing(); return false; }   // 木の読み込み中・反映中
+    if (!ed.dirty()) {
+      if (edit && !edit.sent) edit = null;
+      editingEl = null;
+      renderComparison();
+      return true;
+    }
+    if (!confirm(`${editingMsg()}\n編集を確定しますか？`)) { focusEditing(); return false; }
+    await ed.commit();
+    if (editingEl) { focusEditing(); return false; }      // 確定できなかった（理由は編集欄に出ている）
+    return true;
+  }
+  // 改正案の条・章を押したとき。ほかの条を編集中なら片付けてから開く
+  async function requestEdit(path) {
+    const find = () => cmpBlocks.find((x) => x.new_path && JSON.stringify(x.new_path) === JSON.stringify(path));
+    let b = find();
+    if (!b || !b.el || b.el === editingEl || versionView) return;
+    if (editingEl) {
+      if (!(await settleEdit())) return;
+      b = find();                 // 描き直したので、押した条を探し直す
+      if (!b || !b.el) return;
+    }
+    if (busy) return;
+    if (b.blockEl) b.blockEl.classList.remove("folded");
+    await openEditor(b, b.el);
+    b.el.scrollIntoView({ block: "center" });
+  }
+  // 編集した内容があるときは、ページを離れる前にブラウザの確認を出す（文言はブラウザが決める）
+  window.addEventListener("beforeunload", (e) => {
+    const ed = editingEl && editingEl.kisokuForm && editingEl.kisokuForm.kisokuEdit;
+    if (ed && ed.dirty()) { e.preventDefault(); e.returnValue = ""; }
+  });
+
   // force: 描き直しの中から開くとき（処理中の表示のまま開く）
   const path0 = (b) => b.new_path[0];
   async function openEditor(b, col, force = false) {
     if ((busy && !force) || editingEl || versionView) return;
     editingEl = col;            // 木を受け取るのを待つ間に、ほかの条が開かれないように先に押さえる
+    col.kisokuLabel = blockLabel(b);
     if (!edit) {
       const m = await call({ type: "getTree" });
       if (m.type === "error") { editingEl = null; cmpHint("err", "編集内容を読み込めませんでした：" + m.text); return; }
@@ -2062,6 +2111,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       });
       col.textContent = "";
       col.appendChild(form);
+      col.kisokuForm = form;
       const first = form.querySelector("input, textarea");
       if (first) first.focus();
       return;
@@ -2102,6 +2152,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     }
     col.textContent = "";
     col.appendChild(form);
+    col.kisokuForm = form;
     const first = form.querySelector("input, textarea");
     if (first) first.focus();
   }
@@ -2189,9 +2240,9 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         newCol.tabIndex = 0;
         newCol.setAttribute("role", "button");
         newCol.setAttribute("aria-label", "編集：" + ((b.new && b.new.length) ? b.new.map((s) => s.map(([t]) => t).join("")).find((t) => t) || "" : ""));
-        newCol.addEventListener("click", () => openEditor(b, newCol));
+        newCol.addEventListener("click", () => requestEdit(b.new_path));
         newCol.addEventListener("keydown", (e) => {
-          if (e.target === newCol && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openEditor(b, newCol); }
+          if (e.target === newCol && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); requestEdit(b.new_path); }
         });
         b.el = newCol;
       }
@@ -2266,6 +2317,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   // ①やドロップで選んだファイル。まだ作業が無い（初めて読み込む）ときだけ、既定のオプションを当てる
   async function useNewFile(f) {
     if (busy) return;   // 処理中に②③を書き換えないように（呼び出し元でも止めている）
+    if (!(await settleEdit())) return;   // 編集中の条は、確定するか確かめてから開き直す
     const d = loadDefaults();
     if (d && /\.docx$/i.test(f.name)) {
       const id = [f.name, f.size, f.lastModified].join("|");
