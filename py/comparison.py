@@ -18,6 +18,7 @@
   番号がずれていても、中身が同じなら同じ条とみなす。
 - 中身が同じで番号だけ違う条は「番号のみ」。続く区間は最初の2条だけ載せ、
   残りは1行（第○条～第○条）にまとめる。中身の変わった条が来たら区切る。
+  本文中の条の参照（第29条→第36条）を新しい番号に直しただけの条も「番号のみ」とする。
 - 変わった文字には、現行・改正案の両方で下線を引く。
 - 記号の表示：現行は元の文書の記号（解析で残した mark）、改正案は③で選んだテンプレートの書き方。
   変更かどうかは、両方の列で同じ形（第５条・２・（１）・ア・（ア））にそろえた「比べる用の記号」で決めるので、
@@ -426,6 +427,25 @@ def _pair_similar(olds, news, score):
     return out
 
 
+_REF = re.compile(r"第\s*([0-9０-９]+)\s*条(?:\s*の\s*([0-9０-９]+))?")
+_HAN = str.maketrans("０１２３４５６７８９", "0123456789")
+
+
+def _ref_key(m):
+    """「第９条の２」の一致から (9, 2) を返す（枝番が無ければ 0）。"""
+    return int(m.group(1).translate(_HAN)), int((m.group(2) or "0").translate(_HAN))
+
+
+def _refs_only(o, n, ref_map):
+    """
+    条の中身の違いが、本文中の条の参照（第29条→第36条 など）を新しい番号に直しただけか。
+    ref_map: {現行の (条, 枝番): 改正案の (条, 枝番)}。法令の条など表に無い参照はそのまま比べる。
+    """
+    def norm(text, mapping):
+        return _REF.sub(lambda m: "第%d条の%d" % mapping.get(_ref_key(m), _ref_key(m)), text)
+    return norm(o["sig"], ref_map) == norm(n["sig"], {})
+
+
 def _disp(parts):
     """表示する行（表示する記号＋本文）。"""
     return [dm + tx for _cm, dm, tx in parts]
@@ -559,13 +579,20 @@ def view(old_tree, new_tree, marks_spec=None):
     """
     marks = Marks(marks_spec) if marks_spec else None
     pairs = _align(units(old_tree, True), units(new_tree, False, marks))
+    # 条番号の付け替え表。本文中の参照を書き換えただけの条を「番号のみ」にするために使う
+    ref_map = {}
+    for o, n in pairs:
+        if o is not None and n is not None and o["kind"] == "article":
+            mo, mn = _REF.fullmatch(o["label"]), _REF.fullmatch(n["label"])
+            if mo and mn:
+                ref_map[_ref_key(mo)] = _ref_key(mn)
     blocks = []
     for o, n in pairs:
         if o is None:
             kind, old, new = "added", None, _plain(_disp(n["parts"]), True)
         elif n is None:
             kind, old, new = "deleted", _plain(_disp(o["parts"]), True), None
-        elif o["sig"] == n["sig"]:
+        elif o["sig"] == n["sig"] or (o["kind"] == "article" and _refs_only(o, n, ref_map)):
             # 比べる用の行（記号はこれまでの形）で決める。記号の書き方だけの違いは「変更なし」
             if o["lines"] == n["lines"]:
                 kind, old, new = "same", _plain(_disp(o["parts"])), _plain(_disp(n["parts"]))
