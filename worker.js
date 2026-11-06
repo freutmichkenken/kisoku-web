@@ -46,19 +46,19 @@ async function fetchOk(path, as) {
 }
 
 async function init() {
-  status("Python 実行環境を読み込んでいます");
+  status("（1/3）");
   py = await loadPyodide({ indexURL: PYODIDE_BASE });
   py.setStdout({ batched: (s) => post({ type: "log", text: s }) });
   py.setStderr({ batched: (s) => post({ type: "log", text: s }) });
 
-  status("ライブラリを準備しています");
+  status("（2/3）");
   await py.loadPackage(["lxml", "typing-extensions"]);
   py.FS.mkdirTree("/app/lib");
   py.FS.mkdirTree("/app/templates");
   py.FS.mkdirTree("/work");
   py.unpackArchive(await fetchOk(DOCX_WHEEL), "zip", { extractDir: "/app/lib" });
 
-  status("整形プログラムを読み込んでいます");
+  status("（3/3）");
   await Promise.all([
     ...PY_FILES.map(async (f) =>
       py.FS.writeFile(`/app/${f}`, await fetchOk(`py/${f}`, "text"))),
