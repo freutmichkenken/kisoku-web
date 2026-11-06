@@ -449,6 +449,8 @@
   // ---------- 公開する操作 ----------
   window.KisokuCustom = {
     PRESETS, SAMPLE,
+    // 外から来た設定（登録したテンプレート・書き出したファイル）の形を確かめる。正しくなければ null
+    sanitize: (s) => sanitize(s),
     init(el, opts = {}) {
       root = el;
       onChange = opts.onChange || onChange;

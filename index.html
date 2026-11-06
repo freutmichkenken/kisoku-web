@@ -4,6 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>就業規則 整形</title>
+<script>
+// 表示の設定（配色・文字の大きさ・メニューを隠すか）は、描く前に当てて画面のちらつきを防ぐ
+try {
+  const v = JSON.parse(localStorage.getItem("kisoku.view") || "{}") || {};
+  const r = document.documentElement;
+  if (v.theme === "light" || v.theme === "dark") r.dataset.theme = v.theme;
+  if (v.size === "large") r.dataset.size = "large";
+  if (v.sideHidden === true) r.dataset.side = "hidden";
+} catch {}
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📐</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,8 +41,9 @@
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+/* 配色は端末の設定に合わせる。メニューの「表示」で選んだら data-theme で固定する */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --paper: #12161F; --surface: #1A2030; --ink: #E6E9F0; --muted: #9AA3B5;
     --rule: #323B4F; --ai: #8FAEEF; --ai-soft: #1F2B47;
     --caution: #F0C674; --caution-bg: #2E2614; --ok: #7CC4A0;
@@ -40,8 +51,21 @@
     --del-bg: #3A1D20; --del-strong: #6B2A30;
     --ins-bg: #17301F; --ins-strong: #25563A;
     --band-bg: #1A2030; --hover-bg: #232B3F; --edit-old: #1F2B47;
+    color-scheme: dark;
   }
 }
+:root[data-theme="dark"] {
+  --paper: #12161F; --surface: #1A2030; --ink: #E6E9F0; --muted: #9AA3B5;
+  --rule: #323B4F; --ai: #8FAEEF; --ai-soft: #1F2B47;
+  --caution: #F0C674; --caution-bg: #2E2614; --ok: #7CC4A0;
+  --err: #F29B9F; --err-bg: #3A1D20;
+  --del-bg: #3A1D20; --del-strong: #6B2A30;
+  --ins-bg: #17301F; --ins-strong: #25563A;
+  --band-bg: #1A2030; --hover-bg: #232B3F; --edit-old: #1F2B47;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-size="large"] body { zoom: 1.15; }
 *, *::before, *::after { box-sizing: inherit; }
 html { scroll-padding-top: env(safe-area-inset-top, 0px); }
 body {
@@ -104,15 +128,64 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
   outline: 3px solid var(--ai); outline-offset: 2px;
 }
 .file .name { font-size: 14px; word-break: break-all; }
-.works { margin-top: 16px; }
-.works h3 { margin: 0 0 6px; font-size: 15px; }
-.works ul { list-style: none; margin: 0 0 10px; padding: 0; }
-.works li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 0; border-top: 1px solid var(--line, #ddd); }
-.works li .w-name { flex: 1 1 12em; min-width: 0; word-break: break-all; }
-.works li .w-date { display: block; font-size: 12.5px; color: var(--muted); }
+/* ---------- メニュー（サイドタブ） ---------- */
+/* 広い画面では左に常に出し、狭い画面では ☰ で開く引き出しにする */
+.side-toggle {
+  position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px; z-index: 40;
+  width: 44px; height: 44px; border-radius: 6px; font-size: 20px; line-height: 1; cursor: pointer;
+  border: 1.5px solid var(--ai); background: var(--surface); color: var(--ai);
+}
+.side-toggle:focus-visible { outline: 3px solid var(--ai); outline-offset: 2px; }
+.side {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 30; width: min(320px, 88vw);
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 0 14px 32px;
+  background: var(--surface); border-right: 1px solid var(--rule);
+  font-size: 14px;
+  /* 閉じるときは動きが終わってから隠し、開くときはすぐ見せる（開いた直後にフォーカスを移せるように） */
+  transform: translateX(-100%); visibility: hidden; transition: transform .2s, visibility 0s .2s;
+}
+:root[data-drawer="open"] .side { transform: none; visibility: visible; transition: transform .2s, visibility 0s; }
+.side-backdrop { position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, .35); }
+.side-backdrop[hidden] { display: none; }
+main { padding-top: calc(68px + env(safe-area-inset-top, 0px)); }
+@media (min-width: 1100px) {
+  .side { transform: none; visibility: visible; transition: none; width: 320px; }
+  .side-backdrop { display: none; }
+  body { padding-left: 320px; }
+  main { padding-top: 28px; }
+  :root[data-side="hidden"] .side { display: none; }
+  :root[data-side="hidden"] body { padding-left: 0; }
+  :root[data-side="hidden"] main { padding-top: calc(68px + env(safe-area-inset-top, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { .side { transition: none; } }
+.side, .side * { box-sizing: border-box; }
+/* ☰ が上に重なるので、中身がその下に潜るよう見出しの帯を固定する */
+.side-head {
+  position: sticky; top: 0; z-index: 1; margin: 0 -14px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px 66px; min-height: calc(64px + env(safe-area-inset-top, 0px));
+  display: flex; align-items: center; background: var(--surface); font-weight: 700; font-size: 15px;
+}
+.side-sec { border-top: 1px solid var(--rule); padding: 10px 0; }
+.side-sec > summary { cursor: pointer; font-weight: 700; font-size: 15px; padding: 4px 0; }
+.side-sec .hint { font-size: 13px; }
+.side-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.side .btn.small { min-height: 36px; padding: 0 10px; font-size: 13.5px; }
+.side-nav { list-style: none; margin: 4px 0 0; padding: 0; }
+.side-nav a { display: block; padding: 6px 4px; color: var(--ai); text-decoration: none; border-radius: 4px; }
+.side-nav a:hover { background: var(--hover-bg); }
+.side label.sel { display: grid; gap: 4px; margin-top: 8px; font-weight: 700; }
+.side select { min-height: 40px; font: inherit; font-weight: 400; padding: 0 8px; border: 1px solid var(--rule); border-radius: 5px; background: var(--surface); color: var(--ink); }
+.side .caution { margin: 0; border-left: 0; padding: 10px 0; background: none; }
+.side .caution ol, .side .caution ul { margin: 6px 0 0; padding-left: 1.3em; font-size: 13px; line-height: 1.75; }
+.side .caution h3 { margin: 10px 0 0; font-size: 13.5px; color: var(--caution); }
+.side .btn.danger { border-color: var(--err); color: var(--err); }
+.works ul, .tpl-list { list-style: none; margin: 4px 0 8px; padding: 0; }
+.works li, .tpl-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 0; border-top: 1px dashed var(--rule); }
+.works li .w-name, .tpl-list .w-name { flex: 1 1 100%; min-width: 0; word-break: break-all; }
+.works li .w-date, .tpl-list .w-date { display: block; font-size: 12px; color: var(--muted); }
 .works li.cur .w-name { font-weight: 700; }
-.works .btn.small { min-height: 36px; padding: 0 10px; }
-.works input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.key-state { margin: 0 0 4px; }
 .drop {
   position: fixed; inset: 0; z-index: 10; display: none;
   align-items: center; justify-content: center; padding: 16px;
@@ -353,6 +426,116 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 </style>
 </head>
 <body>
+<button type="button" class="side-toggle" id="sideToggle" aria-controls="side" aria-expanded="false" aria-label="メニュー">☰</button>
+<div class="side-backdrop" id="sideBackdrop" hidden></div>
+<aside class="side" id="side" aria-label="メニュー">
+  <div class="side-head" aria-hidden="true">メニュー</div>
+  <details class="side-sec" id="secWorks" open>
+    <summary>作業ファイル</summary>
+    <div class="works">
+      <ul id="worksList" aria-label="作業ファイル"></ul>
+      <p class="hint" id="worksEmpty">保存した作業はありません。</p>
+      <input type="file" id="workImport" class="vh" accept=".json,application/json">
+      <label for="workImport" class="btn small" id="workImportBtn">作業ファイルを読み込む</label>
+      <p class="hint" id="worksHint" aria-live="polite"></p>
+    </div>
+  </details>
+
+  <details class="side-sec" open>
+    <summary>手順</summary>
+    <ol class="side-nav">
+      <li><a href="#h1">① 整形前の docx</a></li>
+      <li><a href="#h2">② オプション</a></li>
+      <li><a href="#h3">③ テンプレート</a></li>
+      <li><a href="#h4">④ 新旧対照表</a></li>
+      <li><a href="#h5">⑤ 保存</a></li>
+      <li><a href="#h6">⑥ 版と改訂履歴</a></li>
+    </ol>
+  </details>
+
+  <details class="side-sec" id="secTpl">
+    <summary>テンプレート</summary>
+    <ul class="tpl-list" id="tplList" aria-label="登録したテンプレート"></ul>
+    <p class="hint" id="tplEmpty">登録したテンプレートはありません。</p>
+    <div class="side-row">
+      <button type="button" class="btn small" id="tplAdd">今のカスタム設定を登録</button>
+      <button type="button" class="btn small" id="tplEdit">カスタム設定を開く</button>
+    </div>
+    <div class="side-row">
+      <button type="button" class="btn small" id="tplExport">書き出し</button>
+      <input type="file" id="tplImport" class="vh" accept=".json,application/json">
+      <label for="tplImport" class="btn small" id="tplImportBtn">読み込み</label>
+    </div>
+    <p class="hint" id="tplHint" aria-live="polite"></p>
+  </details>
+
+  <details class="side-sec" id="secGemini">
+    <summary>Gemini API 設定</summary>
+    <div class="gemini">
+      <label class="field" for="apiKey">API キー</label>
+      <input type="password" id="apiKey" autocomplete="off" spellcheck="false" placeholder="AIza…">
+      <div class="row">
+        <input type="checkbox" id="saveKey"><label for="saveKey">この端末のブラウザに保存する</label>
+      </div>
+      <div class="row">
+        <button type="button" class="btn small" id="keyTest">接続を確認</button>
+        <button type="button" class="linkbtn" id="clearKey">保存したキーを削除</button>
+      </div>
+      <p class="hint" id="keyHint" aria-live="polite"></p>
+    </div>
+  </details>
+
+  <details class="side-sec" id="secDefaults">
+    <summary>既定のオプション</summary>
+    <p class="hint" id="defSummary"></p>
+    <div class="side-row">
+      <button type="button" class="btn small" id="defSave">今の②③を既定にする</button>
+      <button type="button" class="btn small" id="defClear">解除</button>
+    </div>
+    <p class="hint">新しい docx を開くとき、②③をこの設定にします。</p>
+  </details>
+
+  <details class="side-sec" id="secData">
+    <summary>データ管理</summary>
+    <p class="hint" id="storageUse"></p>
+    <div class="side-row">
+      <button type="button" class="btn small" id="exportAll">作業をすべて書き出す</button>
+      <button type="button" class="btn small danger" id="wipeAll">保存データをすべて削除</button>
+    </div>
+    <p class="hint" id="dataHint" aria-live="polite"></p>
+  </details>
+
+  <details class="side-sec">
+    <summary>表示</summary>
+    <label class="sel">配色
+      <select id="viewTheme"><option value="">端末に合わせる</option><option value="light">ライト</option><option value="dark">ダーク</option></select>
+    </label>
+    <label class="sel">文字の大きさ
+      <select id="viewSize"><option value="">標準</option><option value="large">大</option></select>
+    </label>
+  </details>
+
+  <details class="side-sec">
+    <summary>使い方と注意</summary>
+    <div class="caution">
+      <ol>
+        <li>① で docx を選ぶ</li>
+        <li>② ③ でオプションとテンプレートを選ぶ</li>
+        <li>④ で変更点を確認し、必要なら改正案を直す</li>
+        <li>⑤ でダウンロード。改正したら ⑥ で版を残す</li>
+      </ol>
+      <h3>整形前の注意</h3>
+      <ul>
+        <li>文字書式（フォント・太字・色）はテンプレートの書式に置き換わります。</li>
+        <li>条・項・号の判定を誤ることがあります。元ファイルと照合してください。</li>
+        <li>AI が再構成した条には Word のコメントが付きます。確認してください。</li>
+        <li>ファイルはこの端末のブラウザ内だけで処理され、外部には送られません（Gemini を使う場合のみ、判定対象の文章が Google に送られます）。</li>
+        <li>読み込んだ docx と編集内容は、この端末のブラウザに残ります。共用の端末では、使い終わったら「作業ファイル」か「データ管理」で削除してください。</li>
+      </ul>
+    </div>
+  </details>
+</aside>
+
 <main>
   <header>
     <h1>就業規則 整形</h1>
@@ -360,17 +543,6 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       <span class="dot" aria-hidden="true"></span><span id="engineText">準備中（初回は数十秒）</span>
     </div>
   </header>
-
-  <details class="caution">
-    <summary>整形前の注意</summary>
-    <ul>
-      <li>文字書式（フォント・太字・色）はテンプレートの書式に置き換わります。</li>
-      <li>条・項・号の判定を誤ることがあります。元ファイルと照合してください。</li>
-      <li>AI が再構成した条には Word のコメントが付きます。確認してください。</li>
-      <li>ファイルはこの端末のブラウザ内だけで処理され、外部には送られません（Gemini を使う場合のみ、判定対象の文章が Google に送られます）。</li>
-      <li>読み込んだ docx と編集内容は、この端末のブラウザに残ります。共用の端末では、使い終わったら「続きから」で削除してください。</li>
-    </ul>
-  </details>
 
   <div class="drop" id="drop" aria-hidden="true">ここにドロップして docx を追加</div>
 
@@ -384,13 +556,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         <span class="name" id="fileName">未選択</span>
       </div>
       <p class="hint" id="parseHint" aria-live="polite"></p>
-      <div class="works">
-        <h3 id="worksHead" hidden>続きから</h3>
-        <ul id="worksList" aria-labelledby="worksHead"></ul>
-        <input type="file" id="workImport" accept=".json,application/json">
-        <label for="workImport" class="btn small" id="workImportBtn">作業ファイルを読み込む</label>
-        <p class="hint" id="worksHint" aria-live="polite"></p>
-      </div>
+      <p class="hint">続きはメニューの「作業ファイル」から開けます。</p>
     </div>
   </section>
 
@@ -428,12 +594,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         <label for="optGemini">Gemini で分割ミスを検出する</label>
         <div class="desc">判定しにくい段落を Gemini に確認させます。文章が Google に送られ、無料枠では学習に使われる可能性があります。</div>
         <div class="gemini" id="geminiBox" hidden>
-          <label class="field" for="apiKey">Gemini API キー</label>
-          <input type="password" id="apiKey" autocomplete="off" spellcheck="false" placeholder="AIza…">
-          <div class="row">
-            <input type="checkbox" id="saveKey"><label for="saveKey">この端末のブラウザに保存する</label>
-            <button type="button" class="linkbtn" id="clearKey">保存したキーを削除</button>
-          </div>
+          <p class="key-state"><span id="keyState"></span>　<button type="button" class="linkbtn" id="keyOpen">キーを設定</button></p>
           <div class="opt">
             <input type="checkbox" id="optAgent">
             <label for="optAgent">全文をまとめて判定する（Antigravity）</label>
@@ -617,7 +778,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     set(k, v) { try { localStorage.setItem(k, v); } catch {} },
     del(k) { try { localStorage.removeItem(k); } catch {} },
   };
-  const K = { key: "kisoku.geminiKey", prefs: "kisoku.prefs" };
+  const K = { key: "kisoku.geminiKey", prefs: "kisoku.prefs", tpls: "kisoku.customTpls", defaults: "kisoku.defaults", view: "kisoku.view" };
 
   // ---------- 状態 ----------
   let engineReady = false;
@@ -680,6 +841,13 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   // ---------- 画面の更新 ----------
   function refresh() {
     $("geminiBox").hidden = !$("optGemini").checked;
+    $("keyState").textContent = $("apiKey").value.trim() ? "API キー：入力済み" : "API キー：未入力";
+    // 処理中に登録テンプレートを使うと、整形の途中で設定が変わるので止める
+    document.querySelectorAll("#tplList .tpl-use").forEach((b) => { b.disabled = busy; });
+    $("tplImport").disabled = busy;
+    $("tplImportBtn").setAttribute("aria-disabled", busy ? "true" : "false");
+    $("exportAll").disabled = busy;
+    $("wipeAll").disabled = busy;
     const custom = tplValue() === "custom";
     if ($("customPanel").hidden === custom) {
       $("customPanel").hidden = !custom;
@@ -717,7 +885,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 
   function geminiKeyProblem() {
     if ($("optGemini").checked && !$("apiKey").value.trim()) {
-      return "Gemini を使う場合は API キーを入力してください（使わない場合はチェックを外してください）。";
+      return "メニューの「Gemini API 設定」で API キーを入力してください（使わない場合は Gemini のチェックを外してください）。";
     }
     return null;
   }
@@ -902,6 +1070,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       put: (k, v) => run(store, "readwrite", (s) => s.put(v, k)),
       del: (k) => run(store, "readwrite", (s) => s.delete(k)),
       all: () => run(store, "readonly", (s) => s.getAll()),
+      clear: () => run(store, "readwrite", (s) => s.clear()),
     });
     return { ...of("drafts"), works: of("works") };
   })();
@@ -986,7 +1155,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     list.sort((a, b) => b.savedAt - a.savedAt);
     const ul = $("worksList");
     ul.textContent = "";
-    $("worksHead").hidden = list.length === 0;
+    $("worksEmpty").hidden = list.length > 0;
     const cur = file ? draftKey() : null;
     list.forEach((w) => {
       const li = document.createElement("li");
@@ -1068,10 +1237,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     return u8.buffer;
   }
+  // 書き出せたら true を返す（まとめて書き出すときに失敗を数えるため）
   async function exportWork(id) {
     try {
       const w = await idb.works.get(id);
-      if (!w) return;
+      if (!w) return false;
       const d = await idb.get(id);
       let notes = {};
       try { notes = JSON.parse(store.get("kisoku.notes." + id) || "{}") || {}; } catch {}
@@ -1085,7 +1255,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
       setTimeout(() => URL.revokeObjectURL(url), 60000);   // 大きいので、保存が始まったころに解放する
       download(url, w.name.replace(/[\\/:*?"<>|]/g, "_") + "_作業.json");
-    } catch (e) { $("worksHint").textContent = "書き出せませんでした：" + workErr(e); }
+      return true;
+    } catch (e) { $("worksHint").textContent = "書き出せませんでした：" + workErr(e); return false; }
   }
   // 外から来たファイルなので、形を確かめてから保存する
   function checkWorkFile(o) {
@@ -1723,6 +1894,21 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     try { return await fn(); } finally { busy = false; refresh(); }
   }
 
+  // ①やドロップで選んだファイル。まだ作業が無い（初めて読み込む）ときだけ、既定のオプションを当てる
+  async function useNewFile(f) {
+    if (busy) return;   // 処理中に②③を書き換えないように（呼び出し元でも止めている）
+    const d = loadDefaults();
+    if (d && /\.docx$/i.test(f.name)) {
+      const id = [f.name, f.size, f.lastModified].join("|");
+      const exists = await idb.works.get(id).catch(() => null);
+      if (!exists) {
+        if (file) await flushTouch();
+        applyOpts(d);
+        cancelTouch();    // 開く前の作業に、既定のオプションを書き込まないように
+      }
+    }
+    await useFile(f);
+  }
   async function useFile(f) {
     if (!/\.docx$/i.test(f.name)) {
       $("parseHint").className = "hint err";
@@ -1742,7 +1928,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   $("file").addEventListener("change", async (e) => {
     const f = e.target.files && e.target.files[0];
     e.target.value = "";
-    if (f) await useFile(f);
+    if (f) await useNewFile(f);
   });
 
   // ページ全体でドロップを受け付ける。ファイル以外（文字列など）のドラッグは対象外。
@@ -1775,7 +1961,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       $("parseHint").textContent = "ファイルは1つずつドロップしてください。";
       return;
     }
-    await useFile(files[0]);
+    await useNewFile(files[0]);
   });
 
   // ---------- 整形 ----------
@@ -1968,6 +2154,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   });
   $("clearKey").addEventListener("click", () => {
     store.del(K.key); $("apiKey").value = ""; $("saveKey").checked = false;
+    refresh();
   });
 
   $("workImportBtn").addEventListener("click", (e) => { if (busy) e.preventDefault(); });
@@ -1980,8 +2167,331 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     importWork(f).finally(() => { busy = false; refresh(); });
   });
 
+  // ---------- メニュー（サイドタブ） ----------
+  const root = document.documentElement;
+  const wide = window.matchMedia("(min-width: 1100px)");
+  function loadView() {
+    try { const v = JSON.parse(store.get(K.view) || "{}"); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; }
+  }
+  function saveView(patch) { store.set(K.view, JSON.stringify({ ...loadView(), ...patch })); }
+  const sideVisible = () => (wide.matches ? root.dataset.side !== "hidden" : root.dataset.drawer === "open");
+  function syncSide() {
+    $("sideToggle").setAttribute("aria-expanded", String(sideVisible()));
+    $("sideBackdrop").hidden = wide.matches || root.dataset.drawer !== "open";
+  }
+  function setSide(open) {
+    if (wide.matches) {
+      if (open) delete root.dataset.side; else root.dataset.side = "hidden";
+      saveView({ sideHidden: !open });   // 画面共有のときなどに隠したままにできるよう、広い画面だけ覚える
+    } else if (open) root.dataset.drawer = "open";
+    else delete root.dataset.drawer;
+    // 引き出しを開いている間は、後ろの画面に Tab で移らないようにする
+    document.querySelector("main").inert = !wide.matches && root.dataset.drawer === "open";
+    syncSide();
+  }
+  $("sideToggle").addEventListener("click", () => {
+    const open = !sideVisible();
+    setSide(open);
+    if (open && !wide.matches) $("side").querySelector("summary").focus();
+  });
+  $("sideBackdrop").addEventListener("click", () => { setSide(false); $("sideToggle").focus(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !wide.matches && root.dataset.drawer === "open") { setSide(false); $("sideToggle").focus(); }
+  });
+  wide.addEventListener("change", () => { delete root.dataset.drawer; document.querySelector("main").inert = false; syncSide(); });
+  // 狭い画面では、移動したら引き出しを閉じ、フォーカスを移動先へ移す（隠れたメニューの中に残さない）
+  function leaveSide(target) {
+    if (wide.matches) return;
+    setSide(false);
+    if (!target.hasAttribute("tabindex")) target.tabIndex = -1;
+    target.focus({ preventScroll: true });
+  }
+  document.querySelectorAll(".side-nav a").forEach((a) => a.addEventListener("click", () => leaveSide($(a.hash.slice(1)))));
+  // メニューの指定の欄を開いて見せる
+  function openSideSection(id) {
+    setSide(true);
+    const sec = $(id);
+    sec.open = true;
+    sec.scrollIntoView({ block: "nearest" });
+    sec.querySelector("summary").focus();
+  }
+  $("keyOpen").addEventListener("click", () => openSideSection("secGemini"));
+  syncSide();
+
+  // ---------- 登録したテンプレート ----------
+  // カスタム設定に名前を付けて、この端末のブラウザに残す。使うときは今のカスタム設定へ写す
+  // （作業には「どの登録テンプレートか」を残さないので、登録を消しても作業は変わらない）
+  const TPL_MAX = 100;
+  const TPL_FORMAT = "kisoku-templates";
+  const tplHint = (cls, text) => { $("tplHint").className = "hint " + cls; $("tplHint").textContent = text; };
+  const newTplId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  // 保存した値・読み込んだファイルは外から来たものとして形を確かめる
+  // 件数の上限は呼び出し側で確かめる（読み込みでは、名前の重複をまとめてから数える）
+  function cleanTpls(a) {
+    if (!Array.isArray(a)) return [];
+    const out = [];
+    for (const t of a) {
+      if (!t || typeof t !== "object") continue;
+      const settings = KisokuCustom.sanitize(t.settings);
+      const name = typeof t.name === "string" ? t.name.trim().slice(0, 50) : "";
+      if (!settings || !name) continue;
+      out.push({
+        id: typeof t.id === "string" && /^[0-9a-z]{1,40}$/.test(t.id) ? t.id : newTplId(),
+        name, settings,
+        savedAt: Number.isFinite(t.savedAt) && t.savedAt > 0 && t.savedAt < 8.64e15 ? t.savedAt : Date.now(),
+      });
+    }
+    return out;
+  }
+  function loadTpls() { try { return cleanTpls(JSON.parse(store.get(K.tpls) || "[]")).slice(0, TPL_MAX); } catch { return []; } }
+  // 保存できなかった（容量不足など）ことを黙って見逃すと登録が消えるので、結果を返す
+  function saveTpls(list) {
+    try { localStorage.setItem(K.tpls, JSON.stringify(list)); return true; }
+    catch (e) { tplHint("err", "保存できませんでした：" + workErr(e)); return false; }
+  }
+  function renderTpls() {
+    const list = loadTpls();
+    const ul = $("tplList");
+    ul.textContent = "";
+    $("tplEmpty").hidden = list.length > 0;
+    list.forEach((t) => {
+      const li = document.createElement("li");
+      const nm = document.createElement("span");
+      nm.className = "w-name"; nm.textContent = t.name;
+      const dt = document.createElement("span");
+      dt.className = "w-date"; dt.textContent = fmtDate(t.savedAt);
+      nm.appendChild(dt);
+      li.appendChild(nm);
+      [["使う", "tpl-use", () => useTpl(t.id)], ["上書き", "", () => overwriteTpl(t.id)],
+       ["名前", "", () => renameTpl(t.id)], ["削除", "", () => deleteTpl(t.id)]].forEach(([label, cls, fn]) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "btn small " + cls; b.textContent = label;
+        b.setAttribute("aria-label", `${label}：${t.name}`);
+        if (cls) b.disabled = busy;
+        b.addEventListener("click", fn);
+        li.appendChild(b);
+      });
+      ul.appendChild(li);
+    });
+  }
+  // 今のカスタム設定を使うようにして、②③の保存・新旧対照表の描き直しも行う
+  function selectCustom() {
+    $("custom").checked = true;
+    savePrefs();
+    refresh();
+    redrawForTemplate();
+  }
+  function useTpl(id) {
+    if (busy) return;
+    const t = loadTpls().find((x) => x.id === id);
+    if (!t) { renderTpls(); return; }
+    if (!confirm(`今のカスタム設定を「${t.name}」で上書きして使いますか？`)) return;
+    if (!KisokuCustom.set(structuredClone(t.settings))) { tplHint("err", "設定の形式が正しくありません。"); return; }
+    selectCustom();
+    tplHint("ok", `「${t.name}」を ③ に読み込みました。`);
+  }
+  $("tplAdd").addEventListener("click", () => {
+    const list = loadTpls();
+    const v = prompt("テンプレートの名前", "");
+    if (v === null) return;
+    const name = v.trim().slice(0, 50);
+    if (!name) { tplHint("err", "名前を入力してください。"); return; }
+    const same = list.find((x) => x.name === name);
+    if (same) {
+      if (!confirm(`「${name}」はすでにあります。今のカスタム設定で上書きしますか？`)) return;
+      same.settings = KisokuCustom.get(); same.savedAt = Date.now();
+    } else {
+      if (list.length >= TPL_MAX) { tplHint("err", `登録できるのは ${TPL_MAX} 件までです。`); return; }
+      list.push({ id: newTplId(), name, settings: KisokuCustom.get(), savedAt: Date.now() });
+    }
+    if (saveTpls(list)) tplHint("ok", `「${name}」を登録しました。`);
+    renderTpls();
+  });
+  function overwriteTpl(id) {
+    const list = loadTpls();
+    const t = list.find((x) => x.id === id);
+    if (!t) { renderTpls(); return; }
+    if (!confirm(`「${t.name}」を今のカスタム設定で上書きしますか？`)) return;
+    t.settings = KisokuCustom.get(); t.savedAt = Date.now();
+    if (saveTpls(list)) tplHint("ok", `「${t.name}」を上書きしました。`);
+    renderTpls();
+  }
+  function renameTpl(id) {
+    const list = loadTpls();
+    const t = list.find((x) => x.id === id);
+    if (!t) { renderTpls(); return; }
+    const v = prompt("テンプレートの名前", t.name);
+    if (v === null || !v.trim()) return;
+    const name = v.trim().slice(0, 50);
+    if (list.some((x) => x.id !== id && x.name === name)) { tplHint("err", `「${name}」はすでにあります。`); return; }
+    t.name = name;
+    if (saveTpls(list)) tplHint("ok", `「${name}」に変更しました。`);
+    renderTpls();
+  }
+  function deleteTpl(id) {
+    const list = loadTpls();
+    const t = list.find((x) => x.id === id);
+    if (!t) { renderTpls(); return; }
+    if (!confirm(`「${t.name}」を削除しますか？`)) return;
+    if (saveTpls(list.filter((x) => x.id !== id))) tplHint("ok", "削除しました。");
+    renderTpls();
+  }
+  $("tplEdit").addEventListener("click", () => {
+    // テンプレートの選択は作業の設定なので、切り替えるときは確かめる
+    if (!busy && tplValue() !== "custom" && confirm("③ のテンプレートを「カスタム」に切り替えますか？")) selectCustom();
+    leaveSide($("h3"));
+    $("h3").scrollIntoView({ block: "start" });
+  });
+  $("tplExport").addEventListener("click", () => {
+    const list = loadTpls();
+    if (!list.length) { tplHint("err", "登録したテンプレートはありません。"); return; }
+    const data = { format: TPL_FORMAT, version: 1, templates: list.map(({ name, settings, savedAt }) => ({ name, settings, savedAt })) };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }));
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    download(url, "就業規則テンプレート.json");
+  });
+  $("tplImportBtn").addEventListener("click", (e) => { if (busy) e.preventDefault(); });
+  $("tplImport").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f || busy) return;
+    if (f.size > 5 * 1024 * 1024) { tplHint("err", "ファイルが大きすぎます（5MB まで）。"); return; }
+    let o;
+    try { o = JSON.parse(await f.text()); } catch { tplHint("err", "テンプレートのファイルではありません。"); return; }
+    if (!o || o.format !== TPL_FORMAT || o.version !== 1 || !Array.isArray(o.templates)) {
+      tplHint("err", "テンプレートのファイルではありません。"); return;
+    }
+    if (o.templates.length > 1000) { tplHint("err", "テンプレートが多すぎます（1,000 件まで）。"); return; }
+    // ファイルの中で名前が重なるものは、後ろのものだけを使う（件数の表示と実際の登録を合わせる）
+    const byName = new Map();
+    cleanTpls(o.templates).forEach((t) => byName.set(t.name, t));
+    const incoming = [...byName.values()];
+    if (!incoming.length) { tplHint("err", "読み込めるテンプレートがありませんでした。"); return; }
+    const list = loadTpls();
+    const dup = incoming.filter((t) => list.some((x) => x.name === t.name));
+    if (dup.length && !confirm(`同じ名前のテンプレートが ${dup.length} 件あります。上書きしますか？`)) return;
+    for (const t of incoming) {
+      const same = list.find((x) => x.name === t.name);
+      if (same) { same.settings = t.settings; same.savedAt = t.savedAt; }
+      else list.push({ ...t, id: newTplId() });
+    }
+    if (list.length > TPL_MAX) { tplHint("err", `登録は ${TPL_MAX} 件までです。読み込みを中止しました。`); return; }
+    const skipped = o.templates.length - incoming.length;
+    if (saveTpls(list)) tplHint("ok", `${incoming.length} 件を読み込みました。` + (skipped > 0 ? `（形式の誤りか名前の重複で ${skipped} 件を除外）` : ""));
+    renderTpls();
+  });
+
+  // ---------- Gemini の接続確認 ----------
+  // モデルの一覧を1件だけ取って、キーが使えるかを見る（規則の文章は送らない）
+  const keyHint = (cls, text) => { $("keyHint").className = "hint " + cls; $("keyHint").textContent = text; };
+  $("keyTest").addEventListener("click", async () => {
+    const key = $("apiKey").value.trim();
+    if (!key) { keyHint("err", "API キーを入力してください。"); return; }
+    $("keyTest").disabled = true;
+    keyHint("", "確認しています…");
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1", { headers: { "x-goog-api-key": key } });
+      if (r.ok) keyHint("ok", "使えます。");
+      else if ([400, 401, 403].includes(r.status)) keyHint("err", `キーが正しくないか、無効です（HTTP ${r.status}）。`);
+      else if (r.status === 429) keyHint("err", "利用上限に達しています（HTTP 429）。時間をおいてください。");
+      else keyHint("err", `確認できませんでした（HTTP ${r.status}）。`);
+    } catch (e) {
+      keyHint("err", "通信できませんでした：" + workErr(e));
+    } finally {
+      $("keyTest").disabled = false;
+    }
+  });
+  $("apiKey").addEventListener("input", () => keyHint("", ""));
+
+  // ---------- 既定のオプション ----------
+  function loadDefaults() {
+    try { const d = JSON.parse(store.get(K.defaults) || "null"); return d && typeof d === "object" && !Array.isArray(d) ? d : null; } catch { return null; }
+  }
+  const TPL_NAMES = { t1: "テンプレ1", t2: "テンプレ2", t3: "テンプレ3", t4: "テンプレ4", custom: "カスタム" };
+  function renderDefaults() {
+    const d = loadDefaults();
+    $("defClear").disabled = !d;
+    if (!d) { $("defSummary").textContent = "未設定（前回の設定のまま）"; return; }
+    const on = [["layout", "下線の行を図"], ["toc", "目次"], ["xref", "相互参照"], ["hyoki", "表記ゆれ"], ["gemini", "Gemini"]]
+      .filter(([k]) => d[k]).map(([, v]) => v);
+    if (d.gemini && d.agent) on.push("全文判定");
+    $("defSummary").textContent = (TPL_NAMES[d.tpl] || "テンプレ1") + (on.length ? "・" + on.join("・") : "");
+  }
+  $("defSave").addEventListener("click", () => {
+    store.set(K.defaults, JSON.stringify(collectOpts()));
+    renderDefaults();
+  });
+  $("defClear").addEventListener("click", () => { store.del(K.defaults); renderDefaults(); });
+
+  // ---------- データ管理 ----------
+  const dataHint = (cls, text) => { $("dataHint").className = "hint " + cls; $("dataHint").textContent = text; };
+  async function renderStorage() {
+    if (!navigator.storage || !navigator.storage.estimate) { $("storageUse").textContent = ""; return; }
+    try {
+      const { usage } = await navigator.storage.estimate();
+      $("storageUse").textContent = `使用量：約 ${(usage / 1024 / 1024).toFixed(1)} MB`;
+    } catch { $("storageUse").textContent = ""; }
+  }
+  $("secData").addEventListener("toggle", () => { if ($("secData").open) renderStorage(); });
+  $("exportAll").addEventListener("click", async () => {
+    if (busy) return;
+    // 書き出しの間に作業を開く・消すと一覧とずれるので、ほかの操作を止める
+    busy = true; refresh();
+    try {
+      let list = [];
+      try { list = await idb.works.all(); } catch (e) { dataHint("err", "作業を読めませんでした：" + workErr(e)); return; }
+      if (!list.length) { dataHint("err", "保存した作業はありません。"); return; }
+      dataHint("", `${list.length} 件を書き出しています…`);
+      let failed = 0;
+      // ponytail: 作業ごとに1ファイルずつダウンロードする。ブラウザが「複数のファイルのダウンロード」を確認することがある。件数が多くて困るなら zip にまとめる
+      for (const w of list) {
+        if (!(await exportWork(w.id))) failed++;
+        await new Promise((r) => setTimeout(r, 400));
+      }
+      if (failed) dataHint("err", `${list.length - failed} 件を書き出し、${failed} 件は書き出せませんでした（理由は「作業ファイル」に表示）。`);
+      else dataHint("ok", `${list.length} 件を書き出しました。`);
+    } finally { busy = false; refresh(); }
+  });
+  $("wipeAll").addEventListener("click", async () => {
+    if (busy) return;
+    if (!confirm("この端末に保存したすべてのデータ（作業・下書き・備考・版・テンプレート・API キー・設定）を削除します。元に戻せません。\n残したい作業は、先に「作業をすべて書き出す」で保存してください。\n\n削除しますか？")) return;
+    busy = true; refresh();
+    await flushTouch();   // 待っている保存が、削除のあとに作業を作り直さないように
+    try {
+      await idb.clear();
+      await idb.works.clear();
+      Object.keys(localStorage).filter((k) => k.startsWith("kisoku.")).forEach((k) => localStorage.removeItem(k));
+    } catch (e) {
+      busy = false; refresh();
+      dataHint("err", "一部を削除できませんでした。もう一度お試しください：" + workErr(e));
+      return;
+    }
+    // 画面に残っている作業が保存し直されないよう、読み込み直して空の状態から始める
+    location.reload();
+  });
+
+  // ---------- 表示 ----------
+  {
+    const v = loadView();
+    $("viewTheme").value = v.theme === "light" || v.theme === "dark" ? v.theme : "";
+    $("viewSize").value = v.size === "large" ? "large" : "";
+  }
+  $("viewTheme").addEventListener("change", () => {
+    const t = $("viewTheme").value;
+    if (t) root.dataset.theme = t; else delete root.dataset.theme;
+    saveView({ theme: t });
+  });
+  $("viewSize").addEventListener("change", () => {
+    const s = $("viewSize").value;
+    if (s) root.dataset.size = s; else delete root.dataset.size;
+    saveView({ size: s });
+    KisokuCustom.refresh();   // カスタムのプレビューの縮小率を合わせ直す
+  });
+
   refresh();
   renderWorks();
+  renderTpls();
+  renderDefaults();
 })();
 </script>
 </body>
