@@ -419,7 +419,10 @@ body::before {
 .ed-form > .btn.small { justify-self: start; }
 .ed-mark { font-size: 13px; color: var(--muted); }
 .ed-fig { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-left: 3.4em; }
-.ed-thumb { max-height: 60px; max-width: 120px; border: 1px solid var(--rule); border-radius: 3px; }
+.ed-grid { display: grid; gap: 0; margin-left: 3.4em; border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); overflow-x: auto; }
+.ed-grid .ed-cell { background: var(--surface); border-radius: 0; border: 0; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); min-width: 0; }
+.ed-grid .ed-cell:focus { outline: 2px solid var(--ai); outline-offset: -2px; }
+.ed-thumb {max-height: 60px; max-width: 120px; border: 1px solid var(--rule); border-radius: 3px; }
 .ed-foot { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; border-top: 1px dashed var(--rule); }
 .btn.small.primary { width: auto; min-height: 0; font-size: 14px; }
 .cmp-auto { font-size: 13px; color: var(--muted); }

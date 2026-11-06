@@ -146,34 +146,81 @@
     if (f.type === "image") return "［画像］" + (f.name ? "　" + f.name.slice(0, 40) : "");
     return "［図］" + (f.text ? "　" + f.text.slice(0, 40) : "");
   }
+  // 画面で足した表（元の文書の位置 index を持たない）。整形では rows から作り直すので中身を編集できる。
+  // 元の文書の表は XML を複製して書式を保つため、ここでは編集させない
+  const TABLE_MAX_ROWS = 50, TABLE_MAX_COLS = 10, TABLE_CELL_MAX = 1000;   // py/web_entry.py の TABLE_* と同じ
+  const editableTable = (key, f) => key === "tables" && typeof f.index !== "number";
+  function newTable() {
+    return { type: "table", rows: [["", ""], ["", ""]] };
+  }
+  // 表のマス目（セルごとの入力欄）。入力では描き直さない（入力位置を保つため）
+  function tableGrid(f) {
+    const grid = el("div", "ed-grid");
+    const cols = Math.max(1, ...f.rows.map((r) => r.length));
+    grid.style.gridTemplateColumns = `repeat(${cols}, minmax(4em, 1fr))`;
+    f.rows.forEach((r, i) => {
+      for (let j = 0; j < cols; j++) {
+        const ta = el("textarea", "ed-text ed-cell");
+        ta.rows = 1;
+        ta.maxLength = TABLE_CELL_MAX;
+        ta.value = r[j] || "";
+        ta.setAttribute("aria-label", `表の${i + 1}行${j + 1}列`);
+        ta.addEventListener("input", () => {
+          while (r.length <= j) r.push("");
+          r[j] = ta.value;
+          fit(ta);
+        });
+        grid.appendChild(ta);
+      }
+    });
+    return grid;
+  }
+  function tableMenu(f, ctx) {
+    const cols = () => Math.max(1, ...f.rows.map((r) => r.length));
+    const items = [];
+    if (f.rows.length < TABLE_MAX_ROWS) items.push(["行を追加", () => { f.rows.push(Array(cols()).fill("")); ctx.redraw(); }]);
+    if (cols() < TABLE_MAX_COLS) items.push(["列を追加", () => { f.rows.forEach((r) => r.push("")); ctx.redraw(); }]);
+    const lose = (cells) => !cells.some((c) => c) || confirm("入力した文字も消えます。削除しますか？");
+    if (f.rows.length > 1) items.push(["最後の行を削除", () => {
+      if (lose(f.rows[f.rows.length - 1])) { f.rows.pop(); ctx.redraw(); }
+    }]);
+    if (cols() > 1) items.push(["最後の列を削除", () => {
+      const n = cols();
+      if (lose(f.rows.map((r) => r[n - 1]))) { f.rows.forEach((r) => { r.length = Math.min(r.length, n - 1); }); ctx.redraw(); }
+    }]);
+    return items;
+  }
+
   // 表・図・画像の1行。↑↓は条の中の前・次の項・号へ移す（整形ではその項・号の直後に出る）
   // ponytail: 同じ項・号の中での並べ替えはできない（表が先、図・画像が後の順で出る）。要るなら一覧内の入れ替えを足す。
   function figureRow(node, key, idx, ctx) {
     const f = node[key][idx];
     const row = el("div", "ed-fig");
+    const editable = editableTable(key, f);
     if (f.type === "image" && f.data) {
       const img = el("img", "ed-thumb");
       img.alt = "";
       img.src = `data:${f.mime};base64,${f.data}`;
       row.appendChild(img);
     }
-    row.appendChild(el("span", "ed-mark", figureText(key, f)));
+    row.appendChild(el("span", "ed-mark", editable ? "［表］" : figureText(key, f)));
     const tools = el("span", "ed-tools");
     const at = ctx.units.indexOf(node);
     const what = key === "tables" ? "表" : f.type === "image" ? "画像" : "図";
     tools.appendChild(button("↑", () => ctx.move(node, key, idx, -1), "btn small", "前の項・号へ移動")).disabled = at <= 0;
     tools.appendChild(button("↓", () => ctx.move(node, key, idx, 1), "btn small", "次の項・号へ移動")).disabled = at < 0 || at >= ctx.units.length - 1;
-    moreMenu(tools, [["削除", () => {
+    moreMenu(tools, [...(editable ? tableMenu(f, ctx) : []), ["削除", () => {
       if (!confirm(`${what}を削除しますか？`)) return;
       node[key].splice(idx, 1);
       ctx.redraw();
     }]], `${what}の操作`);
     row.appendChild(tools);
-    return row;
+    if (!editable) return [row];
+    return [row, tableGrid(f)];
   }
   function figureRows(node, ctx) {
     const out = [];
-    ["tables", "drawings"].forEach((key) => (node[key] || []).forEach((_, i) => out.push(figureRow(node, key, i, ctx))));
+    ["tables", "drawings"].forEach((key) => (node[key] || []).forEach((_, i) => out.push(...figureRow(node, key, i, ctx))));
     return out;
   }
   // 画像を選ばせて node.drawings の末尾に足す
@@ -309,6 +356,11 @@
         redraw();
       }]);
     }
+    items.push(["表を追加", () => {
+      node.tables = node.tables || [];
+      node.tables.push(newTable());
+      redraw();
+    }]);
     items.push(["画像を追加", () => pickImage(node, ctx)]);
     items.push(["削除", () => {
       const what = name;

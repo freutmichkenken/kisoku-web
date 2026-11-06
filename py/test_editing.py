@@ -314,4 +314,67 @@ for r in v["rows"]:
         assert r["id"] == ids_before[r["old_heading"]], (r["id"], ids_before[r["old_heading"]])
 assert all(r["id"].startswith(("o:", "n:", "summary:")) for r in v["rows"])
 
+# --- 画面で足した表（index なし）：rows から作り、項の本文の直後に出る ---
+tbl_tree = copy.deepcopy(tree)
+p0 = tbl_tree[ci]["articles"][0]["paragraphs"][0]
+p0.setdefault("tables", []).append(
+    {"type": "table", "rows": [["区分", "割増率"], ["時間外労働", "２５％"], ["休日労働", "３５％\n（法定休日）"]]})
+with tempfile.TemporaryDirectory() as d:
+    p = web_entry.write_tree(os.path.join(d, "tbl.json"), json.dumps(tbl_tree, ensure_ascii=False))
+    for key in ("t1", "t2", "t3", "t4"):
+        tmpl = os.path.join(ROOT, "templates", f"就業規則テンプレ{key[1]}.docx")
+        out = os.path.join(d, f"tbl_{key}.docx")
+        quiet(apply_style, json_path=p, template_path=tmpl, template_key=key,
+              output_path=out, source_docx=SAMPLE, show_notice=False)
+        doc = Document(out)
+        found = [t for t in doc.tables if t.cell(0, 0).text == "区分"]
+        assert len(found) == 1, (key, len(found))
+        t = found[0]
+        assert [[cl.text for cl in r.cells] for r in t.rows] == \
+            [["区分", "割増率"], ["時間外労働", "２５％"], ["休日労働", "３５％\n（法定休日）"]], key
+        # 表は第1項の本文の直後（間に段落を挟まない）
+        prev = t._tbl.getprevious()
+        first = p0["body"].strip()
+        assert prev is not None and first and first in "".join(prev.itertext()), (key, "".join(prev.itertext())[:30])
+
+    # 大きすぎる表・空の表は保存しない（元の文書の表＝index ありには上限をかけない）
+    def with_tbl(tb):
+        t = copy.deepcopy(tree)
+        t[ci]["articles"][0]["paragraphs"][0]["tables"] = [tb]
+        return json.dumps(t, ensure_ascii=False)
+    R, C = web_entry.TABLE_MAX_ROWS, web_entry.TABLE_MAX_COLS
+    for bad in ({"type": "table", "rows": []},
+                {"type": "table", "rows": [[]]},
+                {"type": "table", "rows": [[""]] * (R + 1)},
+                {"type": "table", "rows": [[""] * (C + 1)]},
+                {"type": "table", "rows": [["あ" * (web_entry.TABLE_CELL_MAX + 1)]]}):
+        try:
+            web_entry.write_tree(os.path.join(d, "bad.json"), with_tbl(bad))
+        except ValueError:
+            continue
+        raise AssertionError(f"大きすぎる・空の表を保存した: {str(bad)[:60]}")
+    web_entry.write_tree(os.path.join(d, "ok.json"), with_tbl({"type": "table", "rows": [[""] * C for _ in range(R)]}))
+    web_entry.write_tree(os.path.join(d, "ok.json"), with_tbl({"type": "table", "index": 0, "rows": [[""] * (C + 5)]}))
+    # 画面で足した表のマスの合計：上限ちょうどは保存し、超えたら保存しない（元の表のマスは数えない）
+    full = {"type": "table", "rows": [[""] * C for _ in range(R)]}               # 1つで R×C マス
+    n_ok = web_entry.TABLE_TOTAL_CELLS // (R * C)
+    t = copy.deepcopy(tree)
+    units_ = [u for a in t[ci]["articles"] for u in a["paragraphs"]]
+    assert len(units_) > n_ok, "サンプルの項が足りません"
+    for u in units_[:n_ok]:
+        u["tables"] = [copy.deepcopy(full)]
+    units_[0]["tables"].append({"type": "table", "index": 0, "rows": [[""] * C for _ in range(R)]})
+    web_entry.write_tree(os.path.join(d, "ok.json"), json.dumps(t, ensure_ascii=False))
+    units_[n_ok]["tables"] = [{"type": "table", "rows": [[""]]}]
+    try:
+        web_entry.write_tree(os.path.join(d, "bad.json"), json.dumps(t, ensure_ascii=False))
+        raise AssertionError("表のマスの合計の上限を確かめていない")
+    except ValueError as e:
+        assert "合計" in str(e), e
+
+# 新旧対照表には［表］とセルの文字で出る
+v = c.view(tree, tbl_tree)
+ch_rows = [r for r in v["rows"] if r["kind"] == "changed"]
+assert ch_rows and any("［表］　区分／割増率" in "".join(s for s, _ in line) for line in ch_rows[0]["new"])
+
 print("OK")

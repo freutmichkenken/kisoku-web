@@ -152,6 +152,10 @@ _TREE_TYPES = {"front_matter", "chapter", "article", "back_matter"}
 _UNIT_NAME = {"paragraph": "項", "item": "号", "sub": "号の細分", "sub2": "号の細分の下"}
 IMAGE_MAX_BYTES = 5 * 1024 * 1024        # 画面で足す画像1枚の上限（画面側と同じ）
 IMAGE_TOTAL_BYTES = 30 * 1024 * 1024     # 規程全体の画像の合計の上限（ブラウザ内の Python のメモリを使い切らないように）
+TABLE_MAX_ROWS = 50                      # 画面で足す表の行・列の上限（画面側と同じ）
+TABLE_MAX_COLS = 10
+TABLE_CELL_MAX = 1000                    # 画面で足す表の1セルの文字数の上限（画面側と同じ）
+TABLE_TOTAL_CELLS = 2000                 # 規程全体で、画面で足す表のマスの合計の上限（表を何個も足して重くしないように）
 _IMAGE_MAGIC = {"image/png": b"\x89PNG\r\n\x1a\n", "image/jpeg": b"\xff\xd8\xff"}
 
 
@@ -197,6 +201,17 @@ def _check_figures(node, used=None):
                 if not isinstance(rows, list) or not all(
                         isinstance(r, list) and all(c is None or isinstance(c, str) for c in r) for r in rows):
                     raise ValueError("表の中身（rows）の形式が正しくありません")
+                if idx is None:
+                    # 画面で足した表（整形で rows から作り直す）。大きすぎる表で整形が重くならないように
+                    if (not rows or len(rows) > TABLE_MAX_ROWS
+                            or not all(1 <= len(r) <= TABLE_MAX_COLS for r in rows)):
+                        raise ValueError(f"表は1〜{TABLE_MAX_ROWS}行、1〜{TABLE_MAX_COLS}列にしてください")
+                    if any(c is not None and len(c) > TABLE_CELL_MAX for r in rows for c in r):
+                        raise ValueError(f"表の1マスは{TABLE_CELL_MAX}文字以内にしてください")
+                    if used is not None:
+                        used[1] += len(rows) * max(len(r) for r in rows)   # 整形は最大列数で作るので、そのマス数で数える
+                        if used[1] > TABLE_TOTAL_CELLS:
+                            raise ValueError(f"追加した表のマスは合計{TABLE_TOTAL_CELLS}までにしてください")
             elif not (x.get("text") is None or isinstance(x.get("text"), str)):
                 raise ValueError("図の文字（text）の形式が正しくありません")
 
@@ -214,7 +229,7 @@ def _check_tree(tree):
     def text(v):
         return v is None or isinstance(v, str)
 
-    used = [0]                       # 画像の合計の大きさ
+    used = [0, 0]                    # 画像の合計の大きさ、画面で足した表のマスの合計
 
     def figures(node):
         _check_figures(node, used)
