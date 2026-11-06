@@ -766,7 +766,9 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (edit || versionView) return true;    // 編集中・版の比較中は解析し直さない（解析のオプションも変えられないようにしている）
     if (parsedKey === parseKeyNow()) return true;
     clearComparison();        // 表示中の変更点は前の解析のものなので消す
-    show("busy", "オプションが変わったので、構造を解析し直しています…");
+    // ファイル選択時は Gemini を使わずに解析しているので、その差だけなら「オプションが変わった」とは言わない
+    const onlyGemini = $("optGemini").checked && parsedKey === parseKey(false, "");
+    show("busy", onlyGemini ? "Gemini を使って構造を解析し直しています…" : "オプションが変わったので、構造を解析し直しています…");
     if (await parse($("optGemini").checked)) return true;
     show("err", "解析に失敗しました。上の表示と「処理の記録」を確認してください。");
     return false;

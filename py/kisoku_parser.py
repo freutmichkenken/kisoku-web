@@ -2620,6 +2620,8 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
                 print("Gemini判定: APIキー未設定またはライブラリ未導入のためスキップ")
         except ImportError:
             print("Gemini判定: gemini_helper.py が見つからないためスキップ")
+    elif use_gemini and gemini_mode == 'agent':
+        print("Antigravity判定: 判定不能な段落が無いため送りませんでした")
 
     # ネスト構造に組み立て
     tree = build_tree(flat)
@@ -2659,7 +2661,11 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             print(f"後付け（附則等）を保持: {len(back_indices)}要素")
 
     # --- Gemini による「押し込まれた項・号」の分割（後処理）---
+    # ponytail: まとめて判定（agent）でも、条の再構成は通常の Gemini（REST）で行う。
+    #   Antigravity で行うなら restructure_article_with_gemini をエージェント経由に切り替える。
     if use_gemini:
+        if gemini_mode == 'agent':
+            print("Gemini再構成: 条の再構成は通常の Gemini モデルで行います（Antigravity は段落の判定だけ）")
         apply_gemini_split(tree, length_threshold=100, verbose=True)
 
     return tree
