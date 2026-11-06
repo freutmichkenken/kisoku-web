@@ -436,7 +436,6 @@ body::before {
 .btn.small.primary { width: auto; min-height: 0; font-size: 14px; }
 .cmp-auto { font-size: 13px; color: var(--muted); }
 .cmp-note textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; min-height: 2.6em; padding: 6px 8px; font: inherit; font-size: 14px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); color: var(--ink); resize: vertical; }
-#cmpSave { margin-top: 12px; }
 
 /* ---------- 編集画面：左に新旧対照表と編集、右にタブ（PC向け） ---------- */
 :root:not([data-view="list"]) body { overflow: hidden; }
@@ -495,8 +494,23 @@ main > footer { display: none; }
 #tblBody .cmp-col { padding: 6px 10px; }
 #tblBody.diff .tbl-cols[data-same="1"] { display: none; }
 .tbl-note textarea { width: 100%; height: 100%; min-height: 3em; padding: 4px 6px; font: inherit; font-size: 13.5px; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); color: var(--ink); resize: vertical; }
-.tbl-foot { flex: none; display: flex; justify-content: flex-end; padding: 10px 16px; border-top: 1px solid var(--rule); }
+.tbl-foot { flex: none; display: flex; justify-content: flex-end; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--rule); }
 .tbl-foot .btn.primary { width: auto; min-height: 40px; font-size: 15px; }
+
+#printArea { display: none; }
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  body > :not(#printArea) { display: none !important; }
+  :root body { padding: 0; overflow: visible; background: #fff; color: #000; zoom: 1; }
+  body::before { display: none; }
+  #printArea { display: block; font-size: 10pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #printArea h1 { font-size: 13pt; margin: 0 0 6pt; }
+  #printArea table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  #printArea th, #printArea td { border: 0.5pt solid #888; padding: 3pt 5pt; vertical-align: top; }
+  #printArea th { background: #eee; }
+  #printArea .cmp-col { padding: 0; font-size: 10pt; line-height: 1.6; }
+  #printArea .pr-note { white-space: pre-wrap; }
+}
 
 /* ---------- 画面の切り替え（規程一覧／編集） ---------- */
 :root[data-view="list"] main { display: none; }
@@ -704,7 +718,6 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
               </div>
             </div>
           </div>
-          <button type="button" class="btn" id="cmpSave" hidden>新旧対照表を保存</button>
         </div>
       </section>
     </div>
@@ -908,7 +921,10 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       <div class="tbl-cols tbl-th"><div id="tblHOld"></div><div id="tblHNew"></div><div>備考</div></div>
       <div id="tblBody"></div>
     </div>
-    <div class="tbl-foot"><button type="button" class="btn primary" id="tblSave">新旧対照表を作成</button></div>
+    <div class="tbl-foot">
+      <button type="button" class="btn" id="tblPdf">新旧対照表を作成（PDF）</button>
+      <button type="button" class="btn primary" id="tblSave">新旧対照表を作成（docx）</button>
+    </div>
   </dialog>
 
   <footer>
@@ -1011,7 +1027,6 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $("cmpShow").disabled = busy || !file;
     $("otherFile").disabled = busy || !file;
     $("otherBtn").setAttribute("aria-disabled", busy || !file ? "true" : "false");
-    $("cmpSave").disabled = busy;
     $("tblOpen").disabled = $("tblOpen2").disabled = busy;
     $("tblSave").disabled = busy;
     // 解析のオプションを変えたら、表示中の変更点は古いので消す（保存で古い解析を使わないように）
@@ -1178,7 +1193,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     editingEl = null; pendingOpen = null; cmpClosed.clear();
     $("cmpToc").hidden = true; $("cmpToc").textContent = ""; $("cmpTocBtn").setAttribute("aria-expanded", "false");
     $("cmpBody").innerHTML = ""; $("cmpList").hidden = true;
-    $("cmpSave").hidden = true; $("cmpHint").textContent = ""; $("cmpHint").className = "hint";
+    $("cmpHint").textContent = ""; $("cmpHint").className = "hint";
   }
   // ---------- 改正案の編集 ----------
   // edit: { base（現行の木）, tree（編集した木）, undo（元に戻す用の木の JSON）}。編集していなければ null
@@ -2136,7 +2151,6 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       const b = cmpBlocks.find((x) => x.new_path && JSON.stringify(x.new_path) === want);
       if (b && b.el) { openEditor(b, b.el, true); b.el.scrollIntoView({ block: "center" }); }
     }
-    $("cmpSave").hidden = cmpRows.length === 0;
     cmpHint("ok", cmpRows.length ? `変更点 ${cmpRows.length} 件` : "変更点はありません。");
   }
 
@@ -2371,9 +2385,39 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     const n = loadNotes();
     cmpBlocks.forEach((b) => { if (b.noteTa) b.noteTa.value = n[b.row_id] || ""; });
   });
-  $("tblSave").addEventListener("click", () => $("cmpSave").click());
+  $("tblPdf").addEventListener("click", printTable);
+  // 印刷用に、モーダルの表を見出し行つきの table に写す（各ページに見出しを繰り返すため）。
+  // 備考は入力欄ではなく文字で出す。印刷が終わったら消す
+  function printTable() {
+    const diff = $("tblBody").classList.contains("diff");
+    const tb = document.createElement("table");
+    const th = tb.createTHead().insertRow();
+    [$("tblHOld").textContent, $("tblHNew").textContent, "備考"].forEach((s) => {
+      const c = document.createElement("th"); c.textContent = s; th.appendChild(c);
+    });
+    const body = tb.createTBody();
+    $("tblBody").querySelectorAll(".tbl-cols").forEach((row) => {
+      if (diff && row.dataset.same === "1") return;
+      const tr = body.insertRow();
+      [...row.children].forEach((cell) => {
+        const td = tr.insertCell();
+        const ta = cell.querySelector("textarea");
+        if (ta) { td.className = "pr-note"; td.textContent = ta.value; }
+        else { const c = cell.cloneNode(true); td.style.background = c.style.background; c.style.background = ""; td.appendChild(c); }
+      });
+    });
+    const area = document.createElement("div");
+    area.id = "printArea";
+    const h = document.createElement("h1");
+    h.textContent = `新旧対照表　${$("edTitle").textContent}`;
+    area.append(h, tb);
+    document.body.appendChild(area);
+    $("tblDlg").close();
+    window.addEventListener("afterprint", () => area.remove(), { once: true });
+    window.print();
+  }
 
-  $("cmpSave").addEventListener("click", () => withBusy(async () => {
+  $("tblSave").addEventListener("click", () => withBusy(async () => {
     const notes = loadNotes();
     const ids = new Set(cmpRows.map((r) => r.id));
     const used = Object.fromEntries(Object.entries(notes).filter(([k]) => ids.has(k)));
