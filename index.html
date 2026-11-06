@@ -335,18 +335,17 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 <main>
   <header>
     <h1>就業規則 整形</h1>
-    <p>整形前の docx を読み込み、用意したテンプレートで組み直した docx を作ります。</p>
     <div class="engine" id="engine" data-state="loading" role="status" aria-live="polite">
-      <span class="dot" aria-hidden="true"></span><span id="engineText">準備中：Python 実行環境を読み込んでいます（初回は数十秒かかります）</span>
+      <span class="dot" aria-hidden="true"></span><span id="engineText">準備中（初回は数十秒）</span>
     </div>
   </header>
 
   <details class="caution">
-    <summary>整形する前にご確認ください</summary>
+    <summary>整形前の注意</summary>
     <ul>
-      <li>元ファイルの文字書式（フォント・太字・文字色）は引き継がれず、テンプレートのスタイルに置き換わります。強調表示など重要な書式は整形後に付け直してください。</li>
-      <li>文書の書き方によっては、条・項・号の判定を誤ることがあります。整形結果は必ず元ファイルと照合してください。</li>
-      <li>AI が再構成した条には Word のコメントが付きます。その箇所は特に重点的に確認してください。</li>
+      <li>文字書式（フォント・太字・色）はテンプレートの書式に置き換わります。</li>
+      <li>条・項・号の判定を誤ることがあります。元ファイルと照合してください。</li>
+      <li>AI が再構成した条には Word のコメントが付きます。確認してください。</li>
       <li>ファイルはこの端末のブラウザ内だけで処理され、外部には送られません（Gemini を使う場合のみ、判定対象の文章が Google に送られます）。</li>
     </ul>
   </details>
@@ -362,7 +361,6 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         <label for="file" class="btn" id="fileBtn">ファイルを選ぶ</label>
         <span class="name" id="fileName">未選択</span>
       </div>
-      <p class="hint">ページにファイルをドラッグ＆ドロップしても選べます。</p>
       <p class="hint" id="parseHint" aria-live="polite"></p>
     </div>
   </section>
@@ -375,7 +373,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       <div class="opt">
         <input type="checkbox" id="optLayout">
         <label for="optLayout">下線・アンダーバーの行を図とみなす</label>
-        <div class="desc">下線や「＿」、スペースの位置合わせで図表を作っている規程向け。オンにすると、その部分は整形せず元のまま残します。線やテキストボックスなど実際の図形は、この設定に関わらず常に保持されます。</div>
+        <div class="desc">下線・「＿」・スペースで作った図表は、整形せず元のまま残します。実際の図形は設定に関わらず保持されます。</div>
       </div>
 
       <div class="opt">
@@ -399,7 +397,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       <div class="opt">
         <input type="checkbox" id="optGemini">
         <label for="optGemini">Gemini で分割ミスを検出する</label>
-        <div class="desc">長い項・号の分割ミスや、機械的に判定できない段落を Gemini に確認させます。判定対象の文章が Google に送られます。無料枠では学習に使われる可能性があるため、機密性の高い規程では注意してください。</div>
+        <div class="desc">判定しにくい段落を Gemini に確認させます。文章が Google に送られ、無料枠では学習に使われる可能性があります。</div>
         <div class="gemini" id="geminiBox" hidden>
           <label class="field" for="apiKey">Gemini API キー</label>
           <input type="password" id="apiKey" autocomplete="off" spellcheck="false" placeholder="AIza…">
@@ -448,7 +446,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         </div>
         <div class="tpl tpl-custom">
           <input type="radio" name="tpl" id="custom" value="custom">
-          <label for="custom"><span class="t">カスタム</span><span class="s">番号の形・字下げ・文字の大きさなどを自分で決める</span></label>
+          <label for="custom"><span class="t">カスタム</span><span class="s">番号・字下げ・文字サイズを自分で決める</span></label>
         </div>
       </div>
 
@@ -462,14 +460,14 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
             </select>
             <button type="button" class="btn small" id="cfPresetBtn">読み込む</button>
           </div>
-          <p class="hint">テンプレ1〜4に近い設定を読み込みます。今の設定は上書きされます。用紙・余白などのページの設定は、最後に読み込んだテンプレのものを使います。</p>
+          <p class="hint">今の設定は上書きされます。用紙・余白は最後に読み込んだテンプレのものを使います。</p>
           <div class="cf-row">
             <button type="button" class="btn small" id="cfSample">見本を docx で保存</button>
             <input type="file" id="cfImport" class="vh" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
             <label for="cfImport" class="btn small" id="cfImportBtn">docx から設定を読み込む</label>
           </div>
-          <p class="hint" id="cfHint" aria-live="polite">見本の docx には今の設定が保存されます。このアプリで整形した docx（テンプレ1〜4・カスタム。Word でスタイルを手直ししたものも）や見本の docx から、見た目どおりの設定を読み込めます。</p>
-          <p class="hint">番号の形式に「①, ②, ③」を選ぶと、㉑以降は不都合が生じる可能性が高いです（Word の仕様で自動番号は⑳まで。㉑〜㊿は文字で直接入力し、51以降は普通の数字になります）。</p>
+          <p class="hint" id="cfHint" aria-live="polite">このアプリで整形した docx や見本の docx から設定を読み込めます。</p>
+          <p class="hint">「①, ②, ③」は⑳までが自動番号です。㉑〜㊿は文字入力、51以降は普通の数字になります。</p>
         </div>
 
         <div class="pv">
@@ -480,7 +478,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
           <div class="pv-scroll" role="region" aria-labelledby="pvHead" tabindex="0">
             <div class="pv-fit" id="cfFit"><div class="pv-page" id="cfPage"></div></div>
           </div>
-          <p class="hint">Word で開いたときとは、1行の文字数や改ページの位置が異なる場合があります。</p>
+          <p class="hint">Word とは折り返し・改ページの位置が異なる場合があります。</p>
         </div>
 
         <div id="cfGlobal"></div>
@@ -538,8 +536,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   </section>
 
   <footer>
-    整形結果の照合レポート（原本との文字数の突き合わせ）も一緒に作られます。<br>
-    処理はすべてこのブラウザ内で行われます。ページを閉じると作業中のファイルは消えます。
+    照合レポート（原本との文字数の突き合わせ）も作られます。<br>
+    ファイルはブラウザ内で処理され、ページを閉じると消えます。
   </footer>
 </main>
 
