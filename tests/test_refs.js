@@ -110,4 +110,25 @@ assert.equal(R.formatNum(20, "十九"), "二十");
   assert.equal(after[0].articles[2].paragraphs[0].items[0].body, "第二条に違反したとき");
 }
 
+// 参照のチェック：無い条・無い項・無い号を拾い、法令への参照とある項・号は拾わない
+{
+  const two = { type: "article", number: 2, title: "", paragraphs: [
+    { type: "paragraph", body: "x", items: [{ type: "item", body: "a" }, { type: "item", body: "b" }] },
+    { type: "paragraph", body: "y", items: [] },
+  ] };
+  const tree = [{ type: "chapter", title: "", articles: [
+    art(1, `第2条第1項第2号、第2条第3項、第2条第1項第3号、第2条第2項第1号、労働基準法第2条第5項による。第9条${R.DEAD}`),
+    two,
+  ] }];
+  const r = R.checkRefs(tree);
+  assert.deepEqual(r.map((x) => [x.kind, x.ref]), [
+    ["para", "第2条第3項"], ["item", "第2条第1項第3号"], ["item", "第2条第2項第1号"], ["dead", "第9条"],
+  ]);
+  assert.deepEqual(r[0].path, [0, 0]);
+  assert.equal(r[0].at, "第1条");
+  // 元の番号で書かれた木（欠番あり）：第5条は2番目の条
+  const orig = [art(1, "第5条第2項、第5条第3項"), { ...two, number: 5 }];
+  assert.deepEqual(R.checkRefs(orig, true).map((x) => x.ref), ["第5条第3項"]);
+}
+
 console.log("test_refs: OK");
