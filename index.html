@@ -512,6 +512,12 @@ main > footer { display: none; }
   #printArea .pr-note { white-space: pre-wrap; }
 }
 
+.chk-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.chk-list button { display: block; width: 100%; text-align: left; padding: 8px 6px; border: 0; border-bottom: 1px solid var(--rule); background: none; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.chk-list button:hover, .chk-list button:focus-visible { background: var(--hover-bg); }
+.chk-list .chk-ref { font-weight: 700; color: var(--err); }
+.chk-list .chk-note { display: block; font-size: 12.5px; color: var(--muted); }
+
 /* ---------- 画面の切り替え（規程一覧／編集） ---------- */
 :root[data-view="list"] main { display: none; }
 :root:not([data-view="list"]) #viewList { display: none; }
@@ -726,6 +732,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         <button type="button" role="tab" id="tabHist" aria-controls="panHist" aria-selected="true">変更履歴</button>
         <button type="button" role="tab" id="tabOut" aria-controls="panOut" aria-selected="false" tabindex="-1">出力</button>
         <button type="button" role="tab" id="tabSet" aria-controls="panSet" aria-selected="false" tabindex="-1">設定</button>
+        <button type="button" role="tab" id="tabChk" aria-controls="panChk" aria-selected="false" tabindex="-1">チェック</button>
       </div>
       <div class="ed-pane" role="tabpanel" id="panHist" aria-labelledby="tabHist">
       <section class="step" aria-labelledby="h6">
@@ -775,6 +782,13 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
           </details>
         </div>
       </section>
+      </div>
+      <div class="ed-pane" role="tabpanel" id="panChk" aria-labelledby="tabChk" hidden>
+        <section class="step" aria-labelledby="hChk">
+          <h2 id="hChk">参照のチェック</h2>
+          <p class="hint" id="chkHint" aria-live="polite"></p>
+          <ul class="chk-list" id="chkList"></ul>
+        </section>
       </div>
       <div class="ed-pane" role="tabpanel" id="panSet" aria-labelledby="tabSet" hidden>
       <section class="step" aria-labelledby="h1">
@@ -1628,6 +1642,40 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     await renderWorks();
   }
   // 今の「現行」と「改正案」の木。編集していなければ、どちらも解析した木
+  // ---------- 参照のチェック（右の欄の「チェック」タブ） ----------
+  let plainTree = null;   // 編集していないときの改正案の木（編集中は edit.tree を使う）
+  function renderChecks() {
+    const tree = versionView ? null : edit ? edit.tree : plainTree;
+    const list = tree ? KisokuRefs.checkRefs(tree, !edit) : [];
+    $("tabChk").textContent = list.length ? `チェック（${list.length}）` : "チェック";
+    $("chkHint").textContent = !tree ? (versionView ? "版を比較している間は確かめません。" : "")
+      : list.length ? "押すと、その条の編集欄を開きます。" : "参照先の無い条・項・号はありません。";
+    const ul = $("chkList");
+    ul.textContent = "";
+    list.forEach((x) => {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      const head = document.createElement("span");
+      head.append(`${x.at}　`);
+      const ref = document.createElement("span");
+      ref.className = "chk-ref"; ref.textContent = x.ref;
+      head.appendChild(ref);
+      const note = document.createElement("span");
+      note.className = "chk-note"; note.textContent = x.note;
+      b.append(head, note);
+      b.addEventListener("click", () => {
+        const want = JSON.stringify(x.path);
+        const blk = cmpBlocks.find((y) => y.new_path && JSON.stringify(y.new_path) === want);
+        if (!blk || !blk.el || busy) return;
+        if (blk.blockEl) blk.blockEl.classList.remove("folded");
+        openEditor(blk, blk.el);
+        blk.el.scrollIntoView({ block: "center" });
+      });
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+  }
   async function currentTrees() {
     if (edit) return { base: edit.base, tree: edit.tree };
     const m = await call({ type: "getTree" });
@@ -2021,6 +2069,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       return;
     }
     cmpRows = m.rows; cmpBlocks = m.blocks || [];
+    if (!edit && !versionView) { try { plainTree = (await currentTrees()).base; } catch { plainTree = null; } }
     KisokuEditor.setMarks(m.marks || {});    // 編集欄の号・号の下位のラベルも、テンプレートの書き方にする
     const jump = !!pendingOpen;      // 新しく作った条・章へ移るときは、元の位置に戻さない
     if (!jump) { renderComparison(); pane.scrollTop = y; }
@@ -2143,6 +2192,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     list.hidden = cmpBlocks.length === 0;
     cmpShown = true;
     editingEl = null;
+    renderChecks();
     refreshEditBar();
     // 「この後に条を追加」などで作った条・章は、描き直したあとにすぐ編集欄を開く
     if (pendingOpen) {
@@ -2183,7 +2233,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (file) await flushTouch();
     setView("edit");
     $("edTitle").textContent = f.name.replace(/\.docx$/i, "");
-    file = f; parsedKey = null; edit = null; draftSaveFailed = false; versionView = null; versions = [];
+    file = f; plainTree = null; parsedKey = null; edit = null; draftSaveFailed = false; versionView = null; versions = [];
     clearComparison();
     $("fileName").textContent = f.name;
     $("result").innerHTML = ""; $("log").textContent = "";

@@ -98,24 +98,32 @@
     return map;
   }
 
+  // 文字列の中の「第◯条」を順に返す [{ m, external }]。external：ほかの法令・規程などへの参照
+  function scanRefs(text) {
+    const out = [];
+    if (typeof text !== "string" || text.indexOf("条") < 0) return out;
+    let prevEnd = -1, prevExternal = false;
+    for (const m of text.matchAll(REF)) {
+      const between = prevEnd >= 0 ? text.slice(prevEnd, m.index) : null;
+      let external;
+      if (between !== null && CHAIN.test(between)) external = prevExternal;
+      else {
+        const b = nameBefore(text.slice(0, m.index));
+        external = EXTERNAL.test(b) && !SELF.test(b);
+      }
+      prevEnd = m.index + m[0].length; prevExternal = external;
+      out.push({ m, external });
+    }
+    return out;
+  }
+
   // 1つの文字列の参照を書き換える。from: キー→_rid、to: _rid→新しい番号
   // 戻り値 { text, missing: [消えた条を指していた参照の文字列] }
   function rewriteText(text, from, to) {
     if (typeof text !== "string" || text.indexOf("条") < 0) return { text, missing: [] };
     const missing = [];
-    let out = "", last = 0, prevEnd = -1, prevExternal = false;
-    REF.lastIndex = 0;
-    let m;
-    while ((m = REF.exec(text))) {
-      const before = text.slice(0, m.index);
-      const between = prevEnd >= 0 ? text.slice(prevEnd, m.index) : null;
-      let external;
-      if (between !== null && CHAIN.test(between)) external = prevExternal;
-      else {
-        const b = nameBefore(before);
-        external = EXTERNAL.test(b) && !SELF.test(b);
-      }
-      prevEnd = m.index + m[0].length; prevExternal = external;
+    let out = "", last = 0;
+    for (const { m, external } of scanRefs(text)) {
       if (external) continue;
       if (text.startsWith(DEAD, m.index + m[0].length)) continue;   // 削除した条への参照（印付き）
       const key = m[2] ? `${parseNum(m[1])}の${parseNum(m[2])}` : String(parseNum(m[1]));
@@ -171,7 +179,57 @@
     return out;
   }
 
-  const api = { assignIds, rewriteTree, rewriteText, deadRefs, numbering, parseNum, formatNum, DEAD };
+  // 規程の中の参照を確かめる。条の位置（path：木の中の [章, 条] か [条]）ごとに
+  //   dead：参照先の条が無い（印付き）、para：その条に無い項、item：その項に無い号
+  // を返す [{ path, at: "第５条", ref: "第３条第４項", kind, note }]。
+  // original：本文の参照が元の docx の番号（number・branch）で書かれている（まだ編集していない木）。
+  //   そうでなければ通し番号（編集中の改正案。参照は通し番号に書き換え済み）。
+  // 「前条」「前項」などの相対的な参照は確かめない
+  function checkRefs(tree, original) {
+    const out = [];
+    const list = [];
+    (tree || []).forEach((n, ti) => {
+      if (!n || typeof n !== "object") return;
+      if (n.type === "chapter") (n.articles || []).forEach((a, ai) => { if (a && typeof a === "object") list.push({ a, path: [ti, ai] }); });
+      else if (n.type === "article") list.push({ a: n, path: [ti] });
+    });
+    const sub = new RegExp(`^第(${D})項(?:第(${D})号)?`);
+    const byKey = new Map();
+    list.forEach(({ a }, i) => {
+      const key = original && Number.isInteger(a.number) && a.number > 0
+        ? (a.branch ? `${a.number}の${a.branch}` : String(a.number)) : String(i + 1);
+      if (!byKey.has(key)) byKey.set(key, a);
+    });
+    list.forEach(({ a, path }, i) => {
+      const at = `第${i + 1}条`;
+      eachText(a, (text) => {
+        for (const { m, external } of scanRefs(text)) {
+          if (external) continue;
+          const end = m.index + m[0].length;
+          if (text.startsWith(DEAD, end)) { out.push({ path, at, ref: m[0], kind: "dead", note: "参照先の条がありません" }); continue; }
+          const s = text.slice(end).match(sub);
+          if (!s) continue;
+          const target = byKey.get(m[2] ? `${parseNum(m[1])}の${parseNum(m[2])}` : String(parseNum(m[1])));
+          if (!target) continue;
+          const paras = Array.isArray(target.paragraphs) ? target.paragraphs : [];
+          const pn = parseNum(s[1]);
+          if (pn > paras.length) {
+            out.push({ path, at, ref: m[0] + `第${s[1]}項`, kind: "para", note: `${m[0]}は第${paras.length}項までです` });
+            continue;
+          }
+          if (!s[2]) continue;
+          const items = Array.isArray(paras[pn - 1].items) ? paras[pn - 1].items.filter((x) => x && x.type === "item") : [];
+          if (parseNum(s[2]) > items.length) {
+            out.push({ path, at, ref: m[0] + s[0], kind: "item", note: items.length ? `その項は第${items.length}号までです` : "その項に号はありません" });
+          }
+        }
+        return text;
+      });
+    });
+    return out;
+  }
+
+  const api = { assignIds, checkRefs, rewriteTree, rewriteText, deadRefs, numbering, parseNum, formatNum, DEAD };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.KisokuRefs = api;
 })(typeof self !== "undefined" ? self : this);
