@@ -473,6 +473,31 @@ main > footer { display: none; }
 .ed-pane .ver-table td.chg, .ed-pane .ver-table td.ops { display: block; min-width: 0; padding-top: 4px; white-space: normal; }
 .ed-split .cmp-block { scroll-margin-top: 60px; }
 
+/* ---------- 新旧対照表（3列のモーダル） ---------- */
+#tblOpen { margin-bottom: 8px; }
+.tbl { width: calc(100vw - 48px); max-width: 1600px; height: calc(100vh - 48px); padding: 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.tbl[open] { display: flex; flex-direction: column; }
+.tbl::backdrop { background: rgba(0, 0, 0, .4); }
+.tbl-head { flex: none; display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--rule); }
+.tbl-head h2 { margin: 0 auto 0 0; font-size: 17px; }
+.tbl-mode { display: inline-flex; gap: 4px; }
+.tbl-mode button { padding: 2px 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.tbl-mode button[aria-pressed="true"] { background: var(--ai); border-color: var(--ai); color: var(--surface); }
+.tbl-x { border: 0; background: none; font-size: 22px; line-height: 1; color: var(--muted); cursor: pointer; padding: 4px 8px; }
+.tbl-scroll { flex: 1; min-height: 0; overflow: auto; }
+.tbl-cols { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+.tbl-cols > * { padding: 6px 10px; border-right: 1px solid var(--rule); min-width: 0; }
+.tbl-cols > :last-child { border-right: 0; }
+.tbl-th { position: sticky; top: 0; z-index: 1; background: var(--surface); border-bottom: 2px solid var(--rule); font-weight: 700; font-size: 14px; text-align: center; }
+.tbl-th > :first-child { color: var(--err); }
+.tbl-th > :nth-child(2) { color: var(--ok); }
+#tblBody .tbl-cols { border-bottom: 1px solid var(--rule); }
+#tblBody .cmp-col { padding: 6px 10px; }
+#tblBody.diff .tbl-cols[data-same="1"] { display: none; }
+.tbl-note textarea { width: 100%; height: 100%; min-height: 3em; padding: 4px 6px; font: inherit; font-size: 13.5px; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); color: var(--ink); resize: vertical; }
+.tbl-foot { flex: none; display: flex; justify-content: flex-end; padding: 10px 16px; border-top: 1px solid var(--rule); }
+.tbl-foot .btn.primary { width: auto; min-height: 40px; font-size: 15px; }
+
 /* ---------- 画面の切り替え（規程一覧／編集） ---------- */
 :root[data-view="list"] main { display: none; }
 :root:not([data-view="list"]) #viewList { display: none; }
@@ -668,6 +693,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
                 <button type="button" class="btn small" id="cmpTocBtn" aria-expanded="false" aria-controls="cmpToc">目次</button>
                 <button type="button" class="btn small" id="cmpOpenAll">すべて開く</button>
                 <button type="button" class="btn small" id="cmpCloseAll">すべて閉じる</button>
+            <button type="button" class="btn small" id="tblOpen2">新旧対照表を開く</button>
               </div>
               <div class="cmp-toc" id="cmpToc" hidden></div>
             </div>
@@ -693,6 +719,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         <div class="no" aria-hidden="true">⑥</div>
         <div class="body">
           <h2 id="h6">版と改訂履歴</h2>
+          <button type="button" class="btn small" id="tblOpen">新旧対照表を開く</button>
           <p class="hint" id="verNoFile">① でファイルを選ぶと使えます。</p>
           <div id="verBox" hidden>
             <div class="ver-form">
@@ -868,6 +895,22 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     </div>
   </div>
 
+  <dialog class="tbl" id="tblDlg" aria-labelledby="tblTitle">
+    <div class="tbl-head">
+      <h2 id="tblTitle">新旧対照表</h2>
+      <div class="tbl-mode" role="group" aria-label="表示">
+        <button type="button" id="tblAll" aria-pressed="true">全文</button>
+        <button type="button" id="tblDiff" aria-pressed="false">差分のみ</button>
+      </div>
+      <button type="button" class="tbl-x" id="tblClose" aria-label="閉じる">×</button>
+    </div>
+    <div class="tbl-scroll">
+      <div class="tbl-cols tbl-th"><div id="tblHOld"></div><div id="tblHNew"></div><div>備考</div></div>
+      <div id="tblBody"></div>
+    </div>
+    <div class="tbl-foot"><button type="button" class="btn primary" id="tblSave">新旧対照表を作成</button></div>
+  </dialog>
+
   <footer>
     作業はこの端末のブラウザに自動で保存されます。閲覧データの削除などで消えることがあるため、残したい作業は「書き出し」でファイルにしてください。
   </footer>
@@ -969,6 +1012,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $("otherFile").disabled = busy || !file;
     $("otherBtn").setAttribute("aria-disabled", busy || !file ? "true" : "false");
     $("cmpSave").disabled = busy;
+    $("tblOpen").disabled = $("tblOpen2").disabled = busy;
+    $("tblSave").disabled = busy;
     // 解析のオプションを変えたら、表示中の変更点は古いので消す（保存で古い解析を使わないように）
     if (!busy && cmpShown && !edit && !versionView && parsedKey !== parseKeyNow()) clearComparison();
     refreshEditBar();
@@ -2061,6 +2106,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         const ta = document.createElement("textarea");
         ta.placeholder = "改正理由・備考"; ta.setAttribute("aria-label", "備考：" + heading);
         ta.value = notes[r.id] || "";
+        b.noteTa = ta;
         ta.addEventListener("input", () => { const n = loadNotes(); n[r.id] = ta.value; saveNotes(n); touchWork(); });
         box.appendChild(ta);
         el.appendChild(box);
@@ -2272,6 +2318,60 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   };
   $("cmpOpenAll").addEventListener("click", () => foldAll(true));
   $("cmpCloseAll").addEventListener("click", () => foldAll(false));
+
+  // ---------- 新旧対照表（3列のモーダル） ----------
+  // 左の欄で描いた現行・改正案の列を写し、備考の列を足す。備考は左の欄と同じ所に残す
+  function openTable() {
+    if (!cmpShown || !cmpBlocks.length) { cmpHint("err", "先に「変更点を表示」を押してください。"); return; }
+    const notes = loadNotes();
+    const body = $("tblBody");
+    body.textContent = "";
+    $("tblHOld").textContent = $("cmpHeadOld").textContent;
+    $("tblHNew").textContent = $("cmpHeadNew").textContent;
+    cmpBlocks.forEach((b) => {
+      if (!b.blockEl) return;
+      const row = document.createElement("div");
+      row.className = "tbl-cols";
+      const quiet = b.blockEl.dataset.quiet === "1";
+      row.dataset.same = b.kind === "same" && (b.unit === "article" || quiet) ? "1" : "";
+      if (b.unit === "chapter" && quiet) row.dataset.same = "1";
+      [".cmp-old", ".cmp-new"].forEach((sel) => {
+        const c = b.blockEl.querySelector(sel).cloneNode(true);
+        c.querySelectorAll(".cmp-fold").forEach((x) => x.remove());
+        c.classList.remove("editable"); c.removeAttribute("role"); c.removeAttribute("tabindex"); c.removeAttribute("aria-label");
+        c.style.background = getComputedStyle(b.blockEl.querySelector(sel)).backgroundColor;
+        row.appendChild(c);
+      });
+      const nc = document.createElement("div");
+      nc.className = "tbl-note";
+      if (b.row_id && cmpRows.some((r) => r.id === b.row_id)) {
+        const ta = document.createElement("textarea");
+        ta.setAttribute("aria-label", "備考");
+        ta.value = notes[b.row_id] || "";
+        ta.addEventListener("input", () => { const n = loadNotes(); n[b.row_id] = ta.value; saveNotes(n); touchWork(); });
+        nc.appendChild(ta);
+      }
+      row.appendChild(nc);
+      body.appendChild(row);
+    });
+    $("tblDlg").showModal();
+  }
+  function tableMode(diff) {
+    $("tblAll").setAttribute("aria-pressed", String(!diff));
+    $("tblDiff").setAttribute("aria-pressed", String(diff));
+    $("tblBody").classList.toggle("diff", diff);
+  }
+  $("tblOpen").addEventListener("click", openTable);
+  $("tblOpen2").addEventListener("click", openTable);
+  $("tblAll").addEventListener("click", () => tableMode(false));
+  $("tblDiff").addEventListener("click", () => tableMode(true));
+  $("tblClose").addEventListener("click", () => $("tblDlg").close());
+  // 閉じたら、モーダルで書いた備考を左の欄にも反映する
+  $("tblDlg").addEventListener("close", () => {
+    const n = loadNotes();
+    cmpBlocks.forEach((b) => { if (b.noteTa) b.noteTa.value = n[b.row_id] || ""; });
+  });
+  $("tblSave").addEventListener("click", () => $("cmpSave").click());
 
   $("cmpSave").addEventListener("click", () => withBusy(async () => {
     const notes = loadNotes();
