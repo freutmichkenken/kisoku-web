@@ -378,6 +378,20 @@ def units(tree, old, marks=None):
                 add_article(art, [ti, ai])
         elif t == "article":
             add_article(node, [ti])
+        elif t == "back_matter":
+            # 元の docx の附則など。画面で見せるだけで編集しない（path なし）。現行と改正案で同じなら変更なし
+            texts = [s for s in node.get("texts", []) if isinstance(s, str) and s.strip()]
+            if texts:
+                out.append({"kind": "back", "number": 0, "label": "", "title": "",
+                            "sig": "後付け:" + "\n".join(texts), "lines": texts,
+                            "parts": [("", "", s) for s in texts], "cls": ["back"] * len(texts), "path": None})
+        elif t == "supplement":
+            title, body = str(node.get("title", "")), str(node.get("body", ""))
+            lines = [title] + body.split("\n")
+            out.append({"kind": "supplement", "number": 0, "label": "", "title": title,
+                        "sig": "附則:" + title + "\n" + body, "lines": lines,
+                        "parts": [("", "", s) for s in lines],
+                        "cls": ["chapter"] + ["back"] * (len(lines) - 1), "path": [ti]})
     return out
 
 
@@ -558,6 +572,10 @@ def _heading(u):
         return ""
     if u["kind"] == "chapter":
         return f"{u['label']}　{u['title']}".rstrip()
+    if u["kind"] == "back":
+        return "附則等（元の文書）"
+    if u["kind"] == "supplement":
+        return u["title"]
     return u["label"] + (f"（{u['title']}）" if u["title"] else "")
 
 

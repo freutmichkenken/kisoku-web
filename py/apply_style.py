@@ -1362,6 +1362,13 @@ def apply_style(json_path, template_path, template_key, output_path,
             emit_article(node)
         elif t == "plain":
             doc.add_paragraph(node.get("body", ""))
+        elif t == "supplement":
+            # 画面で足した附則：見出しを中央に置き、本文を続ける（元の附則の後ろに出る）
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            doc.add_paragraph("")
+            doc.add_paragraph(node.get("title", "")).alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for line in str(node.get("body", "")).split("\n"):
+                doc.add_paragraph(line)
         elif t == "table":
             _add_table(doc, node, table_style_id, src_tables,
                        src_styles, out_styles)

@@ -390,4 +390,24 @@ bad = copy.deepcopy(refs_new)
 bad[1]["paragraphs"][0]["body"] = "第9条の規定による。"
 assert c.compare(refs_old, bad)[1]["kind"] == "changed"
 
+# --- 附則：元の附則（後付け）は変更なしで表示だけ、足した附則は「追加」の行になる ---
+back = {"type": "back_matter", "indices": [], "texts": ["附　則", "この規則は令和元年から施行する。"]}
+sup = {"type": "supplement", "title": "附　則（令和8年4月1日）", "body": "この規則は、令和8年4月1日から施行する。"}
+v = c.view([art(1, "目的", "a"), back], [art(1, "目的", "a"), back, sup])
+assert [(b["unit"], b["kind"]) for b in v["blocks"]] == [("article", "same"), ("back", "same"), ("supplement", "added")], v["blocks"]
+assert v["blocks"][1]["new_path"] is None and v["blocks"][2]["new_path"] == [2]
+assert [r["kind"] for r in v["rows"]] == ["added"] and v["rows"][0]["new_heading"] == sup["title"]
+
+# 整形した docx では、足した附則が最後に出る
+with tempfile.TemporaryDirectory() as d:
+    jp = os.path.join(d, "sup.json")
+    with open(jp, "w", encoding="utf-8") as f:
+        json.dump([art(1, "目的", "a"), sup], f, ensure_ascii=False)
+    out = os.path.join(d, "sup.docx")
+    with contextlib.redirect_stdout(io.StringIO()):
+        apply_style.apply_style(json_path=jp, template_path=os.path.join(ROOT, "templates", "就業規則テンプレ1.docx"),
+                                template_key="t1", output_path=out, show_notice=False, verify=False)
+    texts = [p.text for p in Document(out).paragraphs if p.text]
+    assert texts[-2:] == [sup["title"], sup["body"]], texts[-4:]
+
 print("OK")

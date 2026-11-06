@@ -301,6 +301,10 @@ def _check_tree(tree):
             # それ以外の種類も、整形は読み飛ばすので止めない（解析で種類が増えても編集できなくならないように）
             if kind == "plain" and not text(node.get("body")):
                 raise ValueError(f"先頭から{ti}番目の本文の形式が正しくありません")
+            # 附則（画面で版の施行日から足したもの）。見出しと本文の2つの文字列
+            if kind == "supplement" and not (text(node.get("title")) and text(node.get("body"))
+                                             and len(node["title"]) <= 200 and len(node["body"]) <= 5000):
+                raise ValueError(f"先頭から{ti}番目の附則の形式が正しくありません")
             if kind in ("table", "drawing"):
                 located(lambda node=node, kind=kind: _check_figures({kind + "s": [node]}, used),
                         f"先頭から{ti}番目の{'表' if kind == 'table' else '図'}")

@@ -518,6 +518,9 @@ main > footer { display: none; }
 .chk-list .chk-ref { font-weight: 700; color: var(--err); }
 .chk-list .chk-note { display: block; font-size: 12.5px; color: var(--muted); }
 
+.cmp-block[data-unit="back"] .cmp-col { color: var(--muted); }
+.cmp-line.back { padding-left: 1em; }
+
 /* ---------- 画面の切り替え（規程一覧／編集） ---------- */
 :root[data-view="list"] main { display: none; }
 :root:not([data-view="list"]) #viewList { display: none; }
@@ -1719,6 +1722,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     const effective = $("verDate").value;
     if (effective && !validDate(effective)) { verHint("err", "施行日の形式が正しくありません。"); return; }
     const memo = $("verMemo").value.trim().slice(0, 200);
+    // 確定前の附則を、この版の附則にする（以後は施行日を変えても書き換えない）
+    if (edit) edit.tree.forEach((n) => { if (n && n.type === "supplement") { delete n.pending; delete n.auto; } });
     // 編集していなければ、② のオプションを変えた後でも今のオプションの解析結果を版にする
     if (!edit && !(await ensureParsed((k, t) => verHint(k === "err" ? "err" : "", t)))) return;
     let trees;
@@ -1973,12 +1978,37 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     list.splice(path[path.length - 1], del, ...add);
   }
   // 木を変える。変える前の木を「元に戻す」用に残し、保存・反映・描き直しまで行う
+  // ---------- 附則（版の施行日から作る） ----------
+  // 改正案を編集していて、変更履歴タブに施行日が入っていれば、木の最後に確定前の附則（pending）を置く。
+  // 施行日を消せば、文を直していない附則（auto）は取り除く。確定すると pending を外し、その版の附則になる
+  const WAREKI = new Intl.DateTimeFormat("ja-JP-u-ca-japanese", { era: "long", year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+  const wareki = (iso) => WAREKI.format(new Date(iso + "T00:00:00Z"));
+  function applySupplement(tree) {
+    const i = tree.findIndex((n) => n && n.type === "supplement" && n.pending);
+    const date = $("verDate").value;
+    if (!validDate(date)) {
+      if (i >= 0 && tree[i].auto) tree.splice(i, 1);
+      return;
+    }
+    const w = wareki(date);
+    const node = i >= 0 ? tree[i] : { type: "supplement", pending: true, auto: true, title: "", body: "" };
+    node.title = `附　則（${w}）`;
+    if (node.auto) node.body = `この規則は、${w}から施行する。`;
+    if (i < 0) tree.push(node);
+  }
+  $("verDate").addEventListener("change", async () => {
+    if (!edit || versionView || busy || editingEl) return;
+    const before = JSON.stringify(edit.tree);
+    applySupplement(edit.tree);
+    if (JSON.stringify(edit.tree) !== before) await syncEdit();
+  });
   async function changeTree(mutate) {
     edit.undo.push(JSON.stringify(edit.tree));
     // 1つ分は木の全体（画像を含む）なので、回数と合計の大きさの両方で古いものから捨てる
     let total = edit.undo.reduce((s, u) => s + u.length, 0);
     while (edit.undo.length > 1 && (edit.undo.length > UNDO_MAX || total > UNDO_CHARS)) total -= edit.undo.shift().length;
     mutate(edit.tree);
+    applySupplement(edit.tree);
     // 条を足す・消す・並べ替えたら、本文中の「第◯条」を新しい番号に書き換える
     KisokuRefs.assignIds(edit.tree);
     KisokuRefs.rewriteTree(JSON.parse(edit.undo[edit.undo.length - 1]), edit.tree, false);
@@ -2000,6 +2030,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     });
   }
   // force: 描き直しの中から開くとき（処理中の表示のまま開く）
+  const path0 = (b) => b.new_path[0];
   async function openEditor(b, col, force = false) {
     if ((busy && !force) || editingEl || versionView) return;
     editingEl = col;            // 木を受け取るのを待つ間に、ほかの条が開かれないように先に押さえる
@@ -2011,6 +2042,29 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       // 改正案は通し番号になるので、本文中の「第◯条」も元の番号（欠番・枝番号）から通し番号へ書き換えておく
       KisokuRefs.rewriteTree(base, tree, true);
       edit = { base, tree, undo: [] };
+    }
+    if (b.unit === "supplement") {
+      const ti = path0(b);
+      const node = edit.tree[ti];
+      if (!node || node.type !== "supplement") { editingEl = null; return; }
+      ensureOpen(b);
+      if (b.blockEl) b.blockEl.classList.add("editing");
+      col.classList.remove("editable"); col.removeAttribute("role"); col.removeAttribute("tabindex");
+      const form = KisokuEditor.supplementForm(node, {
+        commit: (s) => changeTree((t) => {
+          if (!s.title.trim() || !s.body.trim()) return;
+          // 文を直したら、施行日を変えても本文は自動で書き換えない（見出しの日付だけ合わせる）
+          if (s.body !== t[ti].body) t[ti].auto = false;
+          t[ti].title = s.title; t[ti].body = s.body;
+        }),
+        cancel: () => { if (edit && !edit.sent) edit = null; editingEl = null; renderComparison(); },
+        remove: () => changeTree((t) => { t.splice(ti, 1); }),
+      });
+      col.textContent = "";
+      col.appendChild(form);
+      const first = form.querySelector("input, textarea");
+      if (first) first.focus();
+      return;
     }
     const path = b.new_path;
     const node = nodeAt(edit.tree, path);
@@ -2125,7 +2179,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       el.className = "cmp-block";
       b.blockEl = el;
       if (b.unit === "chapter") { chapKey = chapKeyOf(b); b.chapName = null; }
-      b.chapKey = b.unit === "chapter" ? null : chapKey;
+      b.chapKey = b.unit === "chapter" || b.unit === "back" || b.unit === "supplement" ? null : chapKey;
       el.dataset.kind = b.kind; el.dataset.unit = b.unit;
       el.appendChild(column(b.old, b.old_cls || [], "old"));
       const newCol = column(b.new, b.new_cls || [], "new");
