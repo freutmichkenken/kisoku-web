@@ -264,10 +264,12 @@ with tempfile.TemporaryDirectory() as d:
     assert "編集した本文。" in [p.text for p in Document(os.path.join(d, "o.docx")).paragraphs]
     # 一番上の段の表・図、解析で今後増えるかもしれない種類も受け付ける
     extra = [{"type": "plain", "body": "章の外の文"}, {"type": "table", "index": 2, "rows": [["a", "b"]]},
-             {"type": "drawing", "index": 3, "text": ""}, {"type": "future_kind", "x": 1}] + pedit
+             {"type": "drawing", "index": 3, "text": ""}, {"type": "future_kind", "x": 1},
+             {"type": "supplement", "title": "附　則", "body": "施行する。", "pending": True}] + pedit
     web_entry.write_tree(os.path.join(d, "x.json"), json.dumps(extra, ensure_ascii=False))
     for bad in ({"type": "plain", "body": 3}, {"type": "table", "index": 1, "rows": "x"},
-                {"type": "drawing", "index": -2}, "文字列", {"body": "種類が無い"}, {"type": 5}):
+                {"type": "drawing", "index": -2}, "文字列", {"body": "種類が無い"}, {"type": 5},
+                {"type": "supplement", "title": "附　則", "body": 1}, {"type": "supplement", "title": "x" * 201, "body": "a"}):
         try:
             web_entry.write_tree(os.path.join(d, "bad.json"), json.dumps([bad] + pedit, ensure_ascii=False))
         except ValueError:

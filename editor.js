@@ -575,8 +575,33 @@
     return form;
   }
 
+  // 附則（版の施行日から足したもの）：見出しと本文
+  function supplementForm(sup, h) {
+    closeMenu();
+    const s = clone(sup);
+    const form = el("div", "ed-form");
+    const t = el("label", "ed-field");
+    t.appendChild(el("span", "ed-label", "見出し"));
+    const inp = el("input", "ed-title");
+    inp.type = "text"; inp.maxLength = 200; inp.value = s.title || "";
+    inp.addEventListener("input", () => { s.title = inp.value; });
+    t.appendChild(inp);
+    const ta = el("textarea", "ed-text");
+    ta.maxLength = 5000; ta.rows = 3; ta.value = s.body || "";
+    ta.setAttribute("aria-label", "附則の本文");
+    ta.addEventListener("input", () => { s.body = ta.value; });
+    form.append(t, ta);
+    shortcuts(form, h, () => s);
+    form.appendChild(footer([
+      withTitle(button("確定", () => h.commit(s), "btn small primary"), "Ctrl+S"),
+      withTitle(button("取消", () => h.cancel()), "Esc"),
+      button("附則を削除", () => { if (confirm("この附則を削除しますか？")) h.remove(); }),
+    ]));
+    return form;
+  }
+
   // 新旧対照表を作り直すたびに、③のテンプレートの番号の書き方を受け取る
   function setMarks(spec) { markSpec = spec && typeof spec === "object" ? spec : {}; }
 
-  window.KisokuEditor = { setMarks, articleForm, chapterForm, newArticle, newChapter, renumber, clone };
+  window.KisokuEditor = { setMarks, articleForm, chapterForm, supplementForm, newArticle, newChapter, renumber, clone };
 })();
