@@ -156,6 +156,7 @@ TABLE_MAX_ROWS = 50                      # 画面で足す表の行・列の上�
 TABLE_MAX_COLS = 10
 TABLE_CELL_MAX = 1000                    # 画面で足す表の1セルの文字数の上限（画面側と同じ）
 TABLE_TOTAL_CELLS = 2000                 # 規程全体で、画面で足す表のマスの合計の上限（表を何個も足して重くしないように）
+FORMULA_PART_MAX = 200                   # 画面で足す数式の1欄（前・分子・分母・後）の文字数の上限（画面側と同じ）
 _IMAGE_MAGIC = {"image/png": b"\x89PNG\r\n\x1a\n", "image/jpeg": b"\xff\xd8\xff"}
 
 
@@ -192,6 +193,18 @@ def _check_figures(node, used=None):
                     used[0] += n
                     if used[0] > IMAGE_TOTAL_BYTES:
                         raise ValueError("画像の合計は 30MB 以下にしてください")
+                continue
+            if key == "drawings" and x.get("type") == "formula":
+                # 画面で足した数式。各欄は文字列（無ければ空）で、長すぎないこと
+                for k in ("before", "num", "den", "after"):
+                    v = x.get(k)
+                    if not (v is None or isinstance(v, str)):
+                        raise ValueError("数式の形式が正しくありません")
+                    if v and len(v) > FORMULA_PART_MAX:
+                        raise ValueError(f"数式の各欄は{FORMULA_PART_MAX}文字以内にしてください")
+                    # 1行の欄なので改行は入らない。制御文字は docx に書けず数式が黙って消えるので止める
+                    if v and any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in v):
+                        raise ValueError("数式に改行や制御文字は使えません")
                 continue
             idx = x.get("index")
             if not (idx is None or (isinstance(idx, int) and not isinstance(idx, bool) and idx >= 0)):

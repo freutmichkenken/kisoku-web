@@ -131,7 +131,7 @@
   function marks(node) {
     const out = [];
     (node.tables || []).forEach(() => out.push("［表］"));
-    (node.drawings || []).forEach((d) => out.push(d.type === "image" ? "［画像］" : "［図］"));
+    (node.drawings || []).forEach((d) => out.push(d.type === "image" ? "［画像］" : d.type === "formula" ? "［数式］" : "［図］"));
     return out;
   }
 
@@ -144,6 +144,7 @@
       return "［表］" + (cells ? "　" + cells.slice(0, 40) : "");
     }
     if (f.type === "image") return "［画像］" + (f.name ? "　" + f.name.slice(0, 40) : "");
+    if (f.type === "formula") return "［数式］";
     return "［図］" + (f.text ? "　" + f.text.slice(0, 40) : "");
   }
   // 画面で足した表（元の文書の位置 index を持たない）。整形では rows から作り直すので中身を編集できる。
@@ -191,6 +192,68 @@
     return items;
   }
 
+  // ---------- 数式（前の文字・分子／分母・後ろの文字。整形では Word の数式で出す）----------
+  const FORMULA_PART_MAX = 200;      // py/web_entry.py の FORMULA_PART_MAX と同じ
+  const FORMULA_PARTS = [["before", "前"], ["num", "分子"], ["den", "分母"], ["after", "後"]];
+  const WAGE = (name, rate, hours) => ({ before: `${name} ＝`, num: "基本給＋〇〇手当",
+    den: "1か月平均所定労働時間数", after: `× ${rate} × ${hours}` });
+  const FORMULA_TEMPLATES = [
+    ["時間外労働", WAGE("時間外労働割増賃金", "1.25", "時間外労働時間数")],
+    ["時間外労働（月60時間超）", WAGE("時間外労働割増賃金（月60時間を超える部分）", "1.50", "月60時間を超える時間外労働時間数")],
+    ["休日労働", WAGE("休日労働割増賃金", "1.35", "休日労働時間数")],
+    ["深夜労働", WAGE("深夜労働割増賃金", "0.25", "深夜労働時間数")],
+    ["1か月平均所定労働時間数", { before: "1か月平均所定労働時間数 ＝",
+      num: "（365 － 年間所定休日日数）× 1日の所定労働時間数", den: "12", after: "" }],
+    ["自由入力", { before: "", num: "", den: "", after: "" }],
+  ];
+  // 分数の形の見本（入力のたびに作り直す）
+  function formulaPreview(f, box) {
+    box.textContent = "";
+    if (f.before) box.appendChild(el("span", null, f.before));
+    const num = (f.num || "").trim(), den = (f.den || "").trim();
+    if (num && den) {                    // 分子・分母がそろったときだけ分数（整形と同じ）
+      const fr = el("span", "ed-frac");
+      fr.appendChild(el("span", "ed-num", f.num));
+      fr.appendChild(el("span", "ed-den", f.den));
+      box.appendChild(fr);
+    } else if (num || den) {
+      box.appendChild(el("span", null, num ? f.num : f.den));
+    }
+    if (f.after) box.appendChild(el("span", null, f.after));
+  }
+  function formulaEditor(f) {
+    const wrap = el("div", "ed-formula");
+    const preview = el("div", "ed-math");
+    formulaPreview(f, preview);
+    wrap.appendChild(preview);
+    const fields = el("div", "ed-fparts");
+    FORMULA_PARTS.forEach(([key, name]) => {
+      const lab = el("label", "ed-field");
+      lab.appendChild(el("span", "ed-label", name));
+      const inp = el("input", "ed-title");
+      inp.type = "text";
+      inp.maxLength = FORMULA_PART_MAX;
+      inp.value = f[key] || "";
+      inp.addEventListener("input", () => { f[key] = inp.value; formulaPreview(f, preview); });
+      lab.appendChild(inp);
+      fields.appendChild(lab);
+    });
+    wrap.appendChild(fields);
+    return wrap;
+  }
+  // 数式のテンプレートを選ぶ欄（項・号の「数式を追加」で、その項・号の下に出す）
+  function formulaPicker(node, ctx) {
+    const box = el("div", "ed-picker");
+    box.appendChild(el("span", "ed-label", "数式"));
+    FORMULA_TEMPLATES.forEach(([name, tpl]) => box.appendChild(button(name, () => {
+      node.drawings = node.drawings || [];
+      node.drawings.push({ type: "formula", ...clone(tpl) });
+      ctx.setPicker(null);
+    })));
+    box.appendChild(button("閉じる", () => ctx.setPicker(null)));
+    return box;
+  }
+
   // 表・図・画像の1行。↑↓は条の中の前・次の項・号へ移す（整形ではその項・号の直後に出る）
   // ponytail: 同じ項・号の中での並べ替えはできない（表が先、図・画像が後の順で出る）。要るなら一覧内の入れ替えを足す。
   function figureRow(node, key, idx, ctx) {
@@ -206,7 +269,7 @@
     row.appendChild(el("span", "ed-mark", editable ? "［表］" : figureText(key, f)));
     const tools = el("span", "ed-tools");
     const at = ctx.units.indexOf(node);
-    const what = key === "tables" ? "表" : f.type === "image" ? "画像" : "図";
+    const what = key === "tables" ? "表" : f.type === "image" ? "画像" : f.type === "formula" ? "数式" : "図";
     tools.appendChild(button("↑", () => ctx.move(node, key, idx, -1), "btn small", "前の項・号へ移動")).disabled = at <= 0;
     tools.appendChild(button("↓", () => ctx.move(node, key, idx, 1), "btn small", "次の項・号へ移動")).disabled = at < 0 || at >= ctx.units.length - 1;
     moreMenu(tools, [...(editable ? tableMenu(f, ctx) : []), ["削除", () => {
@@ -215,6 +278,7 @@
       ctx.redraw();
     }]], `${what}の操作`);
     row.appendChild(tools);
+    if (f.type === "formula") return [row, formulaEditor(f)];
     if (!editable) return [row];
     return [row, tableGrid(f)];
   }
@@ -361,6 +425,7 @@
       node.tables.push(newTable());
       redraw();
     }]);
+    items.push(["数式を追加", () => ctx.setPicker(node)]);
     items.push(["画像を追加", () => pickImage(node, ctx)]);
     items.push(["削除", () => {
       const what = name;
@@ -374,6 +439,7 @@
     row.appendChild(tools);
     box.appendChild(row);
     figureRows(node, ctx).forEach((r) => box.appendChild(r));
+    if (ctx.picker === node) box.appendChild(formulaPicker(node, ctx));
     if (childKey) {
       (node[childKey] || []).forEach((_, j) => box.appendChild(unitEditor(node[childKey], j, CHILD_KIND[kind], ctx)));
     }
@@ -409,6 +475,7 @@
     const art = clone(article);
     const form = el("div", "ed-form");
     let pendingFocus = null;     // 描き直し後に入力位置を移す node（Ctrl+Enter で足した欄）
+    let pickerNode = null;       // 数式のテンプレートを選んでいる項・号
     const redraw = () => {
       closeMenu();
       // 描き直しの前にフォーカスしていた欄を覚える
@@ -436,6 +503,8 @@
         focusNext: (n) => { pendingFocus = n; },
         reg: (n, box, ta) => { boxNode.set(box, n); taOf.set(n, ta); },
         units: unitsOf(art),
+        picker: pickerNode,
+        setPicker(n) { pickerNode = n; redraw(); },
         // 表・図・画像を前（dir=-1、その項・号の末尾へ）か次（dir=1、先頭へ）の項・号へ移す
         move(node, key, idx, dir) {
           const target = this.units[this.units.indexOf(node) + dir];
