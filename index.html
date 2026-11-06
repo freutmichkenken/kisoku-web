@@ -438,6 +438,41 @@ body::before {
 .cmp-note textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; min-height: 2.6em; padding: 6px 8px; font: inherit; font-size: 14px; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); color: var(--ink); resize: vertical; }
 #cmpSave { margin-top: 12px; }
 
+/* ---------- 編集画面：左に新旧対照表と編集、右にタブ（PC向け） ---------- */
+:root:not([data-view="list"]) body { overflow: hidden; }
+:root main { max-width: none; height: 100vh; display: flex; flex-direction: column; padding: 12px 16px 0; }
+main > header { flex: none; display: flex; align-items: center; gap: 8px 20px; }
+:root[data-side="hidden"] main > header { padding-left: 56px; }
+@media (max-width: 1099px) { main > header { padding-left: 56px; } }
+main > header h1 { font-size: 22px; }
+main > header .engine { margin: 0; }
+main > footer { display: none; }
+.ed-split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(380px, 1fr); gap: 0 16px; margin-top: 8px; }
+.ed-left, .ed-pane { overflow: auto; min-height: 0; overscroll-behavior: contain; }
+.ed-left { padding: 0 4px 32px 0; }
+.ed-right { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--rule); padding-left: 16px; }
+.ed-tabs { flex: none; display: flex; gap: 4px; border-bottom: 1px solid var(--rule); }
+.ed-tabs button { padding: 8px 14px; border: 0; border-bottom: 3px solid transparent; background: none; font: inherit; font-size: 14.5px; color: var(--muted); cursor: pointer; }
+.ed-tabs button[aria-selected="true"] { color: var(--ai); border-bottom-color: var(--ai); font-weight: 700; }
+.ed-tabs button:focus-visible { outline: 3px solid var(--ai); outline-offset: -3px; }
+.ed-pane { flex: 1; padding: 0 4px 32px; }
+.ed-pane[hidden] { display: none; }
+.ed-split .step { display: block; margin-top: 0; padding-top: 10px; border-top: 0; }
+.ed-split .step > .no { display: none; }
+.ed-pane .step + .step { margin-top: 18px; border-top: 1px solid var(--rule); }
+.ed-left .cmp-list { width: auto; left: 0; transform: none; }
+.ed-left .cmp-inner { min-width: 0; }
+.ed-left .cmp-bar { top: 0; }
+.ed-pane .pv { top: 0; }
+/* 右の欄は狭いので、版の表は1版ずつ縦に積む */
+.ed-pane .ver-table thead { display: none; }
+.ed-pane .ver-table, .ed-pane .ver-table tbody, .ed-pane .ver-table tr { display: block; }
+.ed-pane .ver-table tr { padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.ed-pane .ver-table td { display: inline; border: 0; padding: 0 10px 0 0; }
+.ed-pane .ver-table td:first-child { font-weight: 700; }
+.ed-pane .ver-table td.chg, .ed-pane .ver-table td.ops { display: block; min-width: 0; padding-top: 4px; white-space: normal; }
+.ed-split .cmp-block { scroll-margin-top: 60px; }
+
 /* ---------- 画面の切り替え（規程一覧／編集） ---------- */
 :root[data-view="list"] main { display: none; }
 :root:not([data-view="list"]) #viewList { display: none; }
@@ -484,17 +519,6 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 <aside class="side" id="side" aria-label="メニュー">
   <div class="side-head" aria-hidden="true">メニュー</div>
 
-  <details class="side-sec side-steps" open>
-    <summary>手順</summary>
-    <ol class="side-nav">
-      <li><a href="#h1">① 整形前の docx</a></li>
-      <li><a href="#h2">② オプション</a></li>
-      <li><a href="#h3">③ テンプレート</a></li>
-      <li><a href="#h4">④ 新旧対照表</a></li>
-      <li><a href="#h5">⑤ 保存</a></li>
-      <li><a href="#h6">⑥ 版と改訂履歴</a></li>
-    </ol>
-  </details>
 
   <details class="side-sec" id="secTpl">
     <summary>テンプレート</summary>
@@ -612,219 +636,237 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 
   <div class="drop" id="drop" aria-hidden="true">ここにドロップして docx を追加</div>
 
-  <section class="step" aria-labelledby="h1">
-    <div class="no" aria-hidden="true">①</div>
-    <div class="body">
-      <h2 id="h1">整形前の docx を選ぶ</h2>
-      <div class="file">
-        <label for="file" class="btn" id="fileBtn">ファイルを選ぶ</label>
-        <span class="name" id="fileName">未選択</span>
-      </div>
-      <p class="hint" id="parseHint" aria-live="polite"></p>
-      <p class="hint">自動保存されます（続きはメニューの「作業ファイル」から）</p>
+
+
+
+
+
+
+  <div class="ed-split">
+    <div class="ed-left" id="edLeft">
+      <section class="step" aria-labelledby="h4">
+        <div class="no" aria-hidden="true">④</div>
+        <div class="body">
+          <h2 id="h4">新旧対照表</h2>
+          <p class="hint">現行は読み込んだ docx、改正案は整形後の内容です。雛形など別の docx を現行に置いて比べることもできます。</p>
+          <div class="file">
+            <button type="button" class="btn" id="cmpShow" disabled>変更点を表示</button>
+            <input type="file" id="otherFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+            <label for="otherFile" class="btn" id="otherBtn" aria-disabled="true">別の docx と比べる</label>
+          </div>
+          <p class="hint" id="cmpHint" aria-live="polite"></p>
+          <div class="cmp-edit" id="cmpEdit" hidden>
+            <span class="hint" id="editHint"></span>
+            <button type="button" class="btn small" id="editUndo" disabled>元に戻す</button>
+            <button type="button" class="btn small" id="editDiscard" hidden>下書きを削除</button>
+            <button type="button" class="btn small" id="verBack" hidden>編集に戻る</button>
+          </div>
+          <div class="cmp-list" id="cmpList" hidden>
+            <div class="cmp-bar" id="cmpBar">
+              <div class="cmp-bar-row">
+                <label class="cmp-only"><input type="checkbox" id="cmpOnly"> 変更のある条だけ表示</label>
+                <button type="button" class="btn small" id="cmpTocBtn" aria-expanded="false" aria-controls="cmpToc">目次</button>
+                <button type="button" class="btn small" id="cmpOpenAll">すべて開く</button>
+                <button type="button" class="btn small" id="cmpCloseAll">すべて閉じる</button>
+              </div>
+              <div class="cmp-toc" id="cmpToc" hidden></div>
+            </div>
+            <div class="cmp-scroll">
+              <div class="cmp-inner">
+                <div class="cmp-head"><div id="cmpHeadOld">現行</div><div id="cmpHeadNew">改正案</div></div>
+                <div class="cmp-body" id="cmpBody"></div>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn" id="cmpSave" hidden>新旧対照表を保存</button>
+        </div>
+      </section>
     </div>
-  </section>
-
-  <section class="step" aria-labelledby="h2">
-    <div class="no" aria-hidden="true">②</div>
-    <div class="body">
-      <h2 id="h2">オプション</h2>
-
-      <div class="opt">
-        <input type="checkbox" id="optLayout">
-        <label for="optLayout">下線・アンダーバーの行を図とみなす</label>
-        <div class="desc">下線・「＿」・空白で作った図表を整形せず残します（図形は常に残ります）。</div>
+    <div class="ed-right">
+      <div class="ed-tabs" role="tablist" aria-label="右の欄">
+        <button type="button" role="tab" id="tabHist" aria-controls="panHist" aria-selected="true">変更履歴</button>
+        <button type="button" role="tab" id="tabOut" aria-controls="panOut" aria-selected="false" tabindex="-1">出力</button>
+        <button type="button" role="tab" id="tabSet" aria-controls="panSet" aria-selected="false" tabindex="-1">設定</button>
       </div>
-
-      <div class="opt">
-        <input type="checkbox" id="optToc">
-        <label for="optToc">目次を作成する</label>
-        <div class="desc">表紙の次に章・条の目次を入れます。Word で更新の確認が出たら「はい」を選んでください（出ないときは Ctrl+A → F9）。</div>
+      <div class="ed-pane" role="tabpanel" id="panHist" aria-labelledby="tabHist">
+      <section class="step" aria-labelledby="h6">
+        <div class="no" aria-hidden="true">⑥</div>
+        <div class="body">
+          <h2 id="h6">版と改訂履歴</h2>
+          <p class="hint" id="verNoFile">① でファイルを選ぶと使えます。</p>
+          <div id="verBox" hidden>
+            <div class="ver-form">
+              <label class="field" for="verDate">施行日</label>
+              <input type="date" id="verDate">
+              <label class="field" for="verMemo">メモ</label>
+              <input type="text" id="verMemo" maxlength="200" placeholder="例：育児介護休業法改正への対応">
+              <button type="button" class="btn" id="verAdd">改正案を版として確定</button>
+            </div>
+            <p class="hint" id="verHint" aria-live="polite"></p>
+            <div class="ver-scroll" id="verTableBox" hidden>
+              <table class="ver-table">
+                <thead><tr><th>版</th><th>施行日</th><th>メモ</th><th>変更した条</th><th></th></tr></thead>
+                <tbody id="verBody"></tbody>
+              </table>
+            </div>
+            <div class="ver-cmp" id="verCmp" hidden>
+              <label for="verA">比べる</label>
+              <select id="verA"></select>
+              <span aria-hidden="true">→</span>
+              <select id="verB" aria-label="比べる先"></select>
+              <button type="button" class="btn small" id="verShow">新旧対照表を表示</button>
+            </div>
+          </div>
+        </div>
+      </section>
       </div>
-
-      <div class="opt">
-        <input type="checkbox" id="optXref">
-        <label for="optXref">相互参照を残す（緑字）</label>
-        <div class="desc">「第10条に定める」のような、番号が自動で変わる Word の参照を残して緑字にします。確認後は文字色を戻してください。オフにすると普通の文字になります。</div>
+      <div class="ed-pane" role="tabpanel" id="panOut" aria-labelledby="tabOut" hidden>
+      <section class="step" aria-labelledby="h5">
+        <div class="no" aria-hidden="true">⑤</div>
+        <div class="body">
+          <h2 id="h5">整形した docx</h2>
+          <button type="button" class="btn primary" id="run" disabled>ダウンロード</button>
+          <button type="button" class="btn small" id="agentCancel" hidden>中止</button>
+          <p class="hint" id="runHint"></p>
+          <div class="result" id="result" aria-live="polite"></div>
+          <details class="log" id="logBox">
+            <summary>処理の記録</summary>
+            <pre id="log"></pre>
+          </details>
+        </div>
+      </section>
       </div>
+      <div class="ed-pane" role="tabpanel" id="panSet" aria-labelledby="tabSet" hidden>
+      <section class="step" aria-labelledby="h1">
+        <div class="no" aria-hidden="true">①</div>
+        <div class="body">
+          <h2 id="h1">読み込んだ docx</h2>
+          <div class="file">
+            <label for="file" class="btn" id="fileBtn">ファイルを選ぶ</label>
+            <span class="name" id="fileName">未選択</span>
+          </div>
+          <p class="hint" id="parseHint" aria-live="polite"></p>
+          <p class="hint">自動保存されます（続きは規程一覧から）</p>
+        </div>
+      </section>
+      <section class="step" aria-labelledby="h2">
+        <div class="no" aria-hidden="true">②</div>
+        <div class="body">
+          <h2 id="h2">オプション</h2>
 
-      <div class="opt">
-        <input type="checkbox" id="optHyoki">
-        <label for="optHyoki">表記ゆれを青字にする</label>
-        <div class="desc">「従業員／社員」「1か月／1ヵ月」などのゆれを青字にし、最初の1箇所にコメントを付けます（文字は直しません）。</div>
-      </div>
-
-      <div class="opt">
-        <input type="checkbox" id="optGemini">
-        <label for="optGemini">Gemini で分割ミスを検出する</label>
-        <div class="desc">判定しにくい段落を Gemini に確認させます。文章が Google に送られ、無料枠では学習に使われる可能性があります。</div>
-        <div class="gemini" id="geminiBox" hidden>
-          <p class="key-state"><span id="keyState"></span>　<button type="button" class="linkbtn" id="keyOpen">キーを設定</button></p>
           <div class="opt">
-            <input type="checkbox" id="optAgent">
-            <label for="optAgent">全文をまとめて判定する（Antigravity）</label>
-            <div class="desc">本文をすべて Google に送ります。数分かかります。無料枠のキーでは学習に使われる可能性があるため、有料枠のキーを使ってください。</div>
+            <input type="checkbox" id="optLayout">
+            <label for="optLayout">下線・アンダーバーの行を図とみなす</label>
+            <div class="desc">下線・「＿」・空白で作った図表を整形せず残します（図形は常に残ります）。</div>
+          </div>
+
+          <div class="opt">
+            <input type="checkbox" id="optToc">
+            <label for="optToc">目次を作成する</label>
+            <div class="desc">表紙の次に章・条の目次を入れます。Word で更新の確認が出たら「はい」を選んでください（出ないときは Ctrl+A → F9）。</div>
+          </div>
+
+          <div class="opt">
+            <input type="checkbox" id="optXref">
+            <label for="optXref">相互参照を残す（緑字）</label>
+            <div class="desc">「第10条に定める」のような、番号が自動で変わる Word の参照を残して緑字にします。確認後は文字色を戻してください。オフにすると普通の文字になります。</div>
+          </div>
+
+          <div class="opt">
+            <input type="checkbox" id="optHyoki">
+            <label for="optHyoki">表記ゆれを青字にする</label>
+            <div class="desc">「従業員／社員」「1か月／1ヵ月」などのゆれを青字にし、最初の1箇所にコメントを付けます（文字は直しません）。</div>
+          </div>
+
+          <div class="opt">
+            <input type="checkbox" id="optGemini">
+            <label for="optGemini">Gemini で分割ミスを検出する</label>
+            <div class="desc">判定しにくい段落を Gemini に確認させます。文章が Google に送られ、無料枠では学習に使われる可能性があります。</div>
+            <div class="gemini" id="geminiBox" hidden>
+              <p class="key-state"><span id="keyState"></span>　<button type="button" class="linkbtn" id="keyOpen">キーを設定</button></p>
+              <div class="opt">
+                <input type="checkbox" id="optAgent">
+                <label for="optAgent">全文をまとめて判定する（Antigravity）</label>
+                <div class="desc">本文をすべて Google に送ります。数分かかります。無料枠のキーでは学習に使われる可能性があるため、有料枠のキーを使ってください。</div>
+              </div>
+            </div>
           </div>
         </div>
+      </section>
+      <section class="step" aria-labelledby="h3">
+        <div class="no" aria-hidden="true">③</div>
+        <div class="body">
+          <h2 id="h3">テンプレートを選ぶ</h2>
+          <div class="tpls" role="radiogroup" aria-labelledby="h3">
+            <div class="tpl">
+              <input type="radio" name="tpl" id="t1" value="t1">
+              <label for="t1"><span class="t">テンプレ1</span><span class="s">第1項から番号あり</span>
+                <span class="spec" aria-hidden="true"><span class="h">第1条（目的）</span><span class="i1">1　この規則は、……</span><span class="i1">2　前項の……</span></span>
+              </label>
+            </div>
+            <div class="tpl">
+              <input type="radio" name="tpl" id="t2" value="t2">
+              <label for="t2"><span class="t">テンプレ2</span><span class="s">条の後ろに第1項（番号なし）</span>
+                <span class="spec" aria-hidden="true"><span class="h i1">（目的）</span><span>第1条　この規則は、……</span><span>2　前項の……</span></span>
+              </label>
+            </div>
+            <div class="tpl">
+              <input type="radio" name="tpl" id="t3" value="t3">
+              <label for="t3"><span class="t">テンプレ3</span><span class="s">テンプレ2＋項を1字下げ</span>
+                <span class="spec" aria-hidden="true"><span class="h i1">（目的）</span><span>第1条　この規則は、……</span><span class="i1">2　前項の……</span></span>
+              </label>
+            </div>
+            <div class="tpl">
+              <input type="radio" name="tpl" id="t4" value="t4">
+              <label for="t4"><span class="t">テンプレ4</span><span class="s">条の次行に第1項（番号なし）</span>
+                <span class="spec" aria-hidden="true"><span class="h">第1条（目的）</span><span class="i1">この規則は、……</span><span>2.　前項の……</span></span>
+              </label>
+            </div>
+            <div class="tpl tpl-custom">
+              <input type="radio" name="tpl" id="custom" value="custom">
+              <label for="custom"><span class="t">カスタム</span><span class="s">番号・字下げ・文字サイズを自分で決める</span></label>
+            </div>
+          </div>
+
+          <div class="custom" id="customPanel" hidden>
+            <div class="cf-tools">
+              <div class="cf-row">
+                <label for="cfPreset">テンプレから読み込む</label>
+                <select id="cfPreset">
+                  <option value="t1">テンプレ1</option><option value="t2">テンプレ2</option>
+                  <option value="t3">テンプレ3</option><option value="t4">テンプレ4</option>
+                </select>
+                <button type="button" class="btn small" id="cfPresetBtn">読み込む</button>
+              </div>
+              <p class="hint">今の設定は上書きされます。用紙・余白は最後に読み込んだテンプレのものを使います。</p>
+              <div class="cf-row">
+                <button type="button" class="btn small" id="cfSample">見本を docx で保存</button>
+                <input type="file" id="cfImport" class="vh" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                <label for="cfImport" class="btn small" id="cfImportBtn">docx から設定を読み込む</label>
+              </div>
+              <p class="hint" id="cfHint" aria-live="polite">このアプリで整形した docx や見本の docx から設定を読み込めます。</p>
+              <p class="hint">「①, ②, ③」は⑳までが自動番号です。㉑〜㊿は文字入力、51以降は普通の数字になります。</p>
+            </div>
+
+            <div class="pv">
+              <div class="pv-head">
+                <h3 id="pvHead">プレビュー</h3>
+                <label><input type="checkbox" id="pvActual">実際の大きさで表示</label>
+              </div>
+              <div class="pv-scroll" role="region" aria-labelledby="pvHead" tabindex="0">
+                <div class="pv-fit" id="cfFit"><div class="pv-page" id="cfPage"></div></div>
+              </div>
+              <p class="hint">Word とは折り返し・改ページの位置が異なる場合があります。</p>
+            </div>
+
+            <div id="cfGlobal"></div>
+            <div id="cfLevels"></div>
+          </div>
+        </div>
+      </section>
       </div>
     </div>
-  </section>
-
-  <section class="step" aria-labelledby="h3">
-    <div class="no" aria-hidden="true">③</div>
-    <div class="body">
-      <h2 id="h3">テンプレートを選ぶ</h2>
-      <div class="tpls" role="radiogroup" aria-labelledby="h3">
-        <div class="tpl">
-          <input type="radio" name="tpl" id="t1" value="t1">
-          <label for="t1"><span class="t">テンプレ1</span><span class="s">第1項から番号あり</span>
-            <span class="spec" aria-hidden="true"><span class="h">第1条（目的）</span><span class="i1">1　この規則は、……</span><span class="i1">2　前項の……</span></span>
-          </label>
-        </div>
-        <div class="tpl">
-          <input type="radio" name="tpl" id="t2" value="t2">
-          <label for="t2"><span class="t">テンプレ2</span><span class="s">条の後ろに第1項（番号なし）</span>
-            <span class="spec" aria-hidden="true"><span class="h i1">（目的）</span><span>第1条　この規則は、……</span><span>2　前項の……</span></span>
-          </label>
-        </div>
-        <div class="tpl">
-          <input type="radio" name="tpl" id="t3" value="t3">
-          <label for="t3"><span class="t">テンプレ3</span><span class="s">テンプレ2＋項を1字下げ</span>
-            <span class="spec" aria-hidden="true"><span class="h i1">（目的）</span><span>第1条　この規則は、……</span><span class="i1">2　前項の……</span></span>
-          </label>
-        </div>
-        <div class="tpl">
-          <input type="radio" name="tpl" id="t4" value="t4">
-          <label for="t4"><span class="t">テンプレ4</span><span class="s">条の次行に第1項（番号なし）</span>
-            <span class="spec" aria-hidden="true"><span class="h">第1条（目的）</span><span class="i1">この規則は、……</span><span>2.　前項の……</span></span>
-          </label>
-        </div>
-        <div class="tpl tpl-custom">
-          <input type="radio" name="tpl" id="custom" value="custom">
-          <label for="custom"><span class="t">カスタム</span><span class="s">番号・字下げ・文字サイズを自分で決める</span></label>
-        </div>
-      </div>
-
-      <div class="custom" id="customPanel" hidden>
-        <div class="cf-tools">
-          <div class="cf-row">
-            <label for="cfPreset">テンプレから読み込む</label>
-            <select id="cfPreset">
-              <option value="t1">テンプレ1</option><option value="t2">テンプレ2</option>
-              <option value="t3">テンプレ3</option><option value="t4">テンプレ4</option>
-            </select>
-            <button type="button" class="btn small" id="cfPresetBtn">読み込む</button>
-          </div>
-          <p class="hint">今の設定は上書きされます。用紙・余白は最後に読み込んだテンプレのものを使います。</p>
-          <div class="cf-row">
-            <button type="button" class="btn small" id="cfSample">見本を docx で保存</button>
-            <input type="file" id="cfImport" class="vh" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
-            <label for="cfImport" class="btn small" id="cfImportBtn">docx から設定を読み込む</label>
-          </div>
-          <p class="hint" id="cfHint" aria-live="polite">このアプリで整形した docx や見本の docx から設定を読み込めます。</p>
-          <p class="hint">「①, ②, ③」は⑳までが自動番号です。㉑〜㊿は文字入力、51以降は普通の数字になります。</p>
-        </div>
-
-        <div class="pv">
-          <div class="pv-head">
-            <h3 id="pvHead">プレビュー</h3>
-            <label><input type="checkbox" id="pvActual">実際の大きさで表示</label>
-          </div>
-          <div class="pv-scroll" role="region" aria-labelledby="pvHead" tabindex="0">
-            <div class="pv-fit" id="cfFit"><div class="pv-page" id="cfPage"></div></div>
-          </div>
-          <p class="hint">Word とは折り返し・改ページの位置が異なる場合があります。</p>
-        </div>
-
-        <div id="cfGlobal"></div>
-        <div id="cfLevels"></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="step" aria-labelledby="h4">
-    <div class="no" aria-hidden="true">④</div>
-    <div class="body">
-      <h2 id="h4">新旧対照表</h2>
-      <p class="hint">現行は読み込んだ docx、改正案は整形後の内容です。雛形など別の docx を現行に置いて比べることもできます。</p>
-      <div class="file">
-        <button type="button" class="btn" id="cmpShow" disabled>変更点を表示</button>
-        <input type="file" id="otherFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
-        <label for="otherFile" class="btn" id="otherBtn" aria-disabled="true">別の docx と比べる</label>
-      </div>
-      <p class="hint" id="cmpHint" aria-live="polite"></p>
-      <div class="cmp-edit" id="cmpEdit" hidden>
-        <span class="hint" id="editHint"></span>
-        <button type="button" class="btn small" id="editUndo" disabled>元に戻す</button>
-        <button type="button" class="btn small" id="editDiscard" hidden>下書きを削除</button>
-        <button type="button" class="btn small" id="verBack" hidden>編集に戻る</button>
-      </div>
-      <div class="cmp-list" id="cmpList" hidden>
-        <div class="cmp-bar" id="cmpBar">
-          <div class="cmp-bar-row">
-            <label class="cmp-only"><input type="checkbox" id="cmpOnly" checked> 変更のある条だけ表示</label>
-            <button type="button" class="btn small" id="cmpTocBtn" aria-expanded="false" aria-controls="cmpToc">目次</button>
-            <button type="button" class="btn small" id="cmpOpenAll">すべて開く</button>
-            <button type="button" class="btn small" id="cmpCloseAll">すべて閉じる</button>
-          </div>
-          <div class="cmp-toc" id="cmpToc" hidden></div>
-        </div>
-        <div class="cmp-scroll">
-          <div class="cmp-inner">
-            <div class="cmp-head"><div id="cmpHeadOld">現行</div><div id="cmpHeadNew">改正案</div></div>
-            <div class="cmp-body" id="cmpBody"></div>
-          </div>
-        </div>
-      </div>
-      <button type="button" class="btn" id="cmpSave" hidden>新旧対照表を保存</button>
-    </div>
-  </section>
-
-  <section class="step" aria-labelledby="h5">
-    <div class="no" aria-hidden="true">⑤</div>
-    <div class="body">
-      <h2 id="h5">保存</h2>
-      <button type="button" class="btn primary" id="run" disabled>ダウンロード</button>
-      <button type="button" class="btn small" id="agentCancel" hidden>中止</button>
-      <p class="hint" id="runHint"></p>
-      <div class="result" id="result" aria-live="polite"></div>
-      <details class="log" id="logBox">
-        <summary>処理の記録</summary>
-        <pre id="log"></pre>
-      </details>
-    </div>
-  </section>
-
-  <section class="step" aria-labelledby="h6">
-    <div class="no" aria-hidden="true">⑥</div>
-    <div class="body">
-      <h2 id="h6">版と改訂履歴（任意）</h2>
-      <p class="hint" id="verNoFile">① でファイルを選ぶと使えます。</p>
-      <div id="verBox" hidden>
-        <div class="ver-form">
-          <label class="field" for="verDate">施行日</label>
-          <input type="date" id="verDate">
-          <label class="field" for="verMemo">メモ</label>
-          <input type="text" id="verMemo" maxlength="200" placeholder="例：育児介護休業法改正への対応">
-          <button type="button" class="btn" id="verAdd">改正案を版として確定</button>
-        </div>
-        <p class="hint" id="verHint" aria-live="polite"></p>
-        <div class="ver-scroll" id="verTableBox" hidden>
-          <table class="ver-table">
-            <thead><tr><th>版</th><th>施行日</th><th>メモ</th><th>変更した条</th><th></th></tr></thead>
-            <tbody id="verBody"></tbody>
-          </table>
-        </div>
-        <div class="ver-cmp" id="verCmp" hidden>
-          <label for="verA">比べる</label>
-          <select id="verA"></select>
-          <span aria-hidden="true">→</span>
-          <select id="verB" aria-label="比べる先"></select>
-          <button type="button" class="btn small" id="verShow">新旧対照表を表示</button>
-        </div>
-      </div>
-    </div>
-  </section>
+  </div>
 
   <footer>
     作業はこの端末のブラウザに自動で保存されます。閲覧データの削除などで消えることがあるため、残したい作業は「書き出し」でファイルにしてください。
@@ -1286,6 +1328,25 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     worksSort = worksSort.key === b.dataset.key ? { key: b.dataset.key, dir: -worksSort.dir } : { key: b.dataset.key, dir: b.dataset.key === "name" ? 1 : -1 };
     renderWorks();
   }));
+  // 右の欄のタブ（←→ で切り替え）
+  const tabs = [...document.querySelectorAll('.ed-tabs [role="tab"]')];
+  function selectTab(tab, focus) {
+    tabs.forEach((x) => {
+      const on = x === tab;
+      x.setAttribute("aria-selected", String(on));
+      x.tabIndex = on ? 0 : -1;
+      $(x.getAttribute("aria-controls")).hidden = !on;
+    });
+    if (focus) tab.focus();
+    if (tab.id === "tabSet" && tplValue() === "custom") KisokuCustom.refresh();   // 隠れている間は大きさを測れないので、見えてから描き直す
+  }
+  tabs.forEach((x, i) => {
+    x.addEventListener("click", () => selectTab(x));
+    x.addEventListener("keydown", (e) => {
+      const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (d) { e.preventDefault(); selectTab(tabs[(i + d + tabs.length) % tabs.length], true); }
+    });
+  });
   function setView(v) {
     document.documentElement.dataset.view = v;
     window.scrollTo(0, 0);
@@ -1889,7 +1950,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   }
   // 変更点を作り直して描く（スクロール位置は保つ）
   async function loadComparison() {
-    const y = window.scrollY;
+    const pane = $("edLeft");
+    const y = pane.scrollTop;
     const m = await call({ type: "compare", ...tplArgs() });
     if (m.type === "error") {
       // 編集欄が開いたまま固まらないよう、前の表示に描き直す
@@ -1901,7 +1963,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     cmpRows = m.rows; cmpBlocks = m.blocks || [];
     KisokuEditor.setMarks(m.marks || {});    // 編集欄の号・号の下位のラベルも、テンプレートの書き方にする
     const jump = !!pendingOpen;      // 新しく作った条・章へ移るときは、元の位置に戻さない
-    if (!jump) { renderComparison(); window.scrollTo(0, y); }
+    if (!jump) { renderComparison(); pane.scrollTop = y; }
     else renderComparison();
   }
 
@@ -2066,7 +2128,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $("fileName").textContent = f.name;
     $("result").innerHTML = ""; $("log").textContent = "";
     await withBusy(async () => {
-      if (await parse(false)) { await restoreDraft(); await ensureWork(); }
+      if (await parse(false)) {
+        await restoreDraft(); await ensureWork();
+        // 開いたらすぐ新旧対照表（編集欄）を出す。Gemini のキーが無いなどで出せないときは「変更点を表示」から
+        if (!geminiKeyProblem()) await loadComparison();
+      }
     });
   }
 
@@ -2356,6 +2422,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   // アドレスも閲覧履歴も変わらず、戻る・進むボタンはこの移動に反応しない
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   function goTo(target) {
+    const pane = target.closest(".ed-pane");    // 右の欄の隠れたタブにあるなら、そのタブを開く
+    if (pane) selectTab($(pane.getAttribute("aria-labelledby")));
     leaveSide(target);
     // 端末で「視差効果を減らす」をオンにしているときは、スライドせずに移動する
     target.scrollIntoView({ block: "start", behavior: reduceMotion.matches ? "auto" : "smooth" });
