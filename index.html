@@ -521,7 +521,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     <div class="body">
       <h2 id="h4">新旧対照表</h2>
       <p class="hint">現行は読み込んだ docx、改正案は整形後の内容です。</p>
-      <button type="button" class="btn" id="cmpShow" disabled>変更点を表示</button>
+      <div class="file">
+        <button type="button" class="btn" id="cmpShow" disabled>変更点を表示</button>
+        <input type="file" id="otherFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+        <label for="otherFile" class="btn" id="otherBtn" aria-disabled="true">他の規程と比べる</label>
+      </div>
       <p class="hint" id="cmpHint" aria-live="polite"></p>
       <div class="cmp-edit" id="cmpEdit" hidden>
         <span class="hint" id="editHint"></span>
@@ -602,6 +606,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   </footer>
 </main>
 
+<script src="refs.js"></script>
 <script src="custom.js"></script>
 <script src="editor.js"></script>
 <script>
@@ -687,6 +692,8 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $("run").disabled = busy || !file || !!versionView;   // 版を比べている間は、どの木を整形するか紛らわしいので止める
     refreshVersionBox();
     $("cmpShow").disabled = busy || !file;
+    $("otherFile").disabled = busy || !file;
+    $("otherBtn").setAttribute("aria-disabled", busy || !file ? "true" : "false");
     $("cmpSave").disabled = busy;
     // 解析のオプションを変えたら、表示中の変更点は古いので消す（保存で古い解析を使わないように）
     if (!busy && cmpShown && !edit && !versionView && parsedKey !== parseKeyNow()) clearComparison();
@@ -836,7 +843,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   }
   // 版どうしを比べているときの備考は、比べている版の組ごとに分けて残す（編集中の改正案の備考と混ざらないように）
   const notesKey = () => "kisoku.notes." + [file.name, file.size, file.lastModified].join("|") +
-    (versionView ? `|v${versionView.a}-${versionView.b}` : "");
+    (versionView ? "|" + versionView.tag : "");
   function loadNotes() {
     try { const v = JSON.parse(store.get(notesKey()) || "{}"); return v && typeof v === "object" ? v : {}; }
     catch { return {}; }
@@ -1030,7 +1037,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       await idb.del(id);
       store.del("kisoku.notes." + id);
       // 版どうしの比較の備考（kisoku.notes.<id>|v1-2 など）も消す
-      delPairNotes(id, () => true);
+      delAllPairNotes(id);
       await idb.works.del(id);
     } catch (e) { $("worksHint").textContent = "削除できませんでした：" + workErr(e); return; }
     if (file && draftKey() === id) {
@@ -1130,7 +1137,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       if (o.notes) store.set("kisoku.notes." + id, JSON.stringify(o.notes));
       else store.del("kisoku.notes." + id);
       // この端末に残っていた版どうしの比較の備考は、読み込んだ版のもの（v.notes）と混ざらないよう消す
-      delPairNotes(id, () => true);
+      delAllPairNotes(id);
     } catch (e) { hint.textContent = "読み込めませんでした：" + workErr(e); return; }
     await openWork(id);
     hint.textContent = `「${name}」を読み込みました。`;
@@ -1141,7 +1148,9 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   // { no, effective（施行日 "YYYY-MM-DD" か ""）, memo, tree, changes（前の版から変わった条の見出し。最初の版は null）, notes（確定時の備考）, savedAt }
   // 版どうしの比較は、Worker の「現行の木・改正案の木」に2つの版を渡して、いつもの新旧対照表で行う。
   let versions = [];
-  let versionView = null;    // 版どうしを比べている間だけ { a, b }（版の番号）
+  // 比べている間だけ { labelA, labelB, treeA（現行の側）, treeB（改正案の側）, tag（備考のキーに使う）}。
+  // 版どうしなら a・b（版の番号）も持つ。別の docx と比べるときは a・b は無い
+  let versionView = null;
   const verLabel = (no) => `第${no}版`;
   const verByNo = (no) => versions.find((v) => v.no === no);
   // 版を「現行」として比べるときの木。新旧対照表は現行の側だけ元の docx の番号（number・number_str・mark）を使うので、
@@ -1176,6 +1185,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
       });
     } catch {}
   }
+  // 比較の備考（版どうし |v… も、別の docx との |x:… も）をすべて消す
+  function delAllPairNotes(id) {
+    const pre = "kisoku.notes." + id + "|";
+    try { Object.keys(localStorage).filter((k) => k.startsWith(pre)).forEach((k) => store.del(k)); } catch {}
+  }
   // "YYYY-MM-DD" で、実在する日付か
   function validDate(s) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
@@ -1202,12 +1216,9 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   // Worker に渡す木を、今の表示（版の比較か、編集中の改正案）に戻す
   async function restoreTrees() {
     if (versionView) {
-      const a = verByNo(versionView.a), b = verByNo(versionView.b);
-      if (a && b) {
-        const m = await call({ type: "useTrees", base: JSON.stringify(asOld(a)), edited: JSON.stringify(b.tree) });
-        if (m.type !== "error") return true;
-        log(m.detail || m.text);
-      }
+      const m = await call({ type: "useTrees", base: JSON.stringify(versionView.treeA), edited: JSON.stringify(versionView.treeB) });
+      if (m.type !== "error") return true;
+      log(m.detail || m.text);
       versionView = null;
     }
     return sendTrees();
@@ -1284,7 +1295,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         !confirm(`未確定の編集内容は消えます。${verLabel(v.no)}から改定を始めますか？`)) return false;
     versionView = null;          // 先に戻す（備考のキーが、比べている版の組のものにならないように）
     if (ask) store.del(notesKey());
-    edit = { base: asOld(v), tree: KisokuEditor.clone(v.tree), from: v.no, undo: [] };
+    edit = { base: asOld(v), tree: KisokuRefs.assignIds(KisokuEditor.clone(v.tree)), from: v.no, undo: [] };
     if (!(await sendTrees())) return false;
     await saveDraft();
     await loadComparison();
@@ -1362,7 +1373,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (a === b) { verHint("err", "違う版を選んでください。"); return; }
     if (editingEl) { verHint("err", "編集中の条を閉じてから表示してください。"); return; }
     if (!verByNo(a) || !verByNo(b)) return;
-    versionView = { a, b };
+    versionView = { a, b, labelA: verLabel(a), labelB: verLabel(b), treeA: asOld(verByNo(a)), treeB: verByNo(b).tree, tag: `v${a}-${b}` };
     if (!(await restoreTrees())) { verHint("err", "表示できませんでした。「処理の記録」を確認してください。"); return; }
     verHint("", "");
     // 確定のときに版へ移した備考は、改定を始めた版との比較でこの端末に無ければ戻す（作業ファイルを読み込んだときなど）
@@ -1372,6 +1383,33 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     await loadComparison();
     $("h4").scrollIntoView({ block: "start" });
   }));
+  // 別の docx（自社の雛形・ほかの規程など）を現行の側に置いて、今の内容と比べる
+  $("otherBtn").addEventListener("click", (e) => { if (busy || !file) e.preventDefault(); });
+  $("otherFile").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f || busy || !file) return;
+    withBusy(async () => {
+      if (!/\.docx$/i.test(f.name)) { cmpHint("err", "docx 形式のファイルを選んでください。"); return; }
+      if (editingEl) { cmpHint("err", "編集中の条を閉じてから比べてください。"); return; }
+      cmpHint("", `${f.name} を解析しています…`);
+      const bytes = await f.arrayBuffer();
+      const m = await call({ type: "parseOther", name: f.name, bytes, layoutAsFigure: $("optLayout").checked }, [bytes]);
+      if (m.type === "error") { cmpHint("err", "解析できませんでした：" + m.text); log(m.detail || m.text); return; }
+      let mine;
+      if (edit) mine = edit.tree;
+      else {
+        const t = await call({ type: "getTree", parsed: true });
+        if (t.type === "error") { cmpHint("err", "比べられませんでした：" + t.text); return; }
+        mine = JSON.parse(t.tree);
+      }
+      versionView = { labelA: `「${f.name}」`, labelB: edit ? "改正案" : "読み込んだ docx",
+        treeA: JSON.parse(m.tree), treeB: mine, tag: "x:" + [f.name, f.size, f.lastModified].join(":") };
+      if (!(await restoreTrees())) { cmpHint("err", "比べられませんでした。「処理の記録」を確認してください。"); return; }
+      clearComparison();
+      await loadComparison();
+    });
+  });
   $("verBack").addEventListener("click", () => withBusy(async () => {
     versionView = null;
     clearComparison();
@@ -1400,8 +1438,15 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     $("editDiscard").disabled = busy;
     let t = edit ? "編集中は、② の解析のオプションを変えられません。" : "改正案の条・章を押すと編集できます。";
     if (edit && draftSaveFailed) t += "この端末に保存できないため、ページを閉じると編集は消えます。";
+    // 直前の変更で消えた条を、本文が参照したまま残っている（番号を書き換えられない）
+    // 印は本文から消すまで残るので、直すまで知らせ続ける
+    const dead = edit && !versionView ? KisokuRefs.deadRefs(edit.tree) : [];
+    if (dead.length) {
+      const list = dead.slice(0, 5).map((x) => `${x.at}の「${x.ref}」`).join("、");
+      t += `参照先の無い条番号があります（${list}${dead.length > 5 ? ` ほか${dead.length - 5}件` : ""}）。「${KisokuRefs.DEAD}」の箇所を直してください。`;
+    }
     $("editHint").textContent = t;
-    if (versionView) t = `${verLabel(versionView.a)} → ${verLabel(versionView.b)} を比較中です（編集はできません）。`;
+    if (versionView) t = `${versionView.labelA} → ${versionView.labelB} を比較中です（編集はできません）。`;
     $("editHint").textContent = t;
     ["optLayout", "optGemini", "optAgent"].forEach((id) => { $(id).disabled = !!edit || !!versionView; });
   }
@@ -1430,7 +1475,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     let d = null;
     try { d = await idb.get(draftKey()); } catch { return; }
     if (!d || !Array.isArray(d.base) || !Array.isArray(d.tree)) return;
-    edit = { base: d.base, tree: d.tree, from: Number.isInteger(d.from) ? d.from : undefined, undo: [] };
+    edit = { base: d.base, tree: KisokuRefs.assignIds(d.tree), from: Number.isInteger(d.from) ? d.from : undefined, undo: [] };
     if (!(await sendTrees())) { edit = null; return; }
     $("parseHint").textContent += "前回の編集の下書きを読み込みました（④ で削除できます）。";
   }
@@ -1449,6 +1494,9 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     let total = edit.undo.reduce((s, u) => s + u.length, 0);
     while (edit.undo.length > 1 && (edit.undo.length > UNDO_MAX || total > UNDO_CHARS)) total -= edit.undo.shift().length;
     mutate(edit.tree);
+    // 条を足す・消す・並べ替えたら、本文中の「第◯条」を新しい番号に書き換える
+    KisokuRefs.assignIds(edit.tree);
+    KisokuRefs.rewriteTree(JSON.parse(edit.undo[edit.undo.length - 1]), edit.tree, false);
     await syncEdit();
   }
   async function syncEdit() {
@@ -1473,8 +1521,11 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (!edit) {
       const m = await call({ type: "getTree" });
       if (m.type === "error") { editingEl = null; cmpHint("err", "編集内容を読み込めませんでした：" + m.text); return; }
-      const base = JSON.parse(m.tree);
-      edit = { base, tree: KisokuEditor.clone(base), undo: [] };
+      const base = KisokuRefs.assignIds(JSON.parse(m.tree));
+      const tree = KisokuEditor.clone(base);
+      // 改正案は通し番号になるので、本文中の「第◯条」も元の番号（欠番・枝番号）から通し番号へ書き換えておく
+      KisokuRefs.rewriteTree(base, tree, true);
+      edit = { base, tree, undo: [] };
     }
     const path = b.new_path;
     const node = nodeAt(edit.tree, path);

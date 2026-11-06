@@ -24,3 +24,4 @@ jobs:
       - run: python3 tests/regression.py
       - run: python3 tests/test_misdetection.py
       - run: python3 tests/test_format_variation.py
+      - run: node tests/test_refs.js
