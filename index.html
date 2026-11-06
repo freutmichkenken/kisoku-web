@@ -109,6 +109,8 @@ header p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
   font-family: var(--mincho); font-size: 26px; line-height: 1.1; color: var(--ai);
 }
 .step h2 { margin: 0 0 10px; font-size: 17px; font-weight: 700; line-height: 1.5; }
+/* メニューから移動したとき、左上の ☰ に見出しが隠れないよう上に余白を取る */
+.step h2 { scroll-margin-top: calc(72px + env(safe-area-inset-top, 0px)); }
 .step .body { min-width: 0; }
 
 .file {
@@ -2199,14 +2201,27 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (e.key === "Escape" && !wide.matches && root.dataset.drawer === "open") { setSide(false); $("sideToggle").focus(); }
   });
   wide.addEventListener("change", () => { delete root.dataset.drawer; document.querySelector("main").inert = false; syncSide(); });
-  // 狭い画面では、移動したら引き出しを閉じ、フォーカスを移動先へ移す（隠れたメニューの中に残さない）
+  // 移動したらフォーカスを移動先へ移す（ブラウザの移動を止めているので、Tab の起点もここで移す）。
+  // 狭い画面では引き出しも閉じる（隠れたメニューの中にフォーカスを残さない）
   function leaveSide(target) {
-    if (wide.matches) return;
-    setSide(false);
+    if (!wide.matches) setSide(false);
     if (!target.hasAttribute("tabindex")) target.tabIndex = -1;
     target.focus({ preventScroll: true });
   }
-  document.querySelectorAll(".side-nav a").forEach((a) => a.addEventListener("click", () => leaveSide($(a.hash.slice(1)))));
+  // メニューから見出しへスライドして移動する。ブラウザの移動（#h1 など）は止めるので、
+  // アドレスも閲覧履歴も変わらず、戻る・進むボタンはこの移動に反応しない
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  function goTo(target) {
+    leaveSide(target);
+    // 端末で「視差効果を減らす」をオンにしているときは、スライドせずに移動する
+    target.scrollIntoView({ block: "start", behavior: reduceMotion.matches ? "auto" : "smooth" });
+  }
+  document.querySelectorAll(".side-nav a").forEach((a) => a.addEventListener("click", (e) => {
+    // Ctrl・Shift・中ボタンなどで新しいタブに開く操作は、ブラウザに任せる
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    goTo($(a.hash.slice(1)));
+  }));
   // メニューの指定の欄を開いて見せる
   function openSideSection(id) {
     setSide(true);
@@ -2339,8 +2354,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   $("tplEdit").addEventListener("click", () => {
     // テンプレートの選択は作業の設定なので、切り替えるときは確かめる
     if (!busy && tplValue() !== "custom" && confirm("③ のテンプレートを「カスタム」に切り替えますか？")) selectCustom();
-    leaveSide($("h3"));
-    $("h3").scrollIntoView({ block: "start" });
+    goTo($("h3"));
   });
   $("tplExport").addEventListener("click", () => {
     const list = loadTpls();
