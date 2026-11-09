@@ -496,6 +496,13 @@ main > footer { display: none; }
 .tbl-note textarea { width: 100%; height: 100%; min-height: 3em; padding: 4px 6px; font: inherit; font-size: 13.5px; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); color: var(--ink); resize: vertical; }
 .tbl-foot { flex: none; display: flex; justify-content: flex-end; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--rule); }
 .tbl-foot .btn.primary { width: auto; min-height: 40px; font-size: 15px; }
+.open-dlg { width: calc(100vw - 32px); max-width: 720px; max-height: calc(100vh - 32px); padding: 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.open-dlg[open] { display: flex; flex-direction: column; }
+.open-dlg::backdrop { background: rgba(0, 0, 0, .4); }
+.open-dlg h2 { flex: none; margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--rule); font-size: 17px; }
+.open-body { flex: 1; min-height: 0; overflow: auto; padding: 10px 16px; display: grid; gap: 14px; }
+.open-foot { flex: none; display: flex; justify-content: flex-end; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--rule); }
+.open-foot .btn.primary { width: auto; min-height: 40px; font-size: 15px; }
 
 #printArea { display: none; }
 @media print {
@@ -811,6 +818,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
         <div class="body">
           <h2 id="h2">オプション</h2>
 
+          <div id="optGroup">
           <div class="opt">
             <input type="checkbox" id="optLayout">
             <label for="optLayout">下線・アンダーバーの行を図とみなす</label>
@@ -847,6 +855,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
                 <div class="desc">本文をすべて Google に送ります。数分かかります。無料枠のキーでは学習に使われる可能性があるため、有料枠のキーを使ってください。</div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </section>
@@ -948,6 +957,15 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     作業はこの端末のブラウザに自動で保存されます。閲覧データの削除などで消えることがあるため、残したい作業は「書き出し」でファイルにしてください。
   </footer>
 </main>
+
+  <dialog class="open-dlg" id="openDlg" aria-labelledby="openTitle">
+    <h2 id="openTitle">整形の設定</h2>
+    <div class="open-body" id="openBody"></div>
+    <div class="open-foot">
+      <button type="button" class="btn" id="openCancel">キャンセル</button>
+      <button type="button" class="btn primary" id="openOk">この設定で開く</button>
+    </div>
+  </dialog>
 
 <script src="refs.js"></script>
 <script src="custom.js"></script>
@@ -1317,8 +1335,9 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
   // 設定・備考・編集が変わったら、今の作業の設定と保存日時を更新する（作業が消されていれば作り直さない）
   let touchTimer = null;
   let touchPending = null;
+  let optDlgOpen = false;   // 開く前の設定ダイアログの間は、開いている作業に設定を書き込まない
   function touchWork() {
-    if (!file) return;
+    if (!file || optDlgOpen) return;
     const id = draftKey();
     const opts = () => collectOpts();
     clearTimeout(touchTimer);
@@ -2316,20 +2335,51 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 
   // ①やドロップで選んだファイル。まだ作業が無い（初めて読み込む）ときだけ、既定のオプションを当てる
   async function useNewFile(f) {
-    if (busy) return;   // 処理中に②③を書き換えないように（呼び出し元でも止めている）
+    if (busy || optDlgOpen) return;   // 処理中に②③を書き換えないように（呼び出し元でも止めている）
     if (!(await settleEdit())) return;   // 編集中の条は、確定するか確かめてから開き直す
-    const d = loadDefaults();
-    if (d && /\.docx$/i.test(f.name)) {
+    if (/\.docx$/i.test(f.name)) {
       const id = [f.name, f.size, f.lastModified].join("|");
       const exists = await idb.works.get(id).catch(() => null);
       if (!exists) {
         if (file) await flushTouch();
-        applyOpts(d);
-        cancelTouch();    // 開く前の作業に、既定のオプションを書き込まないように
+        const before = collectOpts();   // キャンセルしたとき、開く前の設定に戻す
+        const d = loadDefaults();
+        optDlgOpen = true;
+        try {
+          if (d) applyOpts(d);
+          if (!(await askOpenOpts())) {
+            applyOpts(before);
+            redrawForTemplate();
+            return;
+          }
+        } finally {
+          cancelTouch();    // 開く前の作業に、ダイアログ内の設定を書き込まないように
+          optDlgOpen = false;
+        }
       }
     }
     await useFile(f);
   }
+  // ②のオプションと③のテンプレ選択を、同じ部品のままダイアログへ移して選んでもらう。閉じたら元の位置へ戻す
+  function askOpenOpts() {
+    const dlg = $("openDlg");
+    const parts = [$("optGroup"), document.querySelector(".tpls")].map((el) => {
+      const ph = document.createComment("");
+      el.replaceWith(ph);
+      $("openBody").appendChild(el);
+      return { el, ph };
+    });
+    return new Promise((resolve) => {
+      dlg.returnValue = "";
+      dlg.addEventListener("close", () => {
+        parts.forEach(({ el, ph }) => ph.replaceWith(el));
+        resolve(dlg.returnValue === "ok");
+      }, { once: true });
+      dlg.showModal();
+    });
+  }
+  $("openOk").addEventListener("click", () => $("openDlg").close("ok"));
+  $("openCancel").addEventListener("click", () => $("openDlg").close("cancel"));
   async function useFile(f) {
     if (!/\.docx$/i.test(f.name)) {
       $("parseHint").className = "hint err";
