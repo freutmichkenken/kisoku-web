@@ -2319,10 +2319,23 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
     if (busy) return;   // 処理中に②③を書き換えないように（呼び出し元でも止めている）
     if (!(await settleEdit())) return;   // 編集中の条は、確定するか確かめてから開き直す
     const d = loadDefaults();
-    if (d && /\.docx$/i.test(f.name)) {
-      const id = [f.name, f.size, f.lastModified].join("|");
-      const exists = await idb.works.get(id).catch(() => null);
-      if (!exists) {
+    if (/\.docx$/i.test(f.name)) {
+      const keyOf = (x) => [x.name, x.size, x.lastModified].join("|");
+      const exists = await idb.works.get(keyOf(f)).catch(() => null);
+      if (exists) {
+        // 名前・サイズ・更新日時が同じ作業がある。OK なら別の作業として読み込み、キャンセルなら保存済みの作業を開く
+        if (confirm(`「${f.name}」はすでに読み込み済みです。新しいファイルとして読み込みますか？\n（キャンセルすると、保存済みの作業を開きます）`)) {
+          const base = f.name.replace(/\.docx$/i, "");
+          let n = 2, g;
+          do {
+            g = new File([f], `${base} (${n}).docx`, { type: f.type || DOCX_TYPE, lastModified: f.lastModified });
+            n++;
+          } while (await idb.works.get(keyOf(g)).catch(() => null));
+          f = g;   // 名前が変わるので、作業・下書きのIDも別になる（既存の作業は残る）
+        }
+      }
+      const fresh = !(await idb.works.get(keyOf(f)).catch(() => null));
+      if (d && fresh) {
         if (file) await flushTouch();
         applyOpts(d);
         cancelTouch();    // 開く前の作業に、既定のオプションを書き込まないように
