@@ -36,6 +36,9 @@ try {
   --del-bg: #FDECEC; --del-strong: #F7C4C4;
   --ins-bg: #E7F5EB; --ins-strong: #BFE5CB;
   --band-bg: #FFFFFF; --hover-bg: #EEF1F6; --edit-old: #E8EEF9;
+  --on-ai: #FFFFFF; --ai-hover: #223D78; --ai-line: #9FB2DA;
+  --btn-dis-bg: #E4E7ED; --btn-dis-fg: #8A93A3; --btn-dis-line: #D3D9E3;
+  --err-hover: #FBE0E0; --shadow-card: 0 1px 2px rgba(26, 34, 51, .06), 0 1px 3px rgba(26, 34, 51, .05);
   --mincho: "BIZ UDPMincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
   --gothic: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
   box-sizing: border-box;
@@ -52,6 +55,9 @@ try {
     --del-bg: #3A1D20; --del-strong: #6B2A30;
     --ins-bg: #17301F; --ins-strong: #25563A;
     --band-bg: #1A2030; --hover-bg: #232B3F; --edit-old: #1F2B47;
+  --on-ai: #0F1626; --ai-hover: #A9C0F3; --ai-line: #4A5E8C;
+  --btn-dis-bg: #262D3E; --btn-dis-fg: #6C768B; --btn-dis-line: #323B4F;
+  --err-hover: #3A1D20; --shadow-card: 0 1px 2px rgba(0, 0, 0, .35);
     color-scheme: dark;
   }
 }
@@ -63,6 +69,9 @@ try {
   --del-bg: #3A1D20; --del-strong: #6B2A30;
   --ins-bg: #17301F; --ins-strong: #25563A;
   --band-bg: #1A2030; --hover-bg: #232B3F; --edit-old: #1F2B47;
+  --on-ai: #0F1626; --ai-hover: #A9C0F3; --ai-line: #4A5E8C;
+  --btn-dis-bg: #262D3E; --btn-dis-fg: #6C768B; --btn-dis-line: #323B4F;
+  --err-hover: #3A1D20; --shadow-card: 0 1px 2px rgba(0, 0, 0, .35);
   color-scheme: dark;
 }
 :root[data-theme="light"] { color-scheme: light; }
@@ -566,6 +575,133 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 @media (prefers-reduced-motion: reduce) {
   .engine[data-state="loading"] .dot { animation: none; }
 }
+
+/* ================= 見た目の調整（機能・構造は変えない） ================= */
+/* --- タイポグラフィ --- */
+body { letter-spacing: .02em; line-height: 1.7; font-weight: 400; }
+h1, h2, #edTitle, #lvHead, .tbl-head h2, .open-dlg h2 { font-family: var(--mincho); font-weight: 700; }
+.step h2, .tbl-head h2, .open-dlg h2 { letter-spacing: .04em; }
+.step h2 { font-size: 18px; margin-bottom: 8px; }
+.lv-bar h1 { font-size: 28px; }
+.lv-table, .ver-table, .cmp-col, .w-date, .lv-date, .cmp-toc, input[type="date"] { font-variant-numeric: tabular-nums; }
+.cf > label, .cf-row > label:first-child, .cf-layout legend, .opt label, .gemini label.field,
+.side label.sel, .ed-label, .ed-paragraph > .ed-unit-row > .ed-label, .cf-level summary,
+.pv-head h3, .tpl .t, .side-head, .side-sec > summary, .caution summary { font-weight: 500; }
+.works li.cur .w-name, .lv-name { font-weight: 500; }
+.lv-name { font-size: 15px; }
+.cmp-head, .tbl-th, .chk-list .chk-ref, .result a.dl, .cmp-toc button.chap, .cmp-line.chapter { font-weight: 500; }
+.ver-table th { font-weight: 500; color: var(--muted); font-size: 13px; }
+.ed-pane .ver-table td:first-child { font-weight: 500; }
+.btn { font-weight: 500; letter-spacing: .04em; }
+.hint { line-height: 1.7; }
+
+/* --- ボタン：主（藍の塗り）／副（控えめな枠）／小・リンク（軽く） --- */
+.btn {
+  border: 1px solid var(--ai-line); background: var(--surface); color: var(--ai);
+  transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s;
+}
+.btn:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--ai-soft); border-color: var(--ai); }
+.btn:active:not(:disabled) { background: var(--ai-soft); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .12); }
+.btn.primary { background: var(--ai); border-color: var(--ai); color: var(--on-ai); font-weight: 700; box-shadow: 0 1px 2px rgba(26, 34, 51, .18); }
+.btn.primary:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--ai-hover); border-color: var(--ai-hover); }
+.btn.primary:active:not(:disabled) { background: var(--ai-hover); }
+.btn.small { border-color: var(--rule); color: var(--ai); font-weight: 400; }
+.btn.small:hover:not(:disabled):not([aria-disabled="true"]) { border-color: var(--ai-line); }
+.btn.small.primary { background: var(--ai); border-color: var(--ai); color: var(--on-ai); font-weight: 500; }
+.btn.small.primary:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--ai-hover); border-color: var(--ai-hover); }
+.btn:disabled, .btn[aria-disabled="true"],
+.btn.primary:disabled, .btn.primary[aria-disabled="true"] {
+  opacity: 1; background: var(--btn-dis-bg); border-color: var(--btn-dis-line); color: var(--btn-dis-fg);
+  box-shadow: none; cursor: not-allowed;
+}
+.btn.danger, .side .btn.danger { color: var(--err); border-color: var(--err); }
+.btn.danger:hover:not(:disabled), .side .btn.danger:hover:not(:disabled) { background: var(--err-hover); border-color: var(--err); }
+.linkbtn, .gemini .linkbtn { color: var(--ai); font-size: 13.5px; text-underline-offset: 3px; text-decoration-thickness: 1px; cursor: pointer; }
+.linkbtn:hover { color: var(--ai-hover); text-decoration-thickness: 2px; }
+.btn:focus-visible, .linkbtn:focus-visible, .side-toggle:focus-visible, .lv-sort:focus-visible,
+.file input:focus-visible + .btn, .vh:focus-visible + .btn {
+  outline: 2px solid var(--ai); outline-offset: 2px; box-shadow: 0 0 0 4px var(--ai-soft);
+}
+.side-toggle { border: 1px solid var(--ai-line); }
+.side-toggle:hover { background: var(--ai-soft); }
+
+/* --- 規程一覧 --- */
+.lv-table { border: 1px solid var(--rule); border-radius: 8px; border-collapse: separate; border-spacing: 0; overflow: hidden; box-shadow: var(--shadow-card); margin-top: 16px; }
+.lv-table th { border-bottom: 1px solid var(--rule); background: var(--paper); }
+.lv-sort { padding: 8px 12px; font-size: 12.5px; font-weight: 500; color: var(--muted); letter-spacing: .06em; }
+.lv-sort:hover { color: var(--ink); }
+.lv-table td { border-bottom: 1px solid var(--rule); padding: 10px 12px; }
+.lv-table tbody tr:last-child td { border-bottom: 0; }
+.lv-table tbody tr { transition: background-color .12s; }
+.lv-table tbody tr:hover { background: var(--hover-bg); }
+.lv-table td.lv-date { color: var(--muted); font-size: 13.5px; }
+.lv-badge { font-weight: 500; letter-spacing: .04em; }
+#worksEmpty {
+  margin: 16px 0 0; padding: 36px 20px; text-align: center; color: var(--muted); font-size: 14px;
+  border: 1.5px dashed var(--ai-line); border-radius: 8px; background: color-mix(in srgb, var(--ai-soft) 40%, transparent);
+}
+#worksEmpty[hidden] { display: none; }
+#worksHint:empty { display: none; }
+.lv-bar .btn.small, .lv-bar .btn.small.primary { min-height: 40px; padding: 0 16px; font-size: 14px; }
+
+/* --- サイドメニュー --- */
+.side-sec { padding: 6px 0; }
+.side-sec > summary {
+  display: flex; align-items: center; gap: 8px; padding: 8px 6px 8px 4px; border-radius: 6px;
+  list-style: none; color: var(--ink);
+}
+.side-sec > summary::-webkit-details-marker { display: none; }
+.side-sec > summary::marker { content: ""; }
+.side-sec > summary::before {
+  content: ""; flex: none; width: 7px; height: 7px; margin: 0 5px 0 3px;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg); transition: transform .15s, border-color .15s;
+}
+.side-sec > summary:hover { background: var(--hover-bg); }
+.side-sec[open] > summary { color: var(--ai); }
+.side-sec[open] > summary::before { transform: rotate(45deg); border-color: var(--ai); }
+.side-sec[open] { box-shadow: inset 2px 0 0 var(--ai); padding-left: 10px; margin-left: -10px; }
+.side-sec > :not(summary) { margin-left: 4px; margin-right: 2px; }
+.side-sec[open] > summary { margin-left: 0; }
+.side-row { gap: 8px; margin-top: 10px; }
+.side-head { font-family: var(--mincho); font-weight: 700; letter-spacing: .08em; }
+@media (prefers-reduced-motion: reduce) { .side-sec > summary::before, .btn, .lv-table tbody tr { transition: none; } }
+
+/* --- 編集画面：カード、見出しと説明の差、タブ --- */
+.ed-split .step, .ed-pane .step + .step {
+  padding: 16px 18px 18px; background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 8px; box-shadow: var(--shadow-card);
+}
+.ed-split .step { margin-top: 0; }
+.ed-pane .step + .step { margin-top: 14px; }
+.ed-pane { padding-top: 12px; }
+.ed-split .step h2 { font-size: 18px; color: var(--ink); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+.step .hint, .step .desc { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+.step .hint:last-child, .step .result + .hint { margin-bottom: 0; }
+.ed-tabs { gap: 2px; }
+.ed-tabs button { font-size: 14px; font-weight: 400; padding: 9px 14px; border-radius: 6px 6px 0 0; transition: color .15s, background-color .15s; }
+.ed-tabs button:hover { color: var(--ink); background: var(--hover-bg); }
+.ed-tabs button[aria-selected="true"] { color: var(--ai); font-weight: 500; background: var(--ai-soft); border-bottom: 3px solid var(--ai); }
+.ed-tabs button:focus-visible { outline: 2px solid var(--ai); outline-offset: -2px; }
+main > header h1, #edTitle { font-size: 22px; letter-spacing: .06em; }
+.cf-tools, .cf-level, .tpl label { box-shadow: none; }
+.ver-form input, .cmp-note textarea { border-color: var(--rule); }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ai); outline-offset: 1px; }
+@media (max-width: 760px) {
+  /* 狭い画面では左右2欄を縦に積み、はみ出さないようにする */
+  .ed-split { grid-template-columns: minmax(0, 1fr); grid-auto-rows: max-content; overflow-y: auto; gap: 16px 0; }
+  .ed-left, .ed-pane { overflow: visible; }
+  .ed-right { border-left: 0; padding-left: 0; }
+  main { padding-left: 12px; padding-right: 12px; }
+  main > header { flex-wrap: wrap; position: relative; z-index: 26; padding-top: 0; min-height: 44px; }
+  main > header h1 { font-size: 19px; }
+}
+@media (max-width: 480px) {
+  .lv { padding: calc(68px + env(safe-area-inset-top, 0px)) 14px 48px; }
+  .lv-bar h1 { font-size: 24px; flex: 1 1 100%; }
+  .lv-table td { padding: 10px; }
+  #worksEmpty { padding: 28px 14px; }
+}
 </style>
 </head>
 <body>
@@ -662,7 +798,7 @@ footer { margin-top: 40px; font-size: 12.5px; color: var(--muted); line-height: 
 <section class="lv" id="viewList" aria-labelledby="lvHead">
   <div class="lv-bar">
     <h1 id="lvHead">規程一覧</h1>
-    <label for="file" class="btn small" id="lvNewBtn">docx を読み込む</label>
+    <label for="file" class="btn small primary" id="lvNewBtn">docx を読み込む</label>
     <input type="file" id="workImport" class="vh" accept=".json,application/json">
     <label for="workImport" class="btn small" id="workImportBtn">作業（.json）を読み込む</label>
   </div>
