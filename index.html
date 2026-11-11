@@ -241,7 +241,7 @@ body::before {
 
 /* テンプレート見本：条・項の組み方をそのまま小さく見せる */
 .tpls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-@media (max-width: 340px) { .tpls { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .tpls { grid-template-columns: 1fr; } }
 .tpl { position: relative; }
 .tpl input { position: absolute; opacity: 0; width: 1px; height: 1px; top: 12px; left: 12px; }
 .tpl label {
@@ -347,7 +347,9 @@ body::before {
 .cmp-bar { position: sticky; top: var(--band-h); z-index: 20; background: var(--band-bg); border-bottom: 1px solid var(--rule); padding: 6px 4px; margin-bottom: 8px; }
 .cmp-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 14px; }
 .cmp-only { display: inline-block; font-size: 14px; }
-.cmp-bar .btn.small { min-height: 28px; padding: 0 10px; font-size: 14px; font-weight: 400; }
+.cmp-bar .btn.small { min-height: 34px; padding: 0 10px; font-size: 14px; font-weight: 400; border-color: var(--rule); color: var(--ink); background: var(--surface); }
+.cmp-bar .btn.small[aria-expanded="true"] { background: var(--ai-soft); border-color: var(--ai); }
+@media (max-width: 760px) { .cmp-bar .btn.small { min-height: 38px; } }
 .cmp-toc { max-height: 40vh; overflow-y: auto; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--rule); font-size: 14px; }
 .cmp-toc[hidden] { display: none; }
 .cmp-toc button { display: block; width: 100%; text-align: left; padding: 2px 6px; border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; border-radius: 4px; }
@@ -393,9 +395,8 @@ body::before {
 .ver-cmp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .ver-cmp[hidden] { display: none; }
 .ver-cmp select { min-height: 40px; font: inherit; max-width: 100%; }
-.cmp-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; }
-.cmp-edit[hidden] { display: none; }
-.cmp-edit .hint { margin: 0; flex: 1 1 100%; }
+.cmp-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; }.cmp-edit[hidden] { display: none; }
+.cmp-edit .hint { margin: 0; flex: 1 1 auto; min-width: 0; }
 .cmp-new.editable { cursor: pointer; border-radius: 4px; }
 .cmp-new.editable:hover, .cmp-new.editable:focus-visible { outline: 2px solid var(--ai); outline-offset: -2px; }
 .ed-err { margin: 4px 0; padding: 6px 10px; border-radius: 4px; background: var(--err-bg); color: var(--err); font-size: 14px; }
@@ -488,7 +489,6 @@ main > footer { display: none; }
 .ed-split .cmp-block { scroll-margin-top: 60px; }
 
 /* ---------- 新旧対照表（3列のモーダル） ---------- */
-#tblOpen { margin-bottom: 8px; }
 .tbl { width: calc(100vw - 48px); max-width: 1600px; height: calc(100vh - 48px); padding: 0; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
 .tbl[open] { display: flex; flex-direction: column; }
 .tbl::backdrop { background: rgba(0, 0, 0, .4); }
@@ -503,8 +503,6 @@ main > footer { display: none; }
 .tbl-cols > * { padding: 6px 10px; border-right: 1px solid var(--rule); min-width: 0; }
 .tbl-cols > :last-child { border-right: 0; }
 .tbl-th { position: sticky; top: 0; z-index: 1; background: var(--surface); border-bottom: 2px solid var(--rule); font-weight: 500; font-size: 14px; text-align: center; }
-.tbl-th > :first-child { color: var(--err); }
-.tbl-th > :nth-child(2) { color: var(--ok); }
 #tblBody .tbl-cols { border-bottom: 1px solid var(--rule); }
 #tblBody .cmp-col { padding: 6px 10px; }
 #tblBody.diff .tbl-cols[data-same="1"] { display: none; }
@@ -515,7 +513,15 @@ main > footer { display: none; }
 .open-dlg[open] { display: flex; flex-direction: column; }
 .open-dlg::backdrop { background: rgba(0, 0, 0, .4); }
 .open-dlg h2 { flex: none; margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--rule); font-size: 16px; }
-.open-body { flex: 1; min-height: 0; overflow: auto; padding: 10px 16px; display: grid; gap: 14px; }
+.open-body { flex: 1; min-height: 0; overflow: auto; padding: 10px 16px; display: grid; gap: 14px;
+  /* 続きがあるときだけ上下に影が出る（local は中身と一緒に動き、scroll は枠に固定） */
+  background:
+    linear-gradient(var(--surface) 30%, transparent) top / 100% 24px no-repeat local,
+    linear-gradient(transparent, var(--surface) 70%) bottom / 100% 24px no-repeat local,
+    linear-gradient(color-mix(in srgb, var(--ink) 22%, transparent), transparent) top / 100% 10px no-repeat scroll,
+    linear-gradient(transparent, color-mix(in srgb, var(--ink) 22%, transparent)) bottom / 100% 10px no-repeat scroll;
+  background-color: var(--surface); }
+.open-body h3 { margin: 0; font-size: 14px; font-weight: 500; }
 .open-foot { flex: none; display: flex; justify-content: flex-end; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--rule); }
 .open-foot .btn.primary { width: auto; min-height: 40px; font-size: 14px; }
 
@@ -889,7 +895,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
                 <button type="button" class="btn small" id="cmpTocBtn" aria-expanded="false" aria-controls="cmpToc">目次</button>
                 <button type="button" class="btn small" id="cmpOpenAll">すべて開く</button>
                 <button type="button" class="btn small" id="cmpCloseAll">すべて閉じる</button>
-            <button type="button" class="btn small" id="tblOpen2">新旧対照表を開く</button>
               </div>
               <div class="cmp-toc" id="cmpToc" hidden></div>
             </div>
@@ -916,7 +921,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
         <div class="no" aria-hidden="true">⑥</div>
         <div class="body">
           <h2 id="h6">版と改訂履歴</h2>
-          <button type="button" class="btn small" id="tblOpen">新旧対照表を開く</button>
           <p class="hint" id="verNoFile">docx を読み込むと使えます。</p>
           <div id="verBox" hidden>
             <div class="ver-form">
@@ -924,7 +928,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
               <input type="date" id="verDate">
               <label class="field" for="verMemo">メモ</label>
               <input type="text" id="verMemo" maxlength="200" placeholder="例：育児介護休業法改正への対応">
-              <button type="button" class="btn" id="verAdd">改正案を版として確定</button>
+              <button type="button" class="btn primary" id="verAdd">改正案を版として確定</button>
             </div>
             <p class="hint" id="verHint" aria-live="polite"></p>
             <div class="ver-scroll" id="verTableBox" hidden>
@@ -957,6 +961,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
             <summary>処理の記録</summary>
             <pre id="log"></pre>
           </details>
+        </div>
+      </section>
+      <section class="step" aria-labelledby="h7">
+        <div class="no" aria-hidden="true">⑦</div>
+        <div class="body">
+          <h2 id="h7">新旧対照表</h2>
+          <button type="button" class="btn" id="tblOpen">新旧対照表を作成（PDF・docx）</button>
+          <p class="hint" id="tblHint" aria-live="polite"></p>
         </div>
       </section>
       </div>
@@ -1018,7 +1030,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
               <p class="key-state"><span id="keyState"></span>　<button type="button" class="linkbtn" id="keyOpen">キーを設定</button></p>
               <div class="opt">
                 <input type="checkbox" id="optAgent">
-                <label for="optAgent">全文をまとめて判定する（Antigravity）</label>
+                <label for="optAgent">全文をまとめて判定する</label>
                 <div class="desc">本文をすべて Google に送ります。数分かかります。無料枠のキーでは学習に使われる可能性があるため、有料枠のキーを使ってください。</div>
               </div>
             </div>
@@ -1127,7 +1139,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 
   <dialog class="open-dlg" id="openDlg" aria-labelledby="openTitle">
     <h2 id="openTitle">整形の設定</h2>
-    <div class="open-body" id="openBody"></div>
+    <div class="open-body" id="openBody">
+      <h3 id="openTplHead">テンプレート</h3>
+      <h3 id="openOptHead">オプション</h3>
+    </div>
     <div class="open-foot">
       <button type="button" class="btn" id="openCancel">キャンセル</button>
       <button type="button" class="btn primary" id="openOk">この設定で開く</button>
@@ -1229,7 +1244,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     $("cmpShow").disabled = busy || !file;
     $("otherFile").disabled = busy || !file;
     $("otherBtn").setAttribute("aria-disabled", busy || !file ? "true" : "false");
-    $("tblOpen").disabled = $("tblOpen2").disabled = busy;
+    $("tblOpen").disabled = busy;
     $("tblSave").disabled = busy;
     // 解析のオプションを変えたら、表示中の変更点は古いので消す（保存で古い解析を使わないように）
     if (!busy && cmpShown && !edit && !versionView && parsedKey !== parseKeyNow()) clearComparison();
@@ -1550,6 +1565,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     const tb = $("worksList");
     tb.textContent = "";
     $("worksEmpty").hidden = list.length > 0;
+    document.querySelector(".lv-table").hidden = list.length === 0;
     list.forEach((w, i) => {
       const tr = document.createElement("tr");
       tr.tabIndex = 0;
@@ -1575,7 +1591,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
       [["開く", () => openWork(w.id)], ["名前変更", () => renameWork(w.id)],
        ["書き出し", () => exportWork(w.id)], ["削除", () => deleteWork(w.id)]].forEach(([label, fn]) => {
         const b = document.createElement("button");
-        b.type = "button"; b.className = "btn small"; b.textContent = label;
+        b.type = "button"; b.className = label === "削除" ? "btn small danger" : "btn small"; b.textContent = label;
         b.setAttribute("aria-label", `${label}：${w.name}`);
         b.disabled = busy;
         b.addEventListener("click", (e) => { e.stopPropagation(); if (!busy) fn(); });
@@ -2006,7 +2022,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
       const ops = td("", "ops");
       [["この版から改定", () => withBusy(() => startFrom(v, true))], ["削除", () => deleteVersion(v.no)]].forEach(([label, fn]) => {
         const b = document.createElement("button");
-        b.type = "button"; b.className = "btn small"; b.textContent = label;
+        b.type = "button"; b.className = label === "削除" ? "btn small danger" : "btn small"; b.textContent = label;
         b.setAttribute("aria-label", `${label}：${verLabel(v.no)}`);
         b.addEventListener("click", () => { if (!busy) fn(); });
         ops.appendChild(b);
@@ -2116,6 +2132,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     }
   }
   function refreshEditBar() {
+    $("cmpShow").hidden = cmpShown;   // 対照表を表示している間は「変更点を表示」を隠す（refresh() からも毎回呼ばれる）
     // 編集中は、全部の条を消しても「元に戻す」「下書きを削除」を押せるように出し続ける
     $("cmpEdit").hidden = !cmpShown || (!cmpBlocks.length && !edit && !versionView);
     $("editUndo").disabled = busy || !edit || !edit.undo.length;
@@ -2561,10 +2578,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   // ②のオプションと③のテンプレ選択を、同じ部品のままダイアログへ移して選んでもらう。閉じたら元の位置へ戻す
   function askOpenOpts() {
     const dlg = $("openDlg");
-    const parts = [$("optGroup"), document.querySelector(".tpls")].map((el) => {
+    // ダイアログ内は「テンプレート」→「オプション」の順。見出しは #openBody に静的に置いてあり、その直後へ移す
+    const parts = [[document.querySelector(".tpls"), "openTplHead"], [$("optGroup"), "openOptHead"]].map(([el, head]) => {
       const ph = document.createComment("");
       el.replaceWith(ph);
-      $("openBody").appendChild(el);
+      $(head).after(el);
       return { el, ph };
     });
     return new Promise((resolve) => {
@@ -2740,7 +2758,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   // ---------- 新旧対照表（3列のモーダル） ----------
   // 左の欄で描いた現行・改正案の列を写し、備考の列を足す。備考は左の欄と同じ所に残す
   function openTable() {
-    if (!cmpShown || !cmpBlocks.length) { cmpHint("err", "先に「変更点を表示」を押してください。"); return; }
+    $("tblHint").className = "hint"; $("tblHint").textContent = "";
+    if (!cmpShown || !cmpBlocks.length) {
+      const msg = "先に「変更点を表示」を押してください。";
+      cmpHint("err", msg);
+      $("tblHint").className = "hint err"; $("tblHint").textContent = msg;
+      return;
+    }
     const notes = loadNotes();
     const body = $("tblBody");
     body.textContent = "";
@@ -2780,7 +2804,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     $("tblBody").classList.toggle("diff", diff);
   }
   $("tblOpen").addEventListener("click", openTable);
-  $("tblOpen2").addEventListener("click", openTable);
   $("tblAll").addEventListener("click", () => tableMode(false));
   $("tblDiff").addEventListener("click", () => tableMode(true));
   $("tblClose").addEventListener("click", () => $("tblDlg").close());
@@ -2936,7 +2959,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   function saveView(patch) { store.set(K.view, JSON.stringify({ ...loadView(), ...patch })); }
   const sideVisible = () => (wide.matches ? root.dataset.side !== "hidden" : root.dataset.drawer === "open");
   function syncSide() {
-    $("sideToggle").setAttribute("aria-expanded", String(sideVisible()));
+    const vis = sideVisible();
+    $("sideToggle").setAttribute("aria-expanded", String(vis));
+    $("sideToggle").setAttribute("aria-label", vis ? "メニューを閉じる" : "メニューを開く");
+    $("sideToggle").textContent = vis ? "✕" : "☰";
     $("sideBackdrop").hidden = wide.matches || root.dataset.drawer !== "open";
   }
   function setSide(open) {
