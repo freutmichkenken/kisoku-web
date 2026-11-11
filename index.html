@@ -421,6 +421,11 @@ body::before {
 .ed-tools.open { opacity: 1; pointer-events: auto; }
 .ed-unit-row:hover > .ed-tools, .ed-unit-row:focus-within > .ed-tools, .ed-fig:hover > .ed-tools, .ed-fig:focus-within > .ed-tools { opacity: 1; pointer-events: auto; }
 .ed-tools .btn.small { min-height: 26px; padding: 0 8px; font-size: 12px; font-weight: 400; }
+/* タッチ端末にはホバーが無いので、編集ボタンを常に出して押しやすくする */
+@media (hover: none) {
+  .ed-tools { opacity: 1; pointer-events: auto; }
+  .ed-tools .btn.small { min-height: 36px; }
+}
 .ed-menu { position: absolute; top: 100%; right: 0; z-index: 30; display: grid; min-width: 9em; padding: 4px; margin-top: 2px; background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
 .ed-menu[hidden] { display: none; }
 .ed-menu button { text-align: left; padding: 5px 10px; border: 0; background: none; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; border-radius: 4px; white-space: nowrap; }
@@ -463,6 +468,7 @@ main > footer { display: none; }
 .ed-tabs button { padding: 8px 14px; border: 0; border-bottom: 3px solid transparent; background: none; font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; }
 .ed-tabs button[aria-selected="true"] { color: var(--ai); border-bottom-color: var(--ai); font-weight: 500; }
 .ed-tabs button:focus-visible { outline: 3px solid var(--ai); outline-offset: -3px; }
+.ed-tabs .tab-body { display: none; }   /* 「本文」タブは狭い画面だけ */
 .ed-pane { flex: 1; padding: 0 4px 32px; }
 .ed-pane[hidden] { display: none; }
 .ed-split .step { display: block; margin-top: 0; padding-top: 10px; border-top: 0; }
@@ -691,9 +697,31 @@ main > header h1, #edTitle { font-size: 20px; letter-spacing: .01em; }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ai); outline-offset: 1px; }
 @media (max-width: 760px) {
   /* 狭い画面では左右2欄を縦に積み、はみ出さないようにする */
-  .ed-split { grid-template-columns: minmax(0, 1fr); grid-auto-rows: max-content; overflow-y: auto; gap: 16px 0; }
+  /* 一度に1つの欄だけ出す（「本文」タブ＝新旧対照表、ほかのタブ＝右の欄のパネル）。
+     タブ列は .ed-split の上端に留める（sticky を効かせるため、grid をやめて縦の flex にし、タブ列を order で先頭へ） */
+  .ed-split { --tabs-h: 44px; display: flex; flex-direction: column; overflow-y: auto; }
+  .ed-split > *, .ed-right > * { flex: none; }
   .ed-left, .ed-pane { overflow: visible; }
-  .ed-right { border-left: 0; padding-left: 0; }
+  .ed-right { display: contents; }
+  .ed-tabs { order: -1; position: sticky; top: 0; z-index: 25; background: var(--paper); overflow-x: auto; }
+  .ed-tabs button { flex: none; white-space: nowrap; }
+  .ed-tabs .tab-body { display: block; }
+  .ed-split[data-pane="right"] .ed-left { display: none; }
+  .ed-split[data-pane="body"] .ed-pane { display: none; }
+  .ed-left .cmp-bar, .ed-pane .pv { top: var(--tabs-h); }
+  .ed-split .cmp-block { scroll-margin-top: calc(var(--tabs-h) + 60px); }
+  /* 新旧対照表は1列。条ごとに現行を上、改正案を下に積む */
+  .ed-left .cmp-head { display: none; }
+  #cmpBody .cmp-block { grid-template-columns: minmax(0, 1fr); }
+  #cmpBody .cmp-col:empty { display: none; }   /* 追加・削除された条の、無いほうの欄 */
+  #cmpBody .cmp-col::before { display: block; font-size: 12px; font-weight: 500; color: var(--muted); line-height: 1.4; }
+  #cmpBody .cmp-old::before { content: "現行"; }
+  #cmpBody .cmp-new::before { content: "改正案"; }
+  #cmpBody .cmp-line.para .num { width: 3.5em; }
+  #cmpBody .cmp-line.item { padding-left: calc(3.5em + 4em); }
+  #cmpBody .cmp-line.sub { padding-left: calc(3.5em + 6em); }
+  #cmpBody .cmp-line.sub2 { padding-left: calc(3.5em + 8em); }
+  #cmpBody .cmp-line.mark { padding-left: calc(3.5em + 1em); }
   main { padding-left: 12px; padding-right: 12px; }
   main > header { flex-wrap: wrap; position: relative; z-index: 26; padding-top: 0; min-height: 44px; }
   main > header h1 { font-size: 20px; }
@@ -749,10 +777,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     <summary>既定のオプション</summary>
     <p class="hint" id="defSummary"></p>
     <div class="side-row">
-      <button type="button" class="btn small" id="defSave">今の②③を既定にする</button>
+      <button type="button" class="btn small" id="defSave">今の設定を既定にする</button>
       <button type="button" class="btn small" id="defClear">解除</button>
     </div>
-    <p class="hint">新しい docx を開くとき、②③をこの設定にします。</p>
+    <p class="hint">docx を読み込むときの初期値にします。</p>
   </details>
 
   <details class="side-sec" id="secData">
@@ -779,10 +807,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     <summary>使い方と注意</summary>
     <div class="caution">
       <ol>
-        <li>① で docx を選ぶ</li>
-        <li>② ③ でオプションとテンプレートを選ぶ</li>
-        <li>④ で変更点を確認し、必要なら改正案を直す</li>
-        <li>⑤ でダウンロード。改正したら ⑥ で版を残す</li>
+        <li>「docx を読み込む」で開き、オプションとテンプレートを選ぶ</li>
+        <li>新旧対照表で確認し、必要なら改正案を直す</li>
+        <li>「出力」タブでダウンロードする</li>
+        <li>改正したら「変更履歴」タブで版を残す</li>
       </ol>
       <h3>整形前の注意</h3>
       <ul>
@@ -877,6 +905,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     </div>
     <div class="ed-right">
       <div class="ed-tabs" role="tablist" aria-label="右の欄">
+        <button type="button" role="tab" id="tabBody" class="tab-body" aria-controls="edLeft" aria-selected="false" tabindex="-1">本文</button>
         <button type="button" role="tab" id="tabHist" aria-controls="panHist" aria-selected="true">変更履歴</button>
         <button type="button" role="tab" id="tabOut" aria-controls="panOut" aria-selected="false" tabindex="-1">出力</button>
         <button type="button" role="tab" id="tabSet" aria-controls="panSet" aria-selected="false" tabindex="-1">設定</button>
@@ -888,7 +917,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
         <div class="body">
           <h2 id="h6">版と改訂履歴</h2>
           <button type="button" class="btn small" id="tblOpen">新旧対照表を開く</button>
-          <p class="hint" id="verNoFile">① でファイルを選ぶと使えます。</p>
+          <p class="hint" id="verNoFile">docx を読み込むと使えます。</p>
           <div id="verBox" hidden>
             <div class="ver-form">
               <label class="field" for="verDate">施行日</label>
@@ -1213,7 +1242,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     $("workImportBtn").setAttribute("aria-disabled", busy ? "true" : "false");
     document.querySelectorAll("#worksList button").forEach((b) => { b.disabled = busy; });
     const hint = $("runHint");
-    if (!file) hint.textContent = "① でファイルを選ぶと押せるようになります。";
+    if (!file) hint.textContent = "docx を読み込むと押せます。";
     else if (!engineReady) hint.textContent = "準備が終わり次第、処理を始めます。";
     else hint.textContent = "";
   }
@@ -1564,23 +1593,41 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   }));
   // 右の欄のタブ（←→ で切り替え）
   const tabs = [...document.querySelectorAll('.ed-tabs [role="tab"]')];
+  const narrow = window.matchMedia("(max-width: 760px)");   // この幅以下では「本文」タブで欄を切り替える
   function selectTab(tab, focus) {
     tabs.forEach((x) => {
       const on = x === tab;
       x.setAttribute("aria-selected", String(on));
       x.tabIndex = on ? 0 : -1;
-      $(x.getAttribute("aria-controls")).hidden = !on;
+      const pan = $(x.getAttribute("aria-controls"));
+      if (pan.getAttribute("role") === "tabpanel") pan.hidden = !on;   // 「本文」の相手（新旧対照表）は隠さない
     });
+    document.querySelector(".ed-split").dataset.pane = tab.id === "tabBody" ? "body" : "right";
     if (focus) tab.focus();
     if (tab.id === "tabSet" && tplValue() === "custom") KisokuCustom.refresh();   // 隠れている間は大きさを測れないので、見えてから描き直す
   }
-  tabs.forEach((x, i) => {
-    x.addEventListener("click", () => selectTab(x));
+  // 狭い画面で本文から離れるときは、編集中の条を確定するか確かめる（キャンセルなら切り替えない）
+  async function requestTab(tab, focus) {
+    if (narrow.matches && tab.id !== "tabBody" && $("tabBody").getAttribute("aria-selected") === "true" && !(await settleEdit())) return;
+    selectTab(tab, focus);
+  }
+  // 狭い画面のとき「本文」タブを選ぶ。広くなったら「本文」は無いので変更履歴に移る
+  function syncNarrowTab() {
+    if (narrow.matches) selectTab($("tabBody"));
+    else if ($("tabBody").getAttribute("aria-selected") === "true") selectTab($("tabHist"));
+    else document.querySelector(".ed-split").dataset.pane = "right";
+  }
+  narrow.addEventListener("change", syncNarrowTab);
+  tabs.forEach((x) => {
+    x.addEventListener("click", () => requestTab(x));
     x.addEventListener("keydown", (e) => {
+      const vis = tabs.filter((y) => y.offsetParent !== null);   // 広い画面では「本文」は表示されない
+      const i = vis.indexOf(x);
       const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-      if (d) { e.preventDefault(); selectTab(tabs[(i + d + tabs.length) % tabs.length], true); }
+      if (d && i >= 0) { e.preventDefault(); requestTab(vis[(i + d + vis.length) % vis.length], true); }
     });
   });
+  syncNarrowTab();
   function setView(v) {
     document.documentElement.dataset.view = v;
     window.scrollTo(0, 0);
@@ -2077,7 +2124,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     $("verBack").hidden = !versionView;
     $("verBack").disabled = busy;
     $("editDiscard").disabled = busy;
-    let t = edit ? "編集中は、② の解析のオプションを変えられません。" : "改正案の条・章を押すと編集できます。";
+    let t = edit ? "編集中は、解析のオプションを変えられません。" : "改正案の条・章を押すと編集できます。";
     if (edit && draftSaveFailed) t += "この端末に保存できないため、ページを閉じると編集は消えます。";
     // 直前の変更で消えた条を、本文が参照したまま残っている（番号を書き換えられない）
     // 印は本文から消すまで残るので、直すまで知らせ続ける
@@ -2120,7 +2167,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     if (!d || !Array.isArray(d.base) || !Array.isArray(d.tree)) return;
     edit = { base: d.base, tree: KisokuRefs.assignIds(d.tree), from: Number.isInteger(d.from) ? d.from : undefined, undo: [] };
     if (!(await sendTrees())) { edit = null; return; }
-    $("parseHint").textContent += "前回の編集の下書きを読み込みました（④ で削除できます）。";
+    $("parseHint").textContent += "前回の編集の下書きを読み込みました（「下書きを削除」で削除できます）。";
   }
   const nodeAt = (tree, path) => (path.length === 1 ? tree[path[0]] : tree[path[0]]?.articles?.[path[1]]);
   function setAt(tree, path, node) {
@@ -2925,6 +2972,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   function goTo(target) {
     const pane = target.closest(".ed-pane");    // 右の欄の隠れたタブにあるなら、そのタブを開く
     if (pane) selectTab($(pane.getAttribute("aria-labelledby")));
+    else if (narrow.matches && target.closest(".ed-left")) selectTab($("tabBody"));   // 狭い画面で右の欄を見ているときは、本文へ戻す
     leaveSide(target);
     // 端末で「視差効果を減らす」をオンにしているときは、スライドせずに移動する
     target.scrollIntoView({ block: "start", behavior: reduceMotion.matches ? "auto" : "smooth" });
@@ -3016,7 +3064,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     if (!confirm(`今のカスタム設定を「${t.name}」で上書きして使いますか？`)) return;
     if (!KisokuCustom.set(structuredClone(t.settings))) { tplHint("err", "設定の形式が正しくありません。"); return; }
     selectCustom();
-    tplHint("ok", `「${t.name}」を ③ に読み込みました。`);
+    tplHint("ok", `「${t.name}」をカスタムのテンプレートに読み込みました。`);
   }
   $("tplAdd").addEventListener("click", () => {
     const list = loadTpls();
@@ -3066,7 +3114,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   }
   $("tplEdit").addEventListener("click", () => {
     // テンプレートの選択は作業の設定なので、切り替えるときは確かめる
-    if (!busy && tplValue() !== "custom" && confirm("③ のテンプレートを「カスタム」に切り替えますか？")) selectCustom();
+    if (!busy && tplValue() !== "custom" && confirm("テンプレートを「カスタム」に切り替えますか？")) selectCustom();
     goTo($("h3"));
   });
   $("tplExport").addEventListener("click", () => {
