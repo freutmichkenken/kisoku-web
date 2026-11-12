@@ -84,7 +84,7 @@ assert len(post) == 1
 body = post[0][2]
 assert body["agent"] == "antigravity-preview-09-2026"
 assert body["background"] is True and body["environment"] == "remote"
-assert body["agent_config"]["model"] == "gemini-4-argon"
+assert body["agent_config"]["model"] == "gemini-3.8-flash"
 assert body["agent_config"]["max_total_tokens"] <= 100000
 assert "*1: （目的）" in body["input"] and "*3: ①　履歴書" in body["input"]
 assert "\n0: 第1章　総則" in body["input"] and "*0:" not in body["input"]
