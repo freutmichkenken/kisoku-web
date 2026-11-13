@@ -644,7 +644,7 @@ def _simple_article(article):
 # ============================================================
 
 _AGENT_NAME = "antigravity-preview-09-2026"
-_AGENT_MODEL = "gemini-3.8-flash"
+_AGENT_MODEL = "gemini-4-hydrogen"
 _AGENT_POLL_SEC = 5
 _AGENT_DEADLINE_SEC = 900          # 1回の interaction あたり
 _AGENT_CHUNK_CHARS = 30000         # 1チャンクの本文（番号付きの行）の上限
