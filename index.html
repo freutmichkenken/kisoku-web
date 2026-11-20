@@ -912,8 +912,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
       <div class="ed-tabs" role="tablist" aria-label="右の欄">
         <button type="button" role="tab" id="tabBody" class="tab-body" aria-controls="edLeft" aria-selected="false" tabindex="-1">本文</button>
         <button type="button" role="tab" id="tabHist" aria-controls="panHist" aria-selected="true">変更履歴</button>
-        <button type="button" role="tab" id="tabOut" aria-controls="panOut" aria-selected="false" tabindex="-1">出力</button>
         <button type="button" role="tab" id="tabSet" aria-controls="panSet" aria-selected="false" tabindex="-1">設定</button>
+        <button type="button" role="tab" id="tabOut" aria-controls="panOut" aria-selected="false" tabindex="-1">出力</button>
         <button type="button" role="tab" id="tabChk" aria-controls="panChk" aria-selected="false" tabindex="-1">チェック</button>
       </div>
       <div class="ed-pane" role="tabpanel" id="panHist" aria-labelledby="tabHist">
@@ -948,37 +948,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
         </div>
       </section>
       </div>
-      <div class="ed-pane" role="tabpanel" id="panOut" aria-labelledby="tabOut" hidden>
-      <section class="step" aria-labelledby="h5">
-        <div class="no" aria-hidden="true">⑤</div>
-        <div class="body">
-          <h2 id="h5">整形した docx</h2>
-          <button type="button" class="btn primary" id="run" disabled>ダウンロード</button>
-          <button type="button" class="btn small" id="agentCancel" hidden>中止</button>
-          <p class="hint" id="runHint"></p>
-          <div class="result" id="result" aria-live="polite"></div>
-          <details class="log" id="logBox">
-            <summary>処理の記録</summary>
-            <pre id="log"></pre>
-          </details>
-        </div>
-      </section>
-      <section class="step" aria-labelledby="h7">
-        <div class="no" aria-hidden="true">⑦</div>
-        <div class="body">
-          <h2 id="h7">新旧対照表</h2>
-          <button type="button" class="btn" id="tblOpen">新旧対照表を作成（PDF・docx）</button>
-          <p class="hint" id="tblHint" aria-live="polite"></p>
-        </div>
-      </section>
-      </div>
-      <div class="ed-pane" role="tabpanel" id="panChk" aria-labelledby="tabChk" hidden>
-        <section class="step" aria-labelledby="hChk">
-          <h2 id="hChk">参照のチェック</h2>
-          <p class="hint" id="chkHint" aria-live="polite"></p>
-          <ul class="chk-list" id="chkList"></ul>
-        </section>
-      </div>
       <div class="ed-pane" role="tabpanel" id="panSet" aria-labelledby="tabSet" hidden>
       <section class="step" aria-labelledby="h1">
         <div class="no" aria-hidden="true">①</div>
@@ -1005,6 +974,39 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
           </div>
 
           <div class="opt">
+            <input type="checkbox" id="optGemini">
+            <label for="optGemini">Gemini で分割ミスを検出する</label>
+            <div class="desc">判定しにくい段落を Gemini に確認させます。文章が Google に送られ、無料枠では学習に使われる可能性があります。</div>
+            <div class="gemini" id="geminiBox" hidden>
+              <p class="key-state"><span id="keyState"></span>　<button type="button" class="linkbtn" id="keyOpen">キーを設定</button></p>
+              <div class="opt">
+                <input type="checkbox" id="optAgent">
+                <label for="optAgent">全文をまとめて判定する</label>
+                <div class="desc">本文をすべて Google に送ります。数分かかります。無料枠のキーでは学習に使われる可能性があるため、有料枠のキーを使ってください。</div>
+              </div>
+            </div>
+          </div>
+          </div>
+          <button type="button" class="btn" id="reparse" disabled>この設定で解析し直す</button>
+          <button type="button" class="btn small" id="agentCancel" hidden>中止</button>
+          <p class="hint" id="reparseHint" aria-live="polite"></p>
+        </div>
+      </section>
+      </div>
+      <div class="ed-pane" role="tabpanel" id="panChk" aria-labelledby="tabChk" hidden>
+        <section class="step" aria-labelledby="hChk">
+          <h2 id="hChk">参照のチェック</h2>
+          <p class="hint" id="chkHint" aria-live="polite"></p>
+          <ul class="chk-list" id="chkList"></ul>
+        </section>
+      </div>
+      <div class="ed-pane" role="tabpanel" id="panOut" aria-labelledby="tabOut" hidden>
+      <section class="step" aria-labelledby="h2o">
+        <div class="no" aria-hidden="true">④</div>
+        <div class="body">
+          <h2 id="h2o">出力のオプション</h2>
+          <div id="optOut">
+          <div class="opt">
             <input type="checkbox" id="optToc">
             <label for="optToc">目次を作成する</label>
             <div class="desc">表紙の次に章・条の目次を入れます。Word で更新の確認が出たら「はい」を選んでください（出ないときは Ctrl+A → F9）。</div>
@@ -1020,20 +1022,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
             <input type="checkbox" id="optHyoki">
             <label for="optHyoki">表記ゆれを青字にする</label>
             <div class="desc">「従業員／社員」「1か月／1ヵ月」などのゆれを青字にし、最初の1箇所にコメントを付けます（文字は直しません）。</div>
-          </div>
-
-          <div class="opt">
-            <input type="checkbox" id="optGemini">
-            <label for="optGemini">Gemini で分割ミスを検出する</label>
-            <div class="desc">判定しにくい段落を Gemini に確認させます。文章が Google に送られ、無料枠では学習に使われる可能性があります。</div>
-            <div class="gemini" id="geminiBox" hidden>
-              <p class="key-state"><span id="keyState"></span>　<button type="button" class="linkbtn" id="keyOpen">キーを設定</button></p>
-              <div class="opt">
-                <input type="checkbox" id="optAgent">
-                <label for="optAgent">全文をまとめて判定する</label>
-                <div class="desc">本文をすべて Google に送ります。数分かかります。無料枠のキーでは学習に使われる可能性があるため、有料枠のキーを使ってください。</div>
-              </div>
-            </div>
           </div>
           </div>
         </div>
@@ -1109,6 +1097,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
           </div>
         </div>
       </section>
+      <section class="step" aria-labelledby="h5">
+        <div class="no" aria-hidden="true">⑤</div>
+        <div class="body">
+          <h2 id="h5">整形した docx</h2>
+          <button type="button" class="btn primary" id="run" disabled>ダウンロード</button>
+          <p class="hint" id="runHint"></p>
+          <div class="result" id="result" aria-live="polite"></div>
+          <details class="log" id="logBox">
+            <summary>処理の記録</summary>
+            <pre id="log"></pre>
+          </details>
+        </div>
+      </section>
+      <section class="step" aria-labelledby="h7">
+        <div class="no" aria-hidden="true">⑦</div>
+        <div class="body">
+          <h2 id="h7">新旧対照表</h2>
+          <button type="button" class="btn" id="tblOpen">新旧対照表を作成（PDF・docx）</button>
+          <p class="hint" id="tblHint" aria-live="polite"></p>
+        </div>
+      </section>
       </div>
     </div>
   </div>
@@ -1138,9 +1147,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 </main>
 
   <dialog class="open-dlg" id="openDlg" aria-labelledby="openTitle">
-    <h2 id="openTitle">整形の設定</h2>
+    <h2 id="openTitle">読み込みの設定</h2>
     <div class="open-body" id="openBody">
-      <h3 id="openTplHead">テンプレート</h3>
       <h3 id="openOptHead">オプション</h3>
     </div>
     <div class="open-foot">
@@ -1251,8 +1259,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     $("otherBtn").setAttribute("aria-disabled", busy || !file ? "true" : "false");
     $("tblOpen").disabled = busy;
     $("tblSave").disabled = busy;
-    // 解析のオプションを変えたら、表示中の変更点は古いので消す（保存で古い解析を使わないように）
-    if (!busy && cmpShown && !edit && !versionView && parsedKey !== parseKeyNow()) clearComparison();
+    // 判定のオプションを変えても、解析し直すのは「この設定で解析し直す」を押したときだけ
+    $("reparse").disabled = busy || !file || !!versionView;
+    $("reparseHint").textContent = file && parsedKey && parsedKey !== parseKeyNow()
+      ? "設定を変えました。反映するには「この設定で解析し直す」を押してください。" : "";
     refreshEditBar();
     $("file").disabled = busy;
     $("fileBtn").setAttribute("aria-disabled", busy ? "true" : "false");
@@ -1267,11 +1277,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     else hint.textContent = "";
   }
 
-  function parseKey(g, apiKey) {
+  // 解析の条件。API キーは含めない（キーを変えただけでは解析し直さない）
+  function parseKey(g) {
     return [file && file.name, file && file.size, file && file.lastModified,
-            $("optLayout").checked, g, g ? apiKey : "", g ? $("optAgent").checked : ""].join("|");
+            $("optLayout").checked, g, g ? $("optAgent").checked : ""].join("|");
   }
-  function parseKeyNow() { return parseKey($("optGemini").checked, $("apiKey").value.trim()); }
+  function parseKeyNow() { return parseKey($("optGemini").checked); }
 
   function geminiKeyProblem() {
     if ($("optGemini").checked && !$("apiKey").value.trim()) {
@@ -1284,9 +1295,38 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   // ---------- 解析 ----------
+  // 解析の結果は作業に parsed として残し、次に開くときは解析（Gemini を含む）をせずに使う。
+  // 解析のしかた（py/）や木の形を変えたら PARSE_VER を上げる。版が違う結果は使わず、開くときに1回だけ解析し直す
+  const PARSE_VER = 1;
+  // 今のファイルの解析結果 { ver, opts, tree }。null はまだ無い、false は解析したが結果を取れなかった（保存済みの古い結果も使わない）
+  let lastParsed = null;
+  const judgeOpts = () => ({ layout: $("optLayout").checked, gemini: $("optGemini").checked, agent: $("optGemini").checked && $("optAgent").checked });
+  const countTree = (tree) => {
+    const ch = tree.filter((n) => n && n.type === "chapter");
+    return { chapters: ch.length,
+      articles: ch.reduce((s, c) => s + (Array.isArray(c.articles) ? c.articles.length : 0), 0) + tree.filter((n) => n && n.type === "article").length };
+  };
+  const usableParsed = (p) => !!(p && p.ver === PARSE_VER && Array.isArray(p.tree) && p.opts && typeof p.opts === "object");
+  // 保存しておいた解析結果を Worker に渡す（Gemini も解析も使わない）。判定のオプションは解析したときのものに戻す
+  async function loadParsed(p) {
+    $("optLayout").checked = !!p.opts.layout; $("optGemini").checked = !!p.opts.gemini; $("optAgent").checked = !!p.opts.agent;
+    savePrefs();
+    const key = parseKeyNow();   // 待っている間にチェックが変わっても、読み込んだ結果の条件で覚える
+    const hint = $("parseHint");
+    const bytes = await file.arrayBuffer();
+    const m = await call({ type: "loadParsed", name: file.name, bytes, tree: JSON.stringify(p.tree) }, [bytes]);
+    if (m.type === "error") { log(m.detail || m.text); return false; }   // 呼び出し元で解析し直す
+    parsedKey = key;
+    lastParsed = p;
+    const n = countTree(p.tree);
+    hint.className = "hint ok";
+    hint.textContent = `章 ${n.chapters} 件・条 ${n.articles} 件（保存した解析結果）。`;
+    return true;
+  }
   async function parse(useGemini) {
     const apiKey = useGemini ? $("apiKey").value.trim() : "";
-    const key = parseKey(useGemini, apiKey);
+    const key = parseKey(useGemini);
+    const opts = { ...judgeOpts(), gemini: !!useGemini, agent: !!useGemini && $("optAgent").checked };
     const hint = $("parseHint");
     hint.className = "hint";
     hint.textContent = engineReady ? "構造を解析しています…" : "準備が終わり次第、構造を解析します…";
@@ -1313,20 +1353,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     }
     parsedKey = key;
     parsedInfo = m;
+    lastParsed = false;
+    try {
+      const t = await call({ type: "getTree", parsed: true });
+      if (t.type !== "error") lastParsed = { ver: PARSE_VER, opts, tree: JSON.parse(t.tree) };
+    } catch {}
+    if (!lastParsed) log("解析結果を保存できませんでした（次に開くときにもう一度解析します）。");
     hint.className = "hint ok";
     hint.textContent = `章 ${m.chapters} 件・条 ${m.articles} 件を読み取りました。`;
-    if (!useGemini && $("optGemini").checked) hint.textContent += "Gemini を使う場合は、整形するときに解析し直します。";
     return true;
   }
 
-  // オプションが前回の解析と違えば解析し直す。show(kind, text) で状況を出す。
+  // まだ解析できていなければ解析する。show(kind, text) で状況を出す。
+  // 判定のオプションを変えただけでは解析し直さない（Gemini を呼ぶので、設定タブの「この設定で解析し直す」を押したときだけ）
   async function ensureParsed(show) {
-    if (edit || versionView) return true;    // 編集中・版の比較中は解析し直さない（解析のオプションも変えられないようにしている）
-    if (parsedKey === parseKeyNow()) return true;
-    clearComparison();        // 表示中の変更点は前の解析のものなので消す
-    // ファイル選択時は Gemini を使わずに解析しているので、その差だけなら「オプションが変わった」とは言わない
-    const onlyGemini = $("optGemini").checked && parsedKey === parseKey(false, "");
-    show("busy", onlyGemini ? "Gemini を使って構造を解析し直しています…" : "オプションが変わったので、構造を解析し直しています…");
+    if (edit || versionView || parsedKey) return true;
+    clearComparison();
+    show("busy", "構造を解析しています…");
     if (await parse($("optGemini").checked)) return true;
     show("err", "解析に失敗しました。上の表示と「処理の記録」を確認してください。");
     return false;
@@ -1499,6 +1542,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
         id, name: old ? old.name : file.name.replace(/\.docx$/i, ""),
         fileName: file.name, lastModified: file.lastModified, bytes,
         versions: old && Array.isArray(old.versions) ? old.versions : [],
+        parsed: lastParsed === false ? undefined : lastParsed || (old ? old.parsed : undefined),
         opts: collectOpts(), savedAt: Date.now(),
       });
       versions = old && Array.isArray(old.versions) ? old.versions : [];
@@ -1625,7 +1669,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     });
     document.querySelector(".ed-split").dataset.pane = tab.id === "tabBody" ? "body" : "right";
     if (focus) tab.focus();
-    if (tab.id === "tabSet" && tplValue() === "custom") KisokuCustom.refresh();   // 隠れている間は大きさを測れないので、見えてから描き直す
+    if (tab.id === "tabOut" && tplValue() === "custom") KisokuCustom.refresh();   // 隠れている間は大きさを測れないので、見えてから描き直す
   }
   // 狭い画面で本文から離れるときは、編集中の条を確定するか確かめる（キャンセルなら切り替えない）
   async function requestTab(tab, focus) {
@@ -1668,7 +1712,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     applyOpts(w.opts);
     cancelTouch();    // 開く前の作業に、開く作業の設定を書き込まないように
     $("worksHint").textContent = "";
-    await useFile(new File([w.bytes], w.fileName, { type: DOCX_TYPE, lastModified: w.lastModified }));
+    await useFile(new File([w.bytes], w.fileName, { type: DOCX_TYPE, lastModified: w.lastModified }),
+      usableParsed(w.parsed) ? w.parsed : null);
   }
   async function renameWork(id) {
     const w = await idb.works.get(id).catch(() => null);
@@ -2161,7 +2206,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     $("cmpHeadOld").textContent = hOld; $("cmpHeadNew").textContent = hNew;
     if (versionView) t = `${versionView.labelA} → ${versionView.labelB} を比較中です（編集はできません）。`;
     $("editHint").textContent = t;
-    ["optLayout", "optGemini", "optAgent"].forEach((id) => { $(id).disabled = !!edit || !!versionView; });
+    ["optLayout", "optGemini", "optAgent"].forEach((id) => { $(id).disabled = !!versionView || busy; });
   }
   // 編集した木を Worker に渡す（null なら編集なし）
   async function sendTrees() {
@@ -2602,11 +2647,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     }
     await useFile(f);
   }
-  // ②のオプションと③のテンプレ選択を、同じ部品のままダイアログへ移して選んでもらう。閉じたら元の位置へ戻す
+  // ②の判定のオプションを、同じ部品のままダイアログへ移して選んでもらう。閉じたら元の位置へ戻す
+  // （テンプレートと出力のオプションは整形するときに「出力」タブで選ぶので、ここでは出さない）
   function askOpenOpts() {
     const dlg = $("openDlg");
-    // ダイアログ内は「テンプレート」→「オプション」の順。見出しは #openBody に静的に置いてあり、その直後へ移す
-    const parts = [[document.querySelector(".tpls"), "openTplHead"], [$("optGroup"), "openOptHead"]].map(([el, head]) => {
+    // 見出しは #openBody に静的に置いてあり、その直後へ移す
+    const parts = [[$("optGroup"), "openOptHead"]].map(([el, head]) => {
       const ph = document.createComment("");
       el.replaceWith(ph);
       $(head).after(el);
@@ -2623,7 +2669,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   }
   $("openOk").addEventListener("click", () => $("openDlg").close("ok"));
   $("openCancel").addEventListener("click", () => $("openDlg").close("cancel"));
-  async function useFile(f) {
+  // cached: 作業に保存した解析結果。あれば解析（Gemini を含む）をせずに使う
+  async function useFile(f, cached) {
     if (!/\.docx$/i.test(f.name)) {
       $("parseHint").className = "hint err";
       $("parseHint").textContent = "docx 形式のファイルを選んでください（.doc は Word で docx に保存し直してください）。";
@@ -2632,11 +2679,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     if (file) await flushTouch();
     setView("edit");
     $("edTitle").textContent = f.name.replace(/\.docx$/i, "");
-    file = f; plainTree = null; parsedKey = null; edit = null; draftSaveFailed = false; versionView = null; versions = [];
+    file = f; plainTree = null; parsedKey = null; lastParsed = null; edit = null; draftSaveFailed = false; versionView = null; versions = [];
     clearComparison();
     $("fileName").textContent = f.name;
     $("result").innerHTML = ""; clearLog();
     await withBusy(async () => {
+      if (cached && await loadParsed(cached)) {
+        cmpHint("", "");
+        await restoreDraft(); await ensureWork(); await loadComparison();
+        return;
+      }
       // 「この設定で開く」を押したらすぐ、選んだオプションのとおりに解析する（Gemini を選んでいてキーがあれば Gemini も使う）
       const problem = geminiKeyProblem();
       if (problem) cmpHint("err", problem); else cmpHint("", "構造を解析しています。進み具合は下の「処理の記録」に出ます。");
@@ -2766,6 +2818,82 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
       edit = null; draftSaveFailed = false; pendingOpen = null;
       if (await sendTrees()) await loadComparison();
       else refreshEditBar();
+    });
+  });
+  // 設定タブの判定のオプションで解析し直す。成功したら、下書きを消し、第1版（読み込んだ内容）を新しい解析結果に置き換える。
+  // 第2版以降はそのまま残す。失敗したときは何も変えない
+  $("reparse").addEventListener("click", async () => {
+    if (!file || busy || versionView) return;
+    if (!(await settleEdit())) return;
+    const problem = geminiKeyProblem();
+    if (problem) { $("reparseHint").textContent = problem; return; }
+    const lines = ["この設定で構造を解析し直しますか？"];
+    if (edit) lines.push("編集中の改正案（下書き）は削除されます。");
+    if (versions[0] && versions[0].original) lines.push("第1版の内容は新しい解析結果に置き換わります。");
+    if ($("optGemini").checked) lines.push("Gemini を使うため、数分かかることがあります。");
+    if (!confirm(lines.join("\n"))) return;
+    await withBusy(async () => {
+      $("reparseHint").textContent = "";
+      cmpHint("", "構造を解析しています。進み具合は「処理の記録」に出ます。");
+      const keyBefore = parsedKey, parsedBefore = lastParsed, hintBefore = $("parseHint").textContent;
+      // 失敗したら、解析する前の状態に戻す。Worker には前の解析結果を読み直し、編集中なら下書きの木も渡し直す（sendTrees）
+      // 前の解析結果を持っていない・読み直せないときは、Worker の新しい解析のままにし、条件もそれに合わせる（作業には保存しない）
+      const undo = async (msg) => {
+        const chosen = { layout: $("optLayout").checked, gemini: $("optGemini").checked, agent: $("optAgent").checked }, keyNew = parsedKey;
+        let back = false;
+        try { back = !!(parsedBefore && parsedBefore.tree) && await loadParsed(parsedBefore); } catch (e) { log(workErr(e)); }
+        if (back) { parsedKey = keyBefore; lastParsed = parsedBefore; }
+        else { parsedKey = keyNew; lastParsed = false; }
+        // 選んでいた判定のオプションは残す（loadParsed が前の解析の条件に戻すため）
+        $("optLayout").checked = chosen.layout; $("optGemini").checked = chosen.gemini; $("optAgent").checked = chosen.agent;
+        savePrefs();
+        $("parseHint").className = "hint err"; $("parseHint").textContent = hintBefore;
+        await sendTrees();
+        cmpHint("err", msg); $("reparseHint").textContent = msg;
+      };
+      if (!(await parse($("optGemini").checked))) {
+        // Worker の解析結果は変わっていないので、前の解析のまま続ける（編集中の木も渡し直す）
+        const msg = $("parseHint").textContent;
+        parsedKey = keyBefore; lastParsed = parsedBefore;
+        await sendTrees();
+        cmpHint("err", msg);
+        return;
+      }
+      if (!lastParsed) { await undo("解析結果を取り出せなかったため、解析し直す前の状態に戻しました。"); return; }
+      // 先に作業（解析結果・第1版）を保存し、できてから下書きを消す。保存できなければ何も変えない
+      const id = draftKey();
+      let newVersions = versions;
+      try {
+        const w = await idb.works.get(id);
+        if (!w) throw new Error("この作業は削除されています");
+        w.parsed = lastParsed;
+        if (versions[0] && versions[0].original) {
+          newVersions = versions.map((v, i) => i === 0 ? { ...v, tree: KisokuEditor.clone(lastParsed.tree), savedAt: Date.now() } : v);
+          w.versions = newVersions;
+        }
+        w.savedAt = Date.now();
+        await idb.works.put(id, w);
+      } catch (e) {
+        await undo("解析結果を保存できなかったため、解析し直す前の状態に戻しました：" + workErr(e));
+        return;
+      }
+      versions = newVersions;
+      if (edit) {
+        try { await idb.del(id); }
+        catch (e) {
+          // 下書きが残ったままだと次に開いたとき古い下書きが戻るので、編集中の表示もそのまま残して知らせる
+          renderVersions(); await renderWorks();
+          await sendTrees();
+          const msg = "解析し直しましたが、下書きを削除できませんでした。「下書きを削除」で削除してください：" + workErr(e);
+          cmpHint("err", msg); $("reparseHint").textContent = msg;
+          return;
+        }
+      }
+      edit = null; draftSaveFailed = false; pendingOpen = null;
+      clearComparison();
+      renderVersions();
+      await renderWorks();
+      if (await sendTrees()) { cmpHint("", ""); await loadComparison(); }
     });
   });
   $("cmpOnly").addEventListener("change", () => {
