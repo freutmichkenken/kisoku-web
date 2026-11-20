@@ -65,10 +65,12 @@ const second = (p) => plain(E.splitArticle(art("", ["一", p]), 1))[1];
   assert.equal(z.paragraphs.length, 2);
 }
 
-// 印の無い項は、見出しの形でも参照でも本文に手を付けない（参照の文言を消さないため）
-for (const body of ["第６条－２（本採用拒否）次の各号の…", "第6条（安全への配慮）　できる限り",
-  "第25条（休職）と第26条（復職）を適用する。", "第25条（休職）　と第26条", "第6条の2（兼業）違反を理由として",
-  "第10条（休職）の規定により", "（ただし、管理職を除く。）本文", "第25条の遵守事項に違反したとき"]) {
+// 印の無い項は、見出しの形でも参照でも本文に手を付けない（参照の文言を消さないため）。
+// 例は tests/regression_texts/heading_like_references.txt（1行1例。# の行は説明）
+const REFS = fs.readFileSync(path.join(__dirname, "regression_texts", "heading_like_references.txt"), "utf8")
+  .split(/\r?\n/).filter((l) => l.trim() && !l.startsWith("#"));
+assert.ok(REFS.length >= 10, "heading_like_references.txt の例が読めません");
+for (const body of REFS) {
   const y = second(body);
   assert.deepEqual([y.title, y.paragraphs[0].body], ["", body], body);
 }
