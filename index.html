@@ -883,6 +883,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
             <label for="otherFile" class="btn" id="otherBtn" aria-disabled="true">別の docx と比べる</label>
           </div>
           <p class="hint" id="cmpHint" aria-live="polite"></p>
+          <details class="log" id="cmpLogBox" open hidden>
+            <summary>処理の記録</summary>
+            <pre id="cmpLog"></pre>
+          </details>
           <div class="cmp-edit" id="cmpEdit" hidden>
             <span class="hint" id="editHint"></span>
             <button type="button" class="btn small" id="editUndo" disabled>元に戻す</button>
@@ -1198,7 +1202,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   });
 
   function setEngine(state, text) { $("engine").dataset.state = state; $("engineText").textContent = text; }
-  function log(text) { const el = $("log"); el.textContent += text + "\n"; el.scrollTop = el.scrollHeight; }
+  // 処理の記録は、出力タブと、新旧対照表がまだ出ていない間の④の欄の両方に出す
+  function log(text) {
+    ["log", "cmpLog"].forEach((id) => { const el = $(id); el.textContent += text + "\n"; el.scrollTop = el.scrollHeight; });
+    $("cmpLogBox").hidden = cmpShown;
+  }
+  function clearLog() { $("log").textContent = ""; $("cmpLog").textContent = ""; $("cmpLogBox").hidden = true; }
 
   // ---------- 設定の保存・復元 ----------
   const prefs = JSON.parse(store.get(K.prefs) || "{}");
@@ -2134,6 +2143,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   }
   function refreshEditBar() {
     $("cmpShow").hidden = cmpShown;   // 対照表を表示している間は「変更点を表示」を隠す（refresh() からも毎回呼ばれる）
+    $("cmpLogBox").hidden = cmpShown || (!busy && !$("cmpLog").textContent);   // 対照表が出るまでは、処理の記録をここにも出す
     // 編集中は、全部の条を消しても「元に戻す」「下書きを削除」を押せるように出し続ける
     $("cmpEdit").hidden = !cmpShown || (!cmpBlocks.length && !edit && !versionView);
     $("editUndo").disabled = busy || !edit || !edit.undo.length;
@@ -2630,13 +2640,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
     file = f; plainTree = null; parsedKey = null; edit = null; draftSaveFailed = false; versionView = null; versions = [];
     clearComparison();
     $("fileName").textContent = f.name;
-    $("result").innerHTML = ""; $("log").textContent = "";
+    $("result").innerHTML = ""; clearLog();
     await withBusy(async () => {
-      if (await parse(false)) {
+      // 「この設定で開く」を押したらすぐ、選んだオプションのとおりに解析する（Gemini を選んでいてキーがあれば Gemini も使う）
+      const problem = geminiKeyProblem();
+      if (problem) cmpHint("err", problem); else cmpHint("", "構造を解析しています。進み具合は下の「処理の記録」に出ます。");
+      if (await parse($("optGemini").checked && !problem)) {
         await restoreDraft(); await ensureWork();
         // 開いたらすぐ新旧対照表（編集欄）を出す。Gemini のキーが無いなどで出せないときは「変更点を表示」から
-        if (!geminiKeyProblem()) await loadComparison();
-      }
+        if (!problem) { cmpHint("", ""); await loadComparison(); }
+      } else if (!problem) cmpHint("err", $("parseHint").textContent);
     });
   }
 
