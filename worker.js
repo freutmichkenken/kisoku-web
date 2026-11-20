@@ -100,6 +100,18 @@ async function handleParse(msg) {
   post({ type: "parsed", id: msg.id, chapters: res.chapters, articles: res.articles });
 }
 
+// 作業に保存しておいた解析結果を使う（解析も Gemini も使わない）。木の形は write_tree が確かめる
+async function handleLoadParsed(msg) {
+  runNo += 1;
+  const dir = `/work/run_${runNo}`;
+  py.FS.mkdirTree(dir);
+  const srcPath = `${dir}/${safeName(msg.name)}`;
+  py.FS.writeFile(srcPath, new Uint8Array(msg.bytes));
+  const p = entry.write_tree(srcPath.replace(/\.docx$/i, "") + "_parsed.json", msg.tree);
+  current = { srcPath, jsonPath: p, parsedPath: p, editedPath: null };
+  post({ type: "parsed", id: msg.id });
+}
+
 async function handleFormat(msg) {
   if (!current) throw new Error("先に docx を読み込んでください");
   const res = JSON.parse(entry.format_docx(current.srcPath, current.jsonPath,
@@ -201,6 +213,7 @@ self.onmessage = async (ev) => {
   try {
     await ready;
     if (msg.type === "parse") await handleParse(msg);
+    else if (msg.type === "loadParsed") await handleLoadParsed(msg);
     else if (msg.type === "format") await handleFormat(msg);
     else if (msg.type === "sample") await handleSample(msg);
     else if (msg.type === "compare") await handleCompare(msg);
