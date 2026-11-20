@@ -372,12 +372,12 @@ body::before {
 .cmp-line.chapter { text-align: center; font-weight: 500; }
 .cmp-line.lead { text-align: center; }
 .cmp-line.para { display: flex; }
-.cmp-line.para .num { flex: none; width: 4.5em; padding-right: .5em; text-align: right; box-sizing: border-box; }
+.cmp-line.para .num { flex: none; width: 5.5em; padding-right: .5em; text-align: right; box-sizing: border-box; white-space: nowrap; }  /* 「第１００条」（3桁）まで1行に収める */
 .cmp-line.para .txt { flex: 1; min-width: 0; }
-.cmp-line.item { padding-left: calc(4.5em + 4em); text-indent: -3em; }
-.cmp-line.sub { padding-left: calc(4.5em + 6em); text-indent: -3em; }
-.cmp-line.sub2 { padding-left: calc(4.5em + 8em); text-indent: -5em; }
-.cmp-line.mark { color: var(--muted); padding-left: calc(4.5em + 1em); }
+.cmp-line.item { padding-left: calc(5.5em + 4em); text-indent: -3em; }
+.cmp-line.sub { padding-left: calc(5.5em + 6em); text-indent: -3em; }
+.cmp-line.sub2 { padding-left: calc(5.5em + 8em); text-indent: -5em; }
+.cmp-line.mark { color: var(--muted); padding-left: calc(5.5em + 1em); }
 .cmp-block:is([data-kind="renumbered"], [data-kind="changed"], [data-kind="deleted"]) .cmp-old { background: var(--del-bg); }
 .cmp-block:is([data-kind="renumbered"], [data-kind="changed"], [data-kind="added"]) .cmp-new { background: var(--ins-bg); }
 .cmp-old .u { background: var(--del-strong); }
@@ -724,11 +724,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   #cmpBody .cmp-col::before { display: block; font-size: 12px; font-weight: 500; color: var(--muted); line-height: 1.4; }
   #cmpBody .cmp-old::before { content: "現行"; }
   #cmpBody .cmp-new::before { content: "改正案"; }
-  #cmpBody .cmp-line.para .num { width: 3.5em; }
-  #cmpBody .cmp-line.item { padding-left: calc(3.5em + 4em); }
-  #cmpBody .cmp-line.sub { padding-left: calc(3.5em + 6em); }
-  #cmpBody .cmp-line.sub2 { padding-left: calc(3.5em + 8em); }
-  #cmpBody .cmp-line.mark { padding-left: calc(3.5em + 1em); }
   main { padding-left: 12px; padding-right: 12px; }
   main > header { flex-wrap: wrap; position: relative; z-index: 26; padding-top: 0; min-height: 44px; }
   main > header h1 { font-size: 20px; }
