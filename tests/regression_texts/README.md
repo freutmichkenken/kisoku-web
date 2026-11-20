@@ -45,3 +45,5 @@ python3 tests/regression_texts/show.py tests/regression_texts/<名前>.txt
 | appendix_after_articles.txt | 最後の条のあとの「別表第１（第３０条関係）」から後ろを後付けにする。本文中の「別表第１に定める」では止めない |
 | deleted_articles_dot.txt | 「第１４条・第１５条　削除」「第１６条及び第１７条　削除」を削除条に分ける。続き番号でない「第１８条・第２０条」は範囲にしない |
 | article_no_space.txt | 空白の無い「第８条従業員は」を前の項に連結せず、独立した項として残し、条見出しの疑いの印を付ける。「第５条関係の」は参照 |
+| unmarked_items.txt | 「次の書類を提出しなければならない。」のあとの記号の無い行を号に分け、要確認の印（_review_hint）を付ける。「次のとおりとする。ただし、…。」の次の行は号にしない |
+| proviso_after_items.txt | 号の列のあとの「ただし、…」「（注）…」は最後の号につなぎ、要確認の印を付ける |

@@ -552,11 +552,12 @@ class Unit:
     2行目以降は字下げを除いて区切り sep を挟んだもの）。
     判定は先頭の行の Line と、2行目以降をつないだ文字列（tail）で行う。
     """
-    __slots__ = ('lines', 'text')
+    __slots__ = ('lines', 'text', 'enum')
 
     def __init__(self, line):
         self.lines = [line]
         self.text = line.text
+        self.enum = False     # 記号の無い号の列の1つ（_is_unmarked_item）
 
     def append(self, line, sep=''):
         self.lines.append(line)
@@ -701,9 +702,14 @@ def merge_lines(items):
                 # 「第2章」だけの行の次の文は、章タイトルではなく前文
                 # （結合すると句点で終わる章タイトルになり、章と判定できなくなる）
                 is_new = True
+            enum = (not is_new and ctx.get('article') is not None
+                    and _is_unmarked_item(ln, buf))
+            if enum:
+                is_new = True
             if is_new:
                 merged.append(('text', buf))
                 buf = Unit(ln)
+                buf.enum = enum
                 count_unit(ln)
             else:
                 # 段落内の折り返しとして結合する。見出しだけの行と本文を
@@ -713,6 +719,36 @@ def merge_lines(items):
                 buf.append(ln, '　' if head in ('chapter_bare', 'article_bare') or bare_num else '')
     flush()
     return merged
+
+
+# 号の列のあとの、号ではない行（ただし書き・注記）
+_RE_NOT_ITEM_START = re.compile(r'^(?:ただし|なお|前各号|（注|\(注|注[）)：:]|※|＊)')
+
+
+def _is_unmarked_item(ln, buf):
+    """記号の無い行 ln が、記号の無い号の列の1つか。
+    「次の書類を提出しなければならない。」（予告して句点で終わる柱書）の直後と、
+    その列の続きで、前の行が言い切って終わっている（句点・名詞・「こと」「とき」など）ときに限る。
+    号として分けるが、build_tree で要確認の印を付ける。"""
+    if (ln.chapter or ln.article or ln.section or ln.loose_article or ln.para or ln.title
+            or ln.sym_type is not None or ln.mark_head or ln.decimal):
+        return False
+    s = ln.s.strip()
+    if not s or _RE_NOT_ITEM_START.match(s) or '前各号' in s:
+        # 「前各号に該当する者は…」のような、列のあとの項の本文は号にしない
+        return False
+    t = buf.text.rstrip('　 \t')
+    if buf.enum:
+        # 列の続き：前の号が文の途中（読点・助詞）で終わっていれば折り返し。
+        # 平仮名で始まる行（「書類／を提出すること」「とき／は、」）も折り返し
+        if re.match(r'[ぁ-ん、。]', s):
+            return False
+        return bool(t) and (t[-1] in '。」）)' or t.endswith(('こと', 'とき', 'もの', '場合'))
+                            or bool(re.match(r'[一-龯々ァ-ヶー]', t[-1])))
+    # 列の始まり：予告して句点で終わる柱書（条・項の本文）
+    # 予告は最後の文に限る（「次のとおりとする。ただし、…ことがある。」の次の行は号ではない）
+    last = t[:-1].rsplit('。', 1)[-1] if t.endswith('。') else ''
+    return bool(last) and buf.first.sym_type is None and _has_forecast(last)
 
 
 def _heading_state(unit):
@@ -1269,6 +1305,15 @@ def classify_line(text, depth=None, number=None):
     （前の行が文の途中で終わっていたもの）を inline_article_hint として付ける。"""
     node = _classify_unit(text, depth, number)
     unit = _as_unit(text)
+    if unit.enum and node is not None and node.get('type') == 'text':
+        node = {'type': 'item', 'number': 0, 'body': node['body'],
+                '_review_hint': ['番号の無い行を号として分けました。号でなければ前の項にまとめてください。']}
+    if node is not None and node.get('type') in ('item', 'item_sub', 'item_sub2'):
+        # 号の行に折り返しとしてつながった「ただし、…」「（注）…」（号の列のあとの行かもしれない）
+        for ln in unit.lines[1:]:
+            if _RE_NOT_ITEM_START.match(ln.s.strip()):
+                node.setdefault('_review_hint', []).append(
+                    f'「{ln.s.strip()[:15]}」が直前の号にだけかかるか、項全体にかかるかを確認してください。')
     inline = [_hint_head(ln.s) for ln in unit.lines[1:] if ln.loose_article]
     if node is not None and inline:
         node['inline_article_hint'] = inline
@@ -1819,6 +1864,7 @@ def build_tree(flat):
                     'number': num,
                     'body': node['body'], **_mk(node),
                     '_marker': node.get('marker'),   # 記号の種類（_maru_items_to_paragraphs 用）
+                    **({'_review_hint': node['_review_hint']} if node.get('_review_hint') else {}),
                 })
             elif cur_article is not None:
                 # 項のない条の直下に号が来る場合 → 第1項を自動生成
@@ -1838,6 +1884,7 @@ def build_tree(flat):
                     'number': num,
                     'body': node['body'], **_mk(node),
                     '_marker': node.get('marker'),   # 記号の種類（_maru_items_to_paragraphs 用）
+                    **({'_review_hint': node['_review_hint']} if node.get('_review_hint') else {}),
                 })
             else:
                 _orphan(node.get('raw') or node['body'])
@@ -1982,7 +2029,13 @@ def build_tree(flat):
                 _deepest_container(cur_paragraph)['body'] += body
             elif cur_paragraph and cur_paragraph.get('items'):
                 # 直前が号 → いちばん深い項目（号の細分の続きなら、その細分）の本文に追記
-                _deepest_container(cur_paragraph)['body'] += body
+                _dc = _deepest_container(cur_paragraph)
+                _dc['body'] += body
+                if _RE_NOT_ITEM_START.match(body):
+                    # 号の列のあとの「ただし…」「（注）…」は、最後の号だけにかかるのか、
+                    # 項全体にかかるのかを決められないので、つないだうえで要確認の印を付ける
+                    _dc.setdefault('_review_hint', []).append(
+                        f'「{body[:15]}」が直前の号にだけかかるか、項全体にかかるかを確認してください。')
             elif cur_paragraph:
                 cur_paragraph['body'] += body
             elif cur_article:
