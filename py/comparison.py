@@ -200,12 +200,13 @@ def _article_lines(art, number_label, old, marks=None, disp_label=None):
       比べる用の記号：これまでの表示（第５条・２・（１）・ア・（ア））。現行・改正案で同じ形なので、
         記号の書き方（①と(1) など）だけの違いを変更にしない。
       表示する記号：現行は元の文書の記号（解析で残した mark）、改正案はテンプレートの書き方（marks）。
-    行の形は整形後の書き方（節の行／（タイトル）／第1項「第○条　本文」／２　本文／（１）…）。
+    行の形（節の行／「第5条（タイトル）」／１　本文／２　本文／（１）…）。表示の数字は半角。
     """
     out = []
 
     def add(c, cm, dm, text):
-        out.append((c, cm, dm, text))
+        # 表示する記号の数字は半角にする（比べる用の記号は全角のまま。突き合わせは変わらない）
+        out.append((c, cm, dm.translate(_HAN), text))
 
     def figs(node):
         for m in _container_marks(node):
@@ -225,26 +226,19 @@ def _article_lines(art, number_label, old, marks=None, disp_label=None):
     for t in art.get("lead", []):
         if t:
             add("lead", "", "", t)
-    if title:
-        add("title", "", "", f"（{title}）" + (f"　{note}" if note else ""))
-    elif note:
-        add("title", "", "", note)
-    paras = art.get("paragraphs", [])
+    # 条番号は条タイトルの左に付け、「第19条（目的）」の1行にする（第1項の行頭は項番号）。
+    # 突き合わせ用（number_label なし）で条タイトルも無ければ、この行は作らない
+    head = (f"（{title}）" + (f"　{note}" if note else "")) if title else note
     shown_label = disp_label if disp_label is not None else number_label
-    if not paras:
-        add("para", number_label, shown_label, "")
+    gap = "　" if (note and not title and number_label) else ""
+    if number_label or head:
+        add("title", number_label + gap, shown_label + gap, head)
+    paras = art.get("paragraphs", [])
     for pi, para in enumerate(paras, 1):
         body = para.get("body", "")
-        if pi == 1:
-            # 第1項は条番号の行（突き合わせ用に番号なしのときは本文だけ）
-            if number_label:
-                add("para", number_label + ("　" if body else ""), shown_label + ("　" if body else ""), body)
-            else:
-                add("para", "", "", body)
-        else:
-            pn = _num(para.get("number"), pi) if old else pi
-            canon = f"{_zen(pn)}　"
-            add("para", canon, shown(para, canon, marks.mark("para", pi) if marks else None), body)
+        pn = _num(para.get("number"), pi) if old else pi
+        canon = f"{_zen(pn)}　"
+        add("para", canon, shown(para, canon, marks.mark("para", pi) if marks else None), body)
         figs(para)
         for ii, it in enumerate(para.get("items", []), 1):
             n = _num(it.get("number"), ii) if old else ii
@@ -372,7 +366,7 @@ def units(tree, old, marks=None):
             sep = "　" if title else ""
             out.append({"kind": "chapter", "number": number, "label": label,
                         "title": title, "sig": "章:" + title,
-                        "lines": [f"{label}{sep}{title}"], "parts": [(label + sep, shown + sep, title)],
+                        "lines": [f"{label}{sep}{title}"], "parts": [(label + sep, shown.translate(_HAN) + sep, title)],
                         "cls": ["chapter"], "path": [ti]})
             for ai, art in enumerate(node.get("articles", [])):
                 add_article(art, [ti, ai])
@@ -541,9 +535,9 @@ def _char_flags(a, b):
 def _to_disp(part, flags):
     """比べる用の行の印を、表示する行（表示する記号＋本文）の下線に写す。"""
     cm, dm, tx = part
-    if dm == cm:
-        # 表示も比べる用と同じ記号なら、変わった文字だけに引く（「第３条」の「３」だけ、など）
-        return _segments(cm + tx, flags)
+    if dm == cm or dm.translate(_ZEN) == cm:
+        # 表示が比べる用と同じ記号（数字の全角・半角だけの違いを含む）なら、変わった文字だけに引く（「第3条」の「3」だけ、など）
+        return _segments(dm + tx, flags)
     segs = [[dm, any(flags[:len(cm)])]] if dm else []
     for seg in _segments(tx, flags[len(cm):]):
         if segs and segs[-1][1] == seg[1]:
