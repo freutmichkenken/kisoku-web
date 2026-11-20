@@ -71,10 +71,10 @@ for k, a in enumerate(dup[1]["articles"][2:], 4):  # 以降も1つずつ小さ�
 rows = c.compare(dup, dup)
 assert [r["kind"] for r in rows] == ["renumbered", "renumbered", "summary"], rows
 assert rows[0]["old_heading"] == "第３条（休日）" and rows[0]["new_heading"] == "第４条（休日）"
-assert underlined(rows[0]["old"]) == "３" and underlined(rows[0]["new"]) == "４"
+assert underlined(rows[0]["old"]) == "3" and underlined(rows[0]["new"]) == "4"
 assert rows[2]["old_heading"] == "第５条～第６条" and rows[2]["new_heading"] == "第６条～第７条"
 assert rows[2]["note"] == "条番号の繰り下げのみ（内容の変更なし、以降同様）"
-assert text(rows[0]["new"]).startswith("（休日）\n第４条　休日は")
+assert text(rows[0]["new"]).startswith("第4条（休日）\n1　休日は")
 
 # --- 残りが1条だけなら、まとめずに載せる ---
 rows = c.compare(dup[:1] + [dict(dup[1], articles=dup[1]["articles"][:4])],
@@ -102,14 +102,14 @@ pn = copy.deepcopy(BASE)
 pn[0]["articles"][1]["paragraphs"][1]["number"] = 3
 rows = c.compare(pn, BASE)
 assert len(rows) == 1 and rows[0]["kind"] == "renumbered"
-assert underlined(rows[0]["old"]) == "３" and underlined(rows[0]["new"]) == "２"
+assert underlined(rows[0]["old"]) == "3" and underlined(rows[0]["new"]) == "2"
 
 # --- 新設・削除 ---
 added = copy.deepcopy(BASE)
 added[1]["articles"].insert(2, art(0, "特別休暇", "慶弔の際に特別休暇を与える。", number_str=""))
 rows = c.compare(BASE, added)
 assert rows[0]["kind"] == "added" and rows[0]["new_heading"] == "第５条（特別休暇）", rows[0]
-assert text(rows[0]["old"]) == "（新設）" and underlined(rows[0]["new"]).startswith("（特別休暇）第５条　慶弔")
+assert text(rows[0]["old"]) == "（新設）" and underlined(rows[0]["new"]).startswith("第5条（特別休暇）1　慶弔")
 assert all(r["kind"] in ("renumbered", "summary") for r in rows[1:])
 rows = c.compare(added, BASE)
 assert rows[0]["kind"] == "deleted" and text(rows[0]["new"]) == "（削除）"
@@ -119,7 +119,7 @@ it = copy.deepcopy(BASE)
 it[1]["articles"][0]["paragraphs"][0]["items"][1]["body"] = "終業 17時"
 rows = c.compare(BASE, it)
 assert len(rows) == 1 and rows[0]["kind"] == "changed"
-assert "（２）終業 17時" in text(rows[0]["new"]) and underlined(rows[0]["new"]) == "7"
+assert "（2）終業 17時" in text(rows[0]["new"]) and underlined(rows[0]["new"]) == "7"
 
 # --- 番号も中身も同じ条が来たら区間を切る（まとめの範囲に変わっていない条を含めない）---
 mix = [art(1, "a", "本文a"), art(2, "b", "本文b", para_nums={1: 1}),
@@ -152,7 +152,7 @@ p_add[1]["articles"][1]["paragraphs"].append(
     {"type": "paragraph", "number": 2, "body": "会社は、業務の都合により休日を振り替えることがある。", "items": []})
 rows = c.compare(BASE, p_add)
 assert len(rows) == 1 and rows[0]["kind"] == "changed"
-assert underlined(rows[0]["new"]) == "２　会社は、業務の都合により休日を振り替えることがある。"
+assert underlined(rows[0]["new"]) == "2　会社は、業務の都合により休日を振り替えることがある。"
 assert underlined(rows[0]["old"]) == ""
 
 # --- 行を足し、その後ろの行も少し直した：後ろの行は直した文字だけに下線（行のずれに引きずられない）---
@@ -163,9 +163,9 @@ paras[2]["body"] = "パートタイマーは、別に定める。"
 rows = c.compare(BASE, shift)
 assert len(rows) == 1 and rows[0]["kind"] == "changed"
 new_lines = rows[0]["new"]
-assert underlined([new_lines[2]]) == "２　嘱託社員は、別に定める。", new_lines
-assert underlined([new_lines[3]]) == "３、", new_lines[3]
-assert underlined([rows[0]["old"][2]]) == "２", rows[0]["old"][2]
+assert underlined([new_lines[2]]) == "2　嘱託社員は、別に定める。", new_lines
+assert underlined([new_lines[3]]) == "3、", new_lines[3]
+assert underlined([rows[0]["old"][2]]) == "2", rows[0]["old"][2]
 
 # --- 組にする処理：前の行が後ろの似た行を先取りしない（削除＋後ろの行の一部改正）---
 olds = ["短い文", "重要な規定A", "重要な規定B", "ただし、前項の規定は適用しない。"]
@@ -268,7 +268,7 @@ b = v["blocks"][hits[0]]
 assert b["row_label"] == "Word では「第５条～第６条」を1行にまとめます" and b["row_note"] == sm["note"], b
 assert v["blocks"][hits[0] + 1]["row_id"] is None and v["blocks"][hits[0] + 1]["row_note"] == ""
 # まとめの先頭は区間の3条目（第５条＝遅刻）：old の1行目の見出しで確かめる
-assert text(b["old"]).startswith("（遅刻）\n第５条　遅刻は"), text(b["old"])
+assert text(b["old"]).startswith("第5条（遅刻）\n1　遅刻は"), text(b["old"])
 check_view(c.view(BASE, added), BASE, added, "added")
 check_view(c.view(added, BASE), added, BASE, "deleted")
 check_view(c.view(dup, new), dup, new, "changed")
@@ -282,8 +282,8 @@ sub[0]["paragraphs"][0]["items"][0]["sub_items"] = [
 sub[0]["paragraphs"][0]["tables"] = [{"type": "table", "rows": [["a"]]}]
 sub[0]["lead"] = ["第１節　節"]
 assert c.units(sub, False)[0]["cls"] == ["lead", "title", "para", "mark", "item", "sub", "sub2"]
-assert c.units([art(1, "", "本文")], False)[0]["lines"] == ["第１条　本文"]
-assert c.units([art(1, "x")], False)[0]["lines"] == ["（x）", "第１条"]
+assert c.units([art(1, "", "本文")], False)[0]["lines"] == ["第１条", "１　本文"]
+assert c.units([art(1, "x")], False)[0]["lines"] == ["第１条（x）"]
 
 # --- サンプル：落ちずに作れる。番号どおりのサンプルは変更なし ---
 for p in sorted(glob.glob(os.path.join(ROOT, "tests", "expected", "*.parsed.json"))):
@@ -316,9 +316,9 @@ for it, mk in zip(marked[0]["articles"][0]["paragraphs"][0]["items"], ("①　",
 v = c.view(marked, marked, spec_t1)
 b = [x for x in v["blocks"] if x["unit"] == "article"][0]
 assert b["kind"] == "same", b["kind"]                                # 記号の書き方だけの違いは変更なし
-assert text(b["old"]).split("\n")[1:4] == ["第１条　次の書類を出す。", "①　履歴書", "②　住民票"], text(b["old"])
-assert text(b["new"]).split("\n")[1:4] == ["第１条　次の書類を出す。", "(1)　履歴書", "(2)　住民票"], text(b["new"])
-assert "２．　前項の" in text(b["old"]) and "2　前項の" in text(b["new"])
+assert text(b["old"]).split("\n")[0:4] == ["第1条（提出書類）", "1　次の書類を出す。", "①　履歴書", "②　住民票"], text(b["old"])
+assert text(b["new"]).split("\n")[0:4] == ["第1条（提出書類）", "1　次の書類を出す。", "(1)　履歴書", "(2)　住民票"], text(b["new"])
+assert "2．　前項の" in text(b["old"]) and "2　前項の" in text(b["new"])
 assert v["rows"] == [] and v["marks"] == spec_t1
 
 # 番号が変わったときは記号に下線（書き方が違っても）。本文の変更は文字だけに下線
