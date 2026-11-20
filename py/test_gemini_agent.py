@@ -287,4 +287,99 @@ gh.classify_document_with_agent = fake_agent
 quiet(kp.parse_kisoku, SAMPLE, use_gemini=True)
 assert agent_calls == [] and len(paragraph_calls) == 2
 
+# --- 条見出しの疑い（「第６条＃２（本採用拒否）」のように枝番の書き方が想定外の行） ---
+import sys  # noqa: E402
+import tempfile  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tests"))
+from outline_util import make_docx  # noqa: E402
+
+M = kp.RE_LOOSE_ARTICLE.match
+assert M("第６条＃２（本採用拒否）") and M("第6条ノ2【本採用拒否】")
+assert not M("第25条の遵守事項その他")          # 本文中の参照
+assert kp.line_info("第６条－２（本採用拒否）").loose_article is None
+assert not M("第10条第2項の規定")
+
+LOOSE = ["第６条（試用期間）", "新たに採用した者には試用期間を設ける。",
+         "２．　試用期間は勤続年数に通算する。", "第６条＃２（本採用拒否）",
+         "　　次の各号のいずれかに該当するときは、本採用を行わない。",
+         "（１）出勤状況が悪いとき。", "第７条（労働条件の明示）", "会社は明示する。"]
+
+
+def parse_loose(**k):
+    with tempfile.TemporaryDirectory() as w:
+        path = os.path.join(w, "x.docx")
+        make_docx(LOOSE, path)
+        return quiet(kp.parse_kisoku, path, **k)[0]
+
+
+def articles(tree):
+    out = []
+    for n in tree:
+        out += n.get("articles", []) if n.get("type") == "chapter" else [n] if n.get("type") == "article" else []
+    return out
+
+
+# AIなし：構造はこれまでどおり（前の項に含める）で、要確認の印が付く
+arts = articles(parse_loose(use_gemini=False))
+assert [a["number_str"] for a in arts] == ["第６条", "第７条"]
+assert arts[0]["paragraphs"][1]["_article_hint"] == ["第６条＃２（本採用拒否）"]
+
+# AIが「条」と答えたら、行の番号で条にする（第6条の枝番2）
+gh.classify_with_gemini = lambda t, b, a: "article" if "＃" in t else None
+arts = articles(parse_loose(use_gemini=True))
+assert [(a["number_str"], a["number"], a["branch"], a["title"]) for a in arts] == [
+    ("第６条", 6, 0, "試用期間"), ("第６条＃２", 6, 2, "本採用拒否"), ("第７条", 7, 0, "労働条件の明示")], arts
+assert "_article_hint" not in arts[0]["paragraphs"][1]
+assert arts[1]["paragraphs"][0]["items"][0]["body"] == "出勤状況が悪いとき。"
+
+# 条以外の答えなら置き換えず、印を残す
+gh.classify_with_gemini = lambda t, b, a: "paragraph"
+arts = articles(parse_loose(use_gemini=True))
+assert len(arts) == 2 and arts[0]["paragraphs"][1]["_article_hint"]
+
+# 前の行が文の途中で終わっていて結合された場合も、印は付く
+LOOSE[2] = "２．　試用期間は勤続年数に通算する"
+arts = articles(parse_loose(use_gemini=False))
+assert len(arts) == 2 and arts[0]["paragraphs"][1]["_article_hint"] == ["第６条＃２（本採用拒否）"], arts
+assert "inline_article_hint" not in json.dumps(arts, ensure_ascii=False)
+LOOSE[2] = "２．　試用期間は勤続年数に通算する。"
+
+# AIが先頭の疑いの行を条にしても、同じ単位に結合された別の疑いの行の印は残る
+LOOSE[4] = "　　次の各号のいずれかに該当するときは"
+LOOSE.insert(5, "第６条＃３（通知）会社は通知する。")
+gh.classify_with_gemini = lambda t, b, a: "article" if "＃２" in t else None
+arts = articles(parse_loose(use_gemini=True))
+assert [a["number_str"] for a in arts] == ["第６条", "第６条＃２", "第７条"], arts
+assert arts[1]["paragraphs"][0]["_article_hint"] == ["第６条＃３（通知）"], arts
+del LOOSE[5]
+LOOSE[4] = "　　次の各号のいずれかに該当するときは、本採用を行わない。"
+
+# 文書の最初の条を認識できなかったとき（入れ先の条が無い）も、残した本文に印が付く
+with tempfile.TemporaryDirectory() as w:
+    path = os.path.join(w, "x.docx")
+    make_docx(["第１条＃２（目的）この規則は必要な事項を定める。", "第２条（適用範囲）この規則は従業員に適用する。"], path)
+    t0 = quiet(kp.parse_kisoku, path, use_gemini=False)[0]
+    assert "第１条＃２（目的）" in json.dumps([n.get("_article_hint") for n in t0], ensure_ascii=False), t0
+
+# 号の細分の本文にある文言も探す
+ps = [{"body": "前文。", "items": [{"body": "号", "sub_items": [{"body": "第9条の3（兼業）次のとおり。"}]}]}]
+kp._attach_article_hints(ps, ["第9条の3（兼業）"])
+assert ps[0]["_article_hint"] == ["第9条の3（兼業）"]
+
+# 再構成のAIが答えた見出しの文言：本文に実際にあり「第◯条」で始まるものだけ印にする
+ps = [{"body": "前文。第9条の2（副業）次のとおり。", "items": []}]
+kp._attach_article_hints(ps, ["第9条の2（副業）", "第8条（捏造）", "副業", None])
+assert ps[0]["_article_hint"] == ["第9条の2（副業）"]
+kp._attach_article_hints(ps, ["第9条の2（副業）"])           # 同じ文言は重ねない
+assert ps[0]["_article_hint"] == ["第9条の2（副業）"]
+
+# 照合レポートに載る
+import verify_report  # noqa: E402
+with tempfile.TemporaryDirectory() as w:
+    rp = os.path.join(w, "r.md")
+    empty = {"src_paragraphs": 0, "out_paragraphs": 0, "src_chars": 0, "out_chars": 0,
+             "missing": [], "added": [], "duplicated": []}
+    verify_report.write_report(empty, rp, article_hints=[("第６条", "第６条＃２（本採用拒否）")])
+    assert "第６条の中：第６条＃２（本採用拒否）" in open(rp, encoding="utf-8").read()
+
 print("OK")
