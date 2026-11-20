@@ -61,13 +61,15 @@ def _z2i(s):
 # 各要素: (type_name, compiled_regex, extractor)
 #   extractor(match) -> (番号int, 本文str)
 _SYMBOL_TYPES = [
-    # 全角括弧数字 （１）
+    # 括弧数字 （１）(1)(１）と、括弧付きの数字の1文字 ⑴〜⒇。
+    # 全角・半角の括弧や1文字の⑴が混ざっていても、同じ階層の号として扱う
     ("paren_zen_num",
-     re.compile(r'^（([０-９0-9]+)）[　\s\t]*(.*)$'),
-     lambda m: (_z2i(m.group(1)), m.group(2))),
-    # 半角括弧数字 (1)
-    ("paren_han_num",
-     re.compile(r'^\(([０-９0-9]+)\)[　\s\t]*(.*)$'),
+     re.compile(r'^(?:[（(]([０-９0-9]+)[）)]|([⑴-⒇]))[　\s\t]*(.*)$'),
+     lambda m: (_z2i(m.group(1)) if m.group(1) else ord(m.group(2)) - 0x2474 + 1,
+                m.group(3))),
+    # 片括弧数字 1) １）
+    ("num_paren",
+     re.compile(r'^([０-９0-9]+)[)）][　\s\t]*(.*)$'),
      lambda m: (_z2i(m.group(1)), m.group(2))),
     # 全角括弧漢数字 （一）（十一）。「（一般職）」のように漢数字以外を含むものは除く
     ("paren_zen_kanji",

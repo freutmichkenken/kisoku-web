@@ -515,6 +515,10 @@ class Line:
         self.loose_article = None if self.article else RE_LOOSE_ARTICLE.match(s)
         self.title = RE_TITLE.match(s)            # 「（目的）」だけの行
         self.para = RE_PARA.match(text)           # 第2項以降「２　本文」
+        if (self.para and not self.para.group('body').strip()
+                and len(text) - len(text.lstrip('　 \t')) > 2):
+            # 深く字下げした番号だけの行は、算式の分母などのレイアウト行（項番号ではない）
+            self.para = None
         self.decimal = _RE_DECIMAL_HEAD.match(s)  # 「1.25倍」
         # 括弧だけの行（結合の区切りに使う。RE_TITLE より広い）
         self.paren_only = bool(_RE_PAREN_ONLY.match(s))
@@ -607,7 +611,7 @@ def merge_lines(items):
             ctx['chapter'] = zenkaku_to_int(ln.chapter.group(1))
         elif ln.article:
             # 範囲の条（「第５条～第７条　削除」）は終わりの番号
-            ctx['article'] = zenkaku_to_int(ln.article.group('to') or ln.article.group('num'))
+            ctx['article'] = zenkaku_to_int(_range_to(ln.article) or ln.article.group('num'))
             _br = ln.article.group('branch')
             ctx['branch'] = zenkaku_to_int(_br) if _br else 0
             ctx['para'] = 1
@@ -701,7 +705,8 @@ def merge_lines(items):
                 # 段落内の折り返しとして結合する。見出しだけの行と本文を
                 # 結合するときは、間に空白を入れる（「第1条この規則は」のように
                 # 詰めると、条見出しと判定できなくなるため）
-                buf.append(ln, '　' if head in ('chapter_bare', 'article_bare') else '')
+                bare_num = re.fullmatch(r'[　\s]*[０-９0-9]+[　\s]*', buf.text)
+                buf.append(ln, '　' if head in ('chapter_bare', 'article_bare') or bare_num else '')
     flush()
     return merged
 
@@ -795,9 +800,21 @@ def _para_num_is_continuation(buf, m, next_para=None):
       - 「ただし助詞で終わるとき」の助詞には、接続の語（「から」「及び」「につき」など。
         行末の読点は除いて見る）も含む"""
     num = zenkaku_to_int(m.group('num'))
+    if not m.group('body').strip() and next_para is not None and num != next_para:
+        # 番号だけの行は、次に来るはずの項番号のときだけ項番号（表の数値などと区別する）
+        return True
+    if m.string.lstrip('　 \t').startswith('第') and (
+            _ends_mid_sentence(buf) or _REF_AFTER_MARKER.match(m.group('body'))):
+        # 「前条／第２項 の規定にかかわらず」：「第２項」形式は、文の途中なら参照
+        return True
     if (next_para is not None and num != next_para
             and buf.last not in '。．」）)' and not re.match(r'[一-龯々ァ-ヶー]', buf.last)
             and _QUANTITY_UNIT.match(m.group('body'))):
+        return True
+    if (next_para is not None and num == next_para and m.group('ws') == '　'
+            and buf.last not in '、，' and _ends_with_connective(buf.text)
+            and _QUANTITY_UNIT.match(m.group('body'))):
+        # 「少なくとも／２　週間前までに」：読点の無い助詞で切れた文の続きの数量
         return True
     if not _ends_mid_sentence(buf) or m.group('ws') != ' ':
         return False
@@ -864,6 +881,9 @@ def _starts_new_unit(ln, buf, ctx=None):
     if md and (_ends_mid_sentence(buf, kanji=False)
                or (_ends_mid_sentence(buf) and zenkaku_to_int(md.group(1)) != next_para)):
         return False
+    if md and zenkaku_to_int(md.group(1)) != next_para:
+        # 句点のあとでも、「１．２５×時間数」のような小数で始まる行は号の「１．」ではない
+        return False
     if ln.paren_only:                                            # 条タイトル
         return True
     if ln.para:                                                  # 第2項以降
@@ -887,6 +907,12 @@ def _starts_new_unit(ln, buf, ctx=None):
     # 「…にかかわらず、／（１）に掲げる場合は」: 読点で終わった文の続きで、
     # 記号の直後が助詞なら号ではなく本文中の参照。読点で終わっていなければ、
     # 「（５）より良い職場…」のように本文が平仮名で始まる号とみなす
+    if (ln.sym_type is not None and buf.last and buf.last not in '、，'
+            and _ends_mid_sentence(buf, kanji=False)
+            and _REF_AFTER_MARKER.match(body.lstrip('　 \t'))):
+        # 「資格の確認が／（２）の書類によって」：助詞などで終わった文の続きで、
+        # 記号の直後も助詞なら、号ではなく本文中の参照
+        return False
     if buf.last and buf.last in '、，' and _REF_AFTER_MARKER.match(body.lstrip('　 \t')):
         prev_t, prev_n = buf.first.sym_type, buf.first.sym_num
         cur_t, cur_n = ln.sym_type, ln.sym_num
@@ -931,7 +957,10 @@ RE_ARTICLE = re.compile(
     r'^第[　\s]*(?P<num>' + _NUM_K + r')[　\s]*条'
     r'(?:[　\s]*' + _BRANCH_SEP + r'[　\s]*(?P<branch>' + _NUM_K + r')'
     r'(?P<branch2>(?:[　\s]*' + _BRANCH_SEP + r'[　\s]*' + _NUM_K + r')*))?'
-    r'(?:[　\s]*[～〜~][　\s]*第[　\s]*(?P<to>' + _NUM_K + r')[　\s]*条)?'
+    r'(?:[　\s]*[～〜~][　\s]*第[　\s]*(?P<to>' + _NUM_K + r')[　\s]*条'
+    # 「第１６条から第１８条まで　削除」「第５条ないし第７条　削除」も範囲の条として扱う
+    r'|[　\s]*(?:から|ないし|乃至)[　\s]*第[　\s]*(?P<to2>' + _NUM_K + r')[　\s]*条(?:[　\s]*まで)?'
+    r'(?=[　\s]*削除[　\s]*$))?'
     r'(?=[　\s（(【［\[：:]|$)'
     r'[　\s]*(?P<rest>.*)$',
     re.DOTALL
@@ -969,7 +998,8 @@ def _split_article_title(rest):
         m = pat.match(rest)
         if m:
             return m.group(1).strip(), (m.group(2) or '').strip()
-    return '', rest
+    # 「第１条：この規則は…」：コロンの後ろがタイトルでなく本文なら、コロンだけ除く
+    return '', re.sub(r'^[：:][　\s]*', '', rest)
 
 
 def _article_number_str(m):
@@ -1002,15 +1032,24 @@ def _article_node(m, rest):
             'number': zenkaku_to_int(m.group('num')),
             'branch': zenkaku_to_int(branch) if branch else 0,
             'title': title, 'body': _strip_para1_number(body)}
-    if m.group('to'):
-        node['range_to'] = zenkaku_to_int(m.group('to'))
+    if _range_to(m):
+        node['range_to'] = zenkaku_to_int(_range_to(m))
     return node
+
+
+def _range_to(m):
+    """範囲の条の終わりの番号（「～第７条」「から第７条まで」）。無ければ None。"""
+    return m.group('to') or m.group('to2')
 # 第2項以降（先頭インデント + 2以上の数字 + 区切り）。タブ区切りにも対応。
 # 「１０　」以降の項も認める。
 # 「３．１ヶ月および…」のように本文が数字で始まる項もあるので、ここでは
 # 小数（「2.5時間」）を除かない。折り返しで行頭に来た小数は merge_lines が結合する。
-RE_PARA    = re.compile(r'^[　\s]*(?P<num>(?:[２-９2-9]|[１1](?=[０-９0-9]))[０-９0-9]*)'
-                        r'(?:(?P<dot>[．.])|(?P<ws>[　\s]))[　\s．.]*'
+# 「第２項　本文」のように「第」「項」を付けた書き方も項番号とする
+RE_PARA    = re.compile(r'^[　\s]*(?:第[　\s]*(?=[０-９0-9]+[　\s]*項[　\s]))?'
+                        r'(?P<num>(?:[２-９2-9]|[１1](?=[０-９0-9]))[０-９0-9]*)'
+                        r'(?:(?<=[０-９0-9])[　\s]*項(?=[　\s]))?'
+                        # 番号だけの行（PDF変換で「２」と本文が別の段落になったもの）も項番号とする
+                        r'(?:(?P<dot>[．.])|(?P<ws>[　\s])|(?=[　\s]*$))[　\s．.]*'
                         r'(?P<body>.*)$',
                         re.DOTALL)
 # 任意の数字で始まる項（スタイルで項と分かっている場合に使う）。1も許容

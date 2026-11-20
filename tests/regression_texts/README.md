@@ -32,3 +32,12 @@ python3 tests/regression_texts/show.py tests/regression_texts/<名前>.txt
 | loose_article_front.txt | 文書の最初の条が疑いの行のとき、前付けに印が付く |
 | editor_split.txt | 画面の「ここから新しい条にする」で、印の付いた第3項から分けるとタイトルが取り出される |
 | heading_like_references.txt | 見出しに似た本文中の参照。分割しても本文から文言を消さない（1行ずつ別の例） |
+| range_kara_made.txt | 「第１６条から第１８条まで　削除」が、前の条に結合せず３つの削除条になる。本文中の「第５条から第７条までの規定」は見出しにしない |
+| paren_num_mixed_width.txt | 半角(1)・全角（3）・⑷が混ざった号が、同じ階層の続き番号になる |
+| para_dai_kou.txt | 「第２項　」と書いた項番号を第２項にする |
+| article_colon_body.txt | 「第１条：本文」のコロンを本文に残さない |
+| item_ref_after_particle.txt | 助詞で切れた号の折り返し先の「（２）の書類」を新しい号にしない |
+| decimal_after_period.txt | 句点のあとの「１．２５×…」を号の「１．」にしない |
+| quantity_after_particle.txt | 「少なくとも／２　週間前」の２を第２項にしない（番号が次の項番号と同じでも） |
+| half_paren_item.txt | 「１）」形式の号を号にし、号の折り返しを結合する |
+| lone_para_number.txt | 番号「２」だけの段落と次の段落を第２項にする |
