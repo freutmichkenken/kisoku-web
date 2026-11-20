@@ -1221,6 +1221,10 @@ def apply_style(json_path, template_path, template_key, output_path,
             lines.append(f"{i}. {snippet}")
         return "\n".join(lines)
 
+    def _review_hint_text(hints):
+        """_review_hint（記号の無い号・号のあとのただし書きなど）から、コメント本文を作る。"""
+        return "\n".join(["【要確認】"] + [f"・{h}" for h in hints])
+
     def _article_hint_text(hints):
         """_article_hint の内容から、コメント本文を作る。"""
         lines = ["【要確認】この項に、別の条の見出しが含まれている可能性があります。"]
@@ -1291,6 +1295,9 @@ def apply_style(json_path, template_path, template_key, output_path,
                 n_comment += 1
                 for h in para["_article_hint"]:
                     article_hints.append((art.get("number_str", ""), h))
+            if para.get("_review_hint"):
+                comment_mgr.add_comment_to_paragraph(p_obj, _review_hint_text(para["_review_hint"]))
+                n_comment += 1
             # AIが条を再構成した場合もコメントで知らせる
             if para.get("_ai_restructured"):
                 comment_mgr.add_comment_to_paragraph(
@@ -1307,6 +1314,9 @@ def apply_style(json_path, template_path, template_key, output_path,
                 if it.get("_split_hint"):
                     comment_mgr.add_comment_to_paragraph(
                         it_obj, _split_hint_text(it["_split_hint"]))
+                    n_comment += 1
+                if it.get("_review_hint"):
+                    comment_mgr.add_comment_to_paragraph(it_obj, _review_hint_text(it["_review_hint"]))
                     n_comment += 1
                 # 号の下位項目（複数なら item_sub_multi、単体なら item_sub_single）
                 subs = it.get("sub_items", [])
@@ -1327,9 +1337,13 @@ def apply_style(json_path, template_path, template_key, output_path,
                                     key = "item_sub_multi"
                                 if key == "item_sub_multi":
                                     multi_no += 1
-                                _add_p(su.get("body", ""), key, multi_no if key == "item_sub_multi" else 1)
+                                su_obj = _add_p(su.get("body", ""), key, multi_no if key == "item_sub_multi" else 1)
                             else:
-                                _add_p(su.get("body", ""), sub_key, su_no)
+                                su_obj = _add_p(su.get("body", ""), sub_key, su_no)
+                            if su.get("_review_hint") and su_obj is not None:
+                                comment_mgr.add_comment_to_paragraph(
+                                    su_obj, _review_hint_text(su["_review_hint"]))
+                                n_comment += 1
                             # 号の下位に紐づく表・図（さらに下より前）
                             emit_tables(su)
                             emit_drawings(su)
