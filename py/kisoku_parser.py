@@ -512,7 +512,8 @@ class Line:
         self.article = RE_ARTICLE.match(s)        # 「第1条（目的）　本文」
         self.section = RE_SECTION.match(s)        # 「第1節　労働時間」
         # 条見出しの疑い（「第６条＃２（本採用拒否）」）。RE_ARTICLE に合う行は含めない
-        self.loose_article = None if self.article else RE_LOOSE_ARTICLE.match(s)
+        self.loose_article = None if self.article else (
+            RE_LOOSE_ARTICLE.match(s) or RE_LOOSE_ARTICLE_NOSPACE.match(s))
         self.title = RE_TITLE.match(s)            # 「（目的）」だけの行
         self.para = RE_PARA.match(text)           # 第2項以降「２　本文」
         if (self.para and not self.para.group('body').strip()
@@ -617,6 +618,9 @@ def merge_lines(items):
             ctx['para'] = 1
             ctx['prev_items'], ctx['cur_items'], ctx['cur_last'] = set(), set(), {}
             count_inline(ln.s)
+        elif ln.loose_article is not None and ln.loose_article.re is RE_LOOSE_ARTICLE_NOSPACE:
+            # 「第８条従業員は」の疑いの行も、次の「第９条会社は」の番号を見るために数える
+            ctx['article'] = zenkaku_to_int(ln.loose_article.group('num'))
         elif ln.para:
             ctx['para'] = zenkaku_to_int(ln.para.group('num'))
             ctx['prev_items'] |= ctx['cur_items']
@@ -856,7 +860,11 @@ def _starts_new_unit(ln, buf, ctx=None):
                     and (_REF_AFTER_HEADING.match(ln.section.group(2).strip())
                          or _RE_WEAK_REF_AFTER_HEADING.match(ln.section.group(2).strip())))
     if ln.loose_article:
-        # 条見出しの疑いの行は、前の行が文として終わっていれば前に結合しない
+        # 条見出しの疑いの行は、前の行が文として終わっていれば前に結合しない。
+        # 空白の無い「第８条従業員は」は、次に来るはずの条番号のときだけ
+        if (ln.loose_article.re is RE_LOOSE_ARTICLE_NOSPACE and ctx.get('article') is not None
+                and zenkaku_to_int(ln.loose_article.group('num')) != ctx['article'] + 1):
+            return False
         return not _ends_mid_sentence(buf, kanji=False)
     if ln.chapter or ln.article:
         # 前の行が文として終わっていれば見出し
@@ -960,6 +968,8 @@ RE_ARTICLE = re.compile(
     r'(?:[　\s]*[～〜~][　\s]*第[　\s]*(?P<to>' + _NUM_K + r')[　\s]*条'
     # 「第１６条から第１８条まで　削除」「第５条ないし第７条　削除」も範囲の条として扱う
     r'|[　\s]*(?:から|ないし|乃至)[　\s]*第[　\s]*(?P<to2>' + _NUM_K + r')[　\s]*条(?:[　\s]*まで)?'
+    # 「第１４条・第１５条　削除」「第１４条及び第１５条　削除」（続き番号のときだけ範囲にする）
+    r'|[　\s]*(?:・|、|及び)[　\s]*第[　\s]*(?P<to3>' + _NUM_K + r')[　\s]*条'
     r'(?=[　\s]*削除[　\s]*$))?'
     r'(?=[　\s（(【［\[：:]|$)'
     r'[　\s]*(?P<rest>.*)$',
@@ -975,6 +985,12 @@ RE_LOOSE_ARTICLE = re.compile(
     r'^第[　\s]*(?P<num>' + _NUM_K + r')[　\s]*条'
     r'[　\s]*[^　\s（(【［\[０-９0-9、。，．]{1,2}[　\s]*(?P<branch>[０-９0-9]+)'
     r'[　\s]*[（(【［\[]')
+# 条番号と本文の間に空白が無い行（「第８条従業員は…」）。手打ちの文書にある。
+# 「第８条第２項」「第８条各号」「第８条関係」のような参照と区別するため、条の直後が
+# 漢字・カタカナの名詞で、参照によく続く字で始まらないものに限る。疑いとして扱う
+RE_LOOSE_ARTICLE_NOSPACE = re.compile(
+    r'^第[　\s]*(?P<num>' + _NUM_K + r')条'
+    r'(?=[一-龯ァ-ヶ])(?![第各中前後及並又若項号以本関違所規同別附記該定適])')
 # 条タイトル。「（目的）」のほか、モデル就業規則等でよくある
 # 「（目的）　※〇〇パターン」のような末尾注釈も許容する。
 # 全角・半角の括弧の混在（「（遵守義務)」）と、1段の入れ子も許す。
@@ -1013,7 +1029,12 @@ def loose_article_node(text):
     s = text.strip()
     m = RE_LOOSE_ARTICLE.match(s)
     if not m:
-        return None
+        m = RE_LOOSE_ARTICLE_NOSPACE.match(s)
+        if not m:
+            return None
+        return {'type': 'article', 'number_str': re.sub(r'[　\s]', '', s[:m.end()]),
+                'number': zenkaku_to_int(m.group('num')), 'branch': 0,
+                'title': '', 'body': s[m.end():]}
     title, body = _split_article_title(s[m.end() - 1:])
     return {'type': 'article', 'number_str': re.sub(r'[　\s]', '', s[:m.end() - 1]),
             'number': zenkaku_to_int(m.group('num')),
@@ -1039,6 +1060,10 @@ def _article_node(m, rest):
 
 def _range_to(m):
     """範囲の条の終わりの番号（「～第７条」「から第７条まで」）。無ければ None。"""
+    if m.group('to3'):
+        # ponytail: 続き番号でない並び（「第１４条・第１６条　削除」）は範囲にしない（第１４条だけになる）。必要なら番号の一覧で展開する
+        n = zenkaku_to_int(m.group('num'))
+        return m.group('to3') if zenkaku_to_int(m.group('to3')) == n + 1 else None
     return m.group('to') or m.group('to2')
 # 第2項以降（先頭インデント + 2以上の数字 + 区切り）。タブ区切りにも対応。
 # 「１０　」以降の項も認める。
@@ -1216,6 +1241,16 @@ def _is_note_paren(inner):
 #   例:「附則に定める経過措置」「附則第2項の規定により」
 #   「附則 に定める」（PDF由来の空白）、「附則第1条（施行期日）の規定」も参照
 #   「附則第1条（施行期日）第2項の規定」のように条・項が続く参照も同じ
+# 本文のあとの別表・様式の見出し（行全体）。「別表第１（第３０条関係）」「別表２　賃金表」「様式第１号」
+# 「別表第１に定める…」のような本文中の参照（助詞・句読点が続く）や、句点で終わる文は含めない
+RE_APPENDIX_HEAD = re.compile(
+    r'^(?:別[　\s]*表|別[　\s]*記|様[　\s]*式)'
+    r'(?:[　\s]*第?[　\s]*[０-９0-9一二三四五六七八九十]+[　\s]*号?)?'
+    # 後ろは「（第３０条関係）」とその後の短い名前だけ。「様式第１号　欠勤届」のような
+    # 本文中の様式の列挙では止めない
+    r'(?:[　\s]*[（(][^）)。]*関係[）)](?:[　\s]+[^　\s。、，]{1,20})?)?[　\s]*$')
+# PDF由来のページ番号だけの段落（「－ ７ －」「- 12 -」）
+RE_PAGE_NUMBER = re.compile(r'^[－\-―ー—‐][　\s]*[０-９0-9]{1,4}[　\s]*[－\-―ー—‐]$')
 _STOP_WORD_REF = re.compile(
     r'^[　\s]*(?:第[　\s]*[０-９0-9一二三四五六七八九十]+[　\s]*[条項号]'
     r'(?:の[０-９0-9一二三四五六七八九十]+)?(?:[（(][^）)]*[）)])?[　\s]*)*'
@@ -2597,11 +2632,20 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             # （行の折り返しで行頭に来たもの）では止めない
             # 前の段落が文の途中で終わっているとき（行の折り返し）だけ判定する
             _sm = stop_re.match(text.strip()) if text.strip() else None
-            if _sm and not (_ends_mid_sentence(_prev_text, kanji=False)
+            if (not _sm and body_started and RE_APPENDIX_HEAD.match(text.strip())
+                    and not _ends_mid_sentence(_prev_text, kanji=False)):
+                # 本文のあとの「別表第１（第３０条関係）」「様式第１号」も、ここ以降を後付けにする
+                _sm = True
+            if _sm is True or _sm and not (_ends_mid_sentence(_prev_text, kanji=False)
                             and _STOP_WORD_REF.match(text.strip()[_sm.end():])):
                 print(f"停止: {repr(text.strip()[:30])}（以降は整形せず保持）")
                 back_start = child_idx
                 break
+            if body_started and RE_PAGE_NUMBER.match(text.strip()):
+                # PDF由来のページ番号（「－ ７ －」）。本文に連結しないよう、整形の対象から外す
+                # （元の文書には残る。処理の記録に出す）
+                print(f"ページ番号を除外: {text.strip()!r}")
+                continue
             if text.strip():
                 _prev_text = text
             # 図形・画像を含む段落は、テキストに置き換えると失われるため
