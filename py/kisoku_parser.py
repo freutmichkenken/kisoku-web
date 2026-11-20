@@ -491,7 +491,7 @@ class Line:
     """
     __slots__ = ('text', 's', 'indent', 'chapter', 'article', 'title', 'para',
                  'decimal', 'paren_only', 'sym_type', 'sym_num', 'sym_body', 'sym_char',
-                 'mark_head', 'is_marker', 'last', 'section')
+                 'mark_head', 'is_marker', 'last', 'section', 'loose_article')
 
     def __init__(self, text):
         self.text = text
@@ -511,6 +511,8 @@ class Line:
         self.chapter = RE_CHAPTER.match(s)        # 「第1章　総則」
         self.article = RE_ARTICLE.match(s)        # 「第1条（目的）　本文」
         self.section = RE_SECTION.match(s)        # 「第1節　労働時間」
+        # 条見出しの疑い（「第６条＃２（本採用拒否）」）。RE_ARTICLE に合う行は含めない
+        self.loose_article = None if self.article else RE_LOOSE_ARTICLE.match(s)
         self.title = RE_TITLE.match(s)            # 「（目的）」だけの行
         self.para = RE_PARA.match(text)           # 第2項以降「２　本文」
         self.decimal = _RE_DECIMAL_HEAD.match(s)  # 「1.25倍」
@@ -836,6 +838,9 @@ def _starts_new_unit(ln, buf, ctx=None):
         return not (_ends_mid_sentence(buf, kanji=False)
                     and (_REF_AFTER_HEADING.match(ln.section.group(2).strip())
                          or _RE_WEAK_REF_AFTER_HEADING.match(ln.section.group(2).strip())))
+    if ln.loose_article:
+        # 条見出しの疑いの行は、前の行が文として終わっていれば前に結合しない
+        return not _ends_mid_sentence(buf, kanji=False)
     if ln.chapter or ln.article:
         # 前の行が文として終わっていれば見出し
         if not _ends_mid_sentence(buf, kanji=False):
@@ -917,7 +922,7 @@ RE_CHAPTER = re.compile(r'^第[　\s]*(' + _NUM_K + r')[　\s]*章[　\s]*(.*)$'
 RE_SECTION = re.compile(r'^第[　\s]*(' + _NUM_K + r')[　\s]*節(?=[　\s]|$)[　\s]*(.*)$',
                         re.DOTALL)
 # 枝番の区切り。「第６条の２」のほか「第６条－２」「第6条-2」のようなハイフン書きもある
-_BRANCH_SEP = r'(?:の|[－‐‑–—―ー\-])'
+_BRANCH_SEP = r'(?:の|[－‐‑‒–—―−ー\-])'
 # 「第９条」「第９条の２」「第４条の２の２」（枝番号 = branch、2つ目以降 = branch2）、
 # 「第５条～第７条　削除」（範囲の終わり = to）に対応する。
 # 「第９条に定める…」のような本文中の条文参照を条見出しと
@@ -933,6 +938,14 @@ RE_ARTICLE = re.compile(
 )
 # 括弧の中身（1段の入れ子まで。「（出向（在籍出向・転籍出向））」）
 _PAREN_INNER = r'(?:[^（()）]|[（(][^（()）]*[）)])+'
+# 条見出しに見えるが RE_ARTICLE に合わない行（「第６条＃２（本採用拒否）」のような、
+# 想定していない枝番の書き方）。条番号の直後に1〜2文字の記号と番号があり、
+# 括弧の条タイトルが続くものに限る（「第25条の遵守事項」のような本文中の参照は拾わない）。
+# 見出しとは決めず、前の文に結合しないで残し、AIの判定と要確認の警告に回す
+RE_LOOSE_ARTICLE = re.compile(
+    r'^第[　\s]*(?P<num>' + _NUM_K + r')[　\s]*条'
+    r'[　\s]*[^　\s（(【［\[０-９0-9、。，．]{1,2}[　\s]*(?P<branch>[０-９0-9]+)'
+    r'[　\s]*[（(【［\[]')
 # 条タイトル。「（目的）」のほか、モデル就業規則等でよくある
 # 「（目的）　※〇〇パターン」のような末尾注釈も許容する。
 # 全角・半角の括弧の混在（「（遵守義務)」）と、1段の入れ子も許す。
@@ -962,6 +975,20 @@ def _split_article_title(rest):
 def _article_number_str(m):
     """RE_ARTICLE の match から、空白を除いた条番号の文字列（「第４条の２の２」「第５条～第７条」）。"""
     return re.sub(r'[　\s]', '', m.string[:m.start('rest')])
+
+
+def loose_article_node(text):
+    """条見出しの疑いの行（RE_LOOSE_ARTICLE）を条のノードにする。AIが条と判定したときだけ使う。
+    番号は行に書かれたものを使うので、以降の条番号はずれない。合わなければ None。"""
+    s = text.strip()
+    m = RE_LOOSE_ARTICLE.match(s)
+    if not m:
+        return None
+    title, body = _split_article_title(s[m.end() - 1:])
+    return {'type': 'article', 'number_str': re.sub(r'[　\s]', '', s[:m.end() - 1]),
+            'number': zenkaku_to_int(m.group('num')),
+            'branch': zenkaku_to_int(m.group('branch')),
+            'title': title, 'body': _strip_para1_number(body)}
 
 
 def _article_node(m, rest):
@@ -1164,6 +1191,23 @@ def zenkaku_to_int(s):
         return kanji_to_int(s) or 1
 
 def classify_line(text, depth=None, number=None):
+    """_classify_unit の結果に、2行目以降に結合された条見出しの疑いの行
+    （前の行が文の途中で終わっていたもの）を inline_article_hint として付ける。"""
+    node = _classify_unit(text, depth, number)
+    unit = _as_unit(text)
+    inline = [_hint_head(ln.s) for ln in unit.lines[1:] if ln.loose_article]
+    if node is not None and inline:
+        node['inline_article_hint'] = inline
+    return node
+
+
+def _hint_head(s):
+    """条見出しの疑いの文言を、タイトルの閉じ括弧まで切り出す。"""
+    head = re.match(r'^[^）)】］\]]*[）)】］\]]', s)
+    return head.group(0) if head else s[:30]
+
+
+def _classify_unit(text, depth=None, number=None):
     """
     1つの単位（merge_lines の Unit、または1行の文字列）を分類してdictを返す。
     先頭の行の判定結果（Line）と、2行目以降をつないだ文字列から作る。
@@ -1202,6 +1246,10 @@ def classify_line(text, depth=None, number=None):
     m = f.article
     if m:
         return _article_node(m, unit.rest(m, 'rest').strip())
+
+    # 条見出しの疑い。本文として扱い（build_tree が要確認の印を付ける）、AIの判定候補にする
+    if f.loose_article:
+        return {'type': 'text', 'body': stripped, 'suspect_article': True}
 
     # 第2項以降（先頭インデント+数字）
     # raw は、build_tree が項ではないと判断したときに本文として戻すための元の行
@@ -1553,7 +1601,26 @@ def build_tree(flat):
         pending_note = ''
     article_seq = [0]      # 自動採番の条番号カウンタ（章をまたいで連番）
 
+    # 条見出しの疑いの行（本文扱いの行と、文の途中の行に結合された行 = classify_line の
+    # inline_article_hint）。その単位を置いたあとの項に、要確認の印を付ける。
+    # 入れ先の条が無い（文書の最初の条を認識できなかった）ときは、章か、残した本文に付ける
+    inline_pending = []
+
+    def _attach_inline():
+        if not inline_pending:
+            return
+        to = cur_paragraph or (cur_article['paragraphs'][-1]
+                               if cur_article and cur_article['paragraphs'] else None)
+        if to is None:
+            to = cur_chapter if cur_chapter is not None else (
+                result[-1] if result and result[-1].get('type') == 'plain' else None)
+        if to is not None:
+            to.setdefault('_article_hint', []).extend(inline_pending)
+        inline_pending.clear()
+
     for node in flat:
+        _attach_inline()
+        inline_pending.extend(node.pop('inline_article_hint', None) or [])
         t = node['type']
 
         if t == 'paragraph' and node.get('raw'):
@@ -1826,6 +1893,9 @@ def build_tree(flat):
             _flush_pending()
             # 本文の続き行 → 直前の項目に結合
             body = node['body']
+            if node.get('suspect_article'):
+                # 条見出しの疑いの行は、置いたあとの項に要確認の印を付ける（Wordのコメントと照合レポートに出す）
+                inline_pending.insert(0, _hint_head(body))
             if node.get('note') and cur_paragraph:
                 # 括弧書きの注記は、直前のいちばん深い項目（号の細分など）の末尾に付ける
                 _deepest_container(cur_paragraph)['body'] += body
@@ -1845,6 +1915,7 @@ def build_tree(flat):
                 # 章の直後など、入れ先の条が無い本文 → 消さずに残す
                 _orphan(body)
 
+    _attach_inline()
     _flush_pending()   # 最後まで条が来なかった括弧行も本文に戻す
     result.extend({'type': 'plain', 'body': x} for x in pending_lead)
     for node in result:
@@ -2144,11 +2215,50 @@ def _collect_suspicious_articles(tree, length_threshold=100):
             key = (a.get('number'), a.get('branch', 0))
             art_map.setdefault(a.get('number'), []).append(a)
 
+    # 条見出しの疑いの行を含む条も送る（AIに、独立した条かを見てもらう）
+    for arts in art_map.values():
+        for a in arts:
+            hints = [h for p in a.get('paragraphs', []) for h in p.get('_article_hint', [])]
+            if hints:
+                num = a.get('number')
+                if num not in by_article:
+                    order.append(num)
+                by_article.setdefault(num, []).extend(
+                    f"条見出しの疑い: {h}" for h in hints)
+
     result = []
     for num in order:
         for a in art_map.get(num, []):
             result.append((a, by_article[num]))
     return result
+
+
+_RE_HINT_HEAD = re.compile(r'^第[　\s]*' + _NUM_K + r'[　\s]*条')
+
+
+def _unit_bodies(node):
+    """項・号・号の細分（その下まで）の本文を順に返す。"""
+    yield node.get('body')
+    for key in ('items', 'sub_items', 'sub_items2'):
+        for child in node.get(key) or []:
+            yield from _unit_bodies(child)
+
+
+def _attach_article_hints(paragraphs, hints):
+    """条見出しの疑いの文言を、その文言を本文に含む項の _article_hint に付ける。
+    AIの答えは捏造の恐れがあるので、「第◯条」で始まり、項の本文に実際にある文言だけ使う。"""
+    def plain(s):
+        return re.sub(r'[　\s]', '', s or '')
+    for h in hints:
+        if not isinstance(h, str) or not _RE_HINT_HEAD.match(h.strip()):
+            continue
+        key = plain(h)
+        for p in paragraphs:
+            if any(key in plain(t) for t in _unit_bodies(p)):
+                lst = p.setdefault('_article_hint', [])
+                if not any(plain(x) == key for x in lst):
+                    lst.append(h.strip())
+                break
 
 
 def _restore_tables(old_paragraphs, new_paragraphs):
@@ -2229,6 +2339,11 @@ def apply_gemini_split(tree, length_threshold=100, verbose=True, mode='paragraph
             new_simple = restructure_article_with_gemini(art, reasons=reasons)
         if not new_simple:
             continue
+        # AIが「別の条の見出しが紛れ込んでいる」と答えた文言は、要確認の印として元の項に付ける
+        # （構造を差し替えない場合も残す。差し替える場合は下で新しい項へ移す）
+        _attach_article_hints(old_paragraphs,
+                              [sp.get('embedded_article') for sp in new_simple
+                               if isinstance(sp, dict)])
 
         # 返ってきた構造を正式な形に変換（番号は連番で振り直す）
         new_paragraphs = []
@@ -2283,8 +2398,10 @@ def apply_gemini_split(tree, length_threshold=100, verbose=True, mode='paragraph
                 print(f"  {art.get('number_str','')}: 変更なし")
             continue
 
-        # 元の表を引き継ぐ
+        # 元の表と、条見出しの疑いの印を引き継ぐ
         _restore_tables(old_paragraphs, new_paragraphs)
+        _attach_article_hints(new_paragraphs, [h for p in old_paragraphs
+                                               for h in p.get('_article_hint', [])])
 
         # AIが再構成したことを示すフラグ（Wordコメント用）
         new_paragraphs[0]['_ai_restructured'] = reasons
@@ -2623,13 +2740,24 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
                         after = merged_texts[tcur + 1:tcur + 3]
                         kind = classify_with_gemini(target, before, after)
                     # 番号の無い行を章・条にすると以降の条番号が全部ずれるため、
-                    # 章・条の判定は採用しない（番号付きの章・条は正規表現で拾える）
-                    if kind and kind not in ('body', 'chapter', 'article'):
+                    # 章・条の判定は採用しない（番号付きの章・条は正規表現で拾える）。
+                    # ただし条見出しの疑いの行（「第６条＃２（本採用拒否）」）は行に番号があるので、
+                    # 条の判定を採用する
+                    # 条以外の判定のときは置き換えず、本文のまま要確認の印を残す
+                    if flat[flat_idx].get('suspect_article'):
+                        new_node = loose_article_node(target) if kind == 'article' else None
+                    elif kind and kind not in ('body', 'chapter', 'article'):
                         # Geminiの判定で置き換える
                         new_node = classify_auto(kind, target)
-                        if new_node:
-                            flat[flat_idx] = new_node
-                            n_resolved += 1
+                    else:
+                        new_node = None
+                    if new_node:
+                        # 2行目以降に結合された条見出しの疑いの印は、置き換えても残す
+                        inline = flat[flat_idx].get('inline_article_hint')
+                        if inline:
+                            new_node['inline_article_hint'] = inline
+                        flat[flat_idx] = new_node
+                        n_resolved += 1
                 print(f"Gemini判定: {n_resolved}/{len(gemini_candidates)}段落を再判定しました")
             else:
                 print("Gemini判定: APIキー未設定またはライブラリ未導入のためスキップ")
@@ -2650,6 +2778,12 @@ def parse_kisoku(docx_path, stop_words=None, use_gemini=False,
             'indices': front_indices,
             'texts': front_texts,
         })
+        # 前付けに条見出しの疑いの行があれば、最初の条を認識できていない恐れがある
+        # （段落内の改行で、1つの段落に複数の行があることもあるので、行ごとに見る）
+        hints = [_hint_head(ln.strip()) for x in front_texts if isinstance(x, str)
+                 for ln in x.splitlines() if line_info(ln).loose_article]
+        if hints:
+            tree[0]['_article_hint'] = hints
         print(f"前付け（表紙・前文）を保持: {len(front_indices)}要素")
 
     # 後付け（附則・改版履歴など）を末尾に追加する。

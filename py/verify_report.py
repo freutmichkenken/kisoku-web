@@ -311,7 +311,7 @@ def _edited_summary(result):
     return f"  （画面での編集による変更: 消した文章 {n_r}件・足した文章 {n_a}件）" if n_r or n_a else ""
 
 
-def write_report(result, path, src_name="", out_name=""):
+def write_report(result, path, src_name="", out_name="", article_hints=None):
     """照合レポートを Markdown で書き出す。"""
     L = []
     L.append("# 原本との照合レポート\n")
@@ -357,6 +357,12 @@ def write_report(result, path, src_name="", out_name=""):
         section("画面の編集で足した文章", result["edit_added"],
                 lambda it: f"- {it[0].strip()}",
                 "画面で編集・追加した文章です。上の「原本に無い文章」には数えていません。")
+
+    if article_hints:
+        section("独立した条の見出しが項に紛れ込んでいる可能性", article_hints,
+                lambda it: f"- {it[0]}の中：{it[1]}",
+                "条見出しのように見えますが、条として認識できず前の項の本文に含めました。"
+                "独立した条であれば、画面の編集で「下に条を追加」をして本文を移してください。")
 
     L.append("---\n")
     L.append("## この照合について\n")

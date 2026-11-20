@@ -1129,6 +1129,7 @@ def apply_style(json_path, template_path, template_key, output_path,
     # JSON を走査して段落を積む
     n_chapter = n_article = n_para = n_item = n_table = 0
     n_comment = 0
+    article_hints = []   # [(条番号, 条見出しの疑いの文言)]。照合レポートに載せる
 
     table_style_id = M.get("table", (None, None, None))[0]
 
@@ -1220,6 +1221,12 @@ def apply_style(json_path, template_path, template_key, output_path,
             lines.append(f"{i}. {snippet}")
         return "\n".join(lines)
 
+    def _article_hint_text(hints):
+        """_article_hint の内容から、コメント本文を作る。"""
+        lines = ["【要確認】この項の中に、独立した条の見出しが含まれている可能性があります。"]
+        lines += [f"・{h[:40]}" for h in hints]
+        return "\n".join(lines)
+
     def _restructured_text(reasons):
         """_ai_restructured の内容から、コメント本文を作る。"""
         lines = ["【AI再構成】この条は階層構造が疑わしいと判定され、",
@@ -1277,6 +1284,13 @@ def apply_style(json_path, template_path, template_key, output_path,
                 comment_mgr.add_comment_to_paragraph(
                     p_obj, _split_hint_text(para["_split_hint"]))
                 n_comment += 1
+            # 独立した条の見出しが項に紛れ込んでいる疑い（「第６条＃２（本採用拒否）」）
+            if para.get("_article_hint"):
+                comment_mgr.add_comment_to_paragraph(
+                    p_obj, _article_hint_text(para["_article_hint"]))
+                n_comment += 1
+                for h in para["_article_hint"]:
+                    article_hints.append((art.get("number_str", ""), h))
             # AIが条を再構成した場合もコメントで知らせる
             if para.get("_ai_restructured"):
                 comment_mgr.add_comment_to_paragraph(
@@ -1342,6 +1356,8 @@ def apply_style(json_path, template_path, template_key, output_path,
         t = node.get("type")
         if t == "front_matter":
             n_front += _emit_verbatim(doc, node, src_body, src_styles, out_styles)
+            # 前付けは原本のまま写すのでコメントは付けず、照合レポートにだけ載せる
+            article_hints.extend(("前付け（表紙・前文）", h) for h in node.get("_article_hint", []))
             continue
         if t != "back_matter":
             # 前付けが終わって本文に入るところで目次を挟む
@@ -1354,6 +1370,9 @@ def apply_style(json_path, template_path, template_key, output_path,
             # 条に属さない本文（章の前文など）は、番号の付かない段落で残す
             for txt in node.get("preamble", []):
                 doc.add_paragraph(txt)
+            # 条に属さない本文の中の、条見出しの疑い（照合レポートにだけ載せる）
+            for h in node.get("_article_hint", []):
+                article_hints.append((node.get("number_str", "") + "の前文", h))
             for art in node.get("articles", []):
                 emit_article(art)
             emit_tables(node)   # 章直下の表
@@ -1361,7 +1380,12 @@ def apply_style(json_path, template_path, template_key, output_path,
         elif t == "article":
             emit_article(node)
         elif t == "plain":
-            doc.add_paragraph(node.get("body", ""))
+            p_plain = doc.add_paragraph(node.get("body", ""))
+            if node.get("_article_hint"):
+                comment_mgr.add_comment_to_paragraph(
+                    p_plain, _article_hint_text(node["_article_hint"]))
+                n_comment += 1
+                article_hints.extend(("条の外の本文", h) for h in node["_article_hint"])
         elif t == "supplement":
             # 画面で足した附則：見出しを中央に置き、本文を続ける（元の附則の後ろに出る）
             from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -1412,13 +1436,18 @@ def apply_style(json_path, template_path, template_key, output_path,
             verify_report.write_report(
                 result, report_path,
                 src_name=os.path.basename(source_docx),
-                out_name=os.path.basename(output_path))
+                out_name=os.path.basename(output_path),
+                article_hints=article_hints)
         except Exception as e:
             print(f"  ※ 原本との照合に失敗しました: {e}")
             result = None
     print(f"  章 {n_chapter} / 条 {n_article} / 項 {n_para} / 号 {n_item} / 表 {n_table}")
     if n_comment:
         print(f"  要確認コメント: {n_comment}件（Wordのコメント欄に表示されます）")
+    if article_hints:
+        print(f"  ★ 独立した条の見出しが項に紛れ込んでいる可能性: {len(article_hints)}件")
+        for where, h in article_hints[:5]:
+            print(f"      - {where}の中：{h[:40]}")
     if report_path:
         print("  ── 原本との照合 ──")
         for line in verify_report.summary_lines(result):
