@@ -20,7 +20,7 @@
 |---|---|---|---|---|---|
 | 規程一覧（#viewList） | 保存した作業の一覧と開始点 | docx 読み込み、作業（.json）読み込み、並べ替え、開く・名前変更・削除・書き出し | 整形・編集 | index.html:834 | 643ed15 |
 | 編集画面のヘッダ | 戻る、タイトル、Python エンジンの状態 | 「← 規程一覧」、エンジン状態 | — | index.html:855 | 643ed15 |
-| 左：新旧対照表（section#h4） | 現行と改正案を並べ、改正案を条・章ごとに編集 | 変更点表示、別の docx と比較、元に戻す、下書き削除、目次、変更のある条だけ表示 | 出力 | index.html:874、editor.js | 643ed15 |
+| 左：新旧対照表（section#h4） | 現行と改正案を並べ、改正案を条・章ごとに編集 | 変更点表示、別の docx と比較、元に戻す、下書き削除、目次、変更のある条だけ表示、処理の記録（対照表が出るまで。#cmpLogBox） | 出力 | index.html:874、editor.js | 643ed15 |
 | タブ「本文」 | 狭い画面で左の対照表を出す | 左欄の切り替え | 広い画面では非表示 | index.html:913 | 643ed15 |
 | タブ「変更履歴」（#panHist） | 版の確定・一覧・比較 | 施行日・メモ、版の確定、版の比較、削除 | — | index.html:919 | 643ed15 |
 | タブ「出力」（#panOut） | 整形した docx と対照表を作る | ダウンロード、中止、処理の記録、対照表（PDF・docx） | 設定 | index.html:952 | 643ed15 |
@@ -36,7 +36,7 @@
 | `store` | localStorage の get/set/del（例外を握りつぶす） | index.html:1158 | サイド、備考、既定、表示 | 643ed15 |
 | `idb` | IndexedDB の drafts / works | index.html:1424 | 一覧、編集画面 | 643ed15 |
 | `call` / worker | Python の呼び出し | index.html:1181、worker.js:199 | 全画面 | 643ed15 |
-| `setEngine` / `log` | エンジン状態と処理の記録 | index.html:1199 | ヘッダ、出力 | 643ed15 |
+| `setEngine` / `log` | エンジン状態と処理の記録（出力タブと、対照表が出るまでの④の両方へ） | index.html:1199 | ヘッダ、出力、④ | 643ed15 |
 | `verHint` ほか5つの `*Hint` | `.hint` の class と文を切り替える | index.html:1859, 2405 ほか | 履歴、対照表、カスタム、テンプレ、API、データ | 643ed15 |
 | `showFormError` | 編集中の条にエラーを出す | index.html:2174 | 左の対照表 | 643ed15 |
 | `selectTab` / `requestTab` | タブ切替（編集中の確定確認付き） | index.html:1613 | 編集画面 | 643ed15 |
