@@ -41,3 +41,7 @@ python3 tests/regression_texts/show.py tests/regression_texts/<名前>.txt
 | quantity_after_particle.txt | 「少なくとも／２　週間前」の２を第２項にしない（番号が次の項番号と同じでも） |
 | half_paren_item.txt | 「１）」形式の号を号にし、号の折り返しを結合する |
 | lone_para_number.txt | 番号「２」だけの段落と次の段落を第２項にする |
+| page_number_line.txt | PDF由来のページ番号の段落（－ ７ －）を本文に連結せず、前後の文だけをつなぐ |
+| appendix_after_articles.txt | 最後の条のあとの「別表第１（第３０条関係）」から後ろを後付けにする。本文中の「別表第１に定める」では止めない |
+| deleted_articles_dot.txt | 「第１４条・第１５条　削除」「第１６条及び第１７条　削除」を削除条に分ける。続き番号でない「第１８条・第２０条」は範囲にしない |
+| article_no_space.txt | 空白の無い「第８条従業員は」を前の項に連結せず、独立した項として残し、条見出しの疑いの印を付ける。「第５条関係の」は参照 |
