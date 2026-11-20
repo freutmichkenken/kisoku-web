@@ -2369,6 +2369,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
           pendingOpen = [...path.slice(0, -1), path[path.length - 1] + 1];
           changeTree((t) => { setAt(t, path, art); spliceAt(t, pendingOpen, 0, KisokuEditor.newArticle()); });
         },
+        // i 番目の項から後ろを、直後の新しい条にする。分けたあとは新しい条を開く（元に戻すは1回で両方戻る）
+        split: (art, i) => {
+          const parts = KisokuEditor.splitArticle(art, i);
+          if (!parts) return;
+          pendingOpen = [...path.slice(0, -1), path[path.length - 1] + 1];
+          changeTree((t) => { setAt(t, path, parts[0]); spliceAt(t, pendingOpen, 0, parts[1]); });
+        },
+        // 前の条（同じ章の中の、すぐ前の条）の末尾にまとめる。まとめたあとは前の条を開く
+        ...(() => {
+          const last = path[path.length - 1];
+          const prevPath = [...path.slice(0, -1), last - 1];
+          const prev = last > 0 ? nodeAt(edit.tree, prevPath) : null;
+          if (!prev || prev.type !== "article") return { mergePrev: null };
+          return {
+            prevLabel: prev.title || "タイトルなし",
+            mergePrev: (art) => {
+              pendingOpen = prevPath;
+              changeTree((t) => { setAt(t, prevPath, KisokuEditor.mergeArticles(nodeAt(t, prevPath), art)); spliceAt(t, path, 1); });
+            },
+          };
+        })(),
         remove: () => changeTree((t) => spliceAt(t, path, 1)),
       });
     }

@@ -42,7 +42,7 @@
 | `selectTab` / `requestTab` | タブ切替（編集中の確定確認付き） | index.html:1613 | 編集画面 | 643ed15 |
 | `KisokuRefs`（refs.js） | 「第◯条」参照の書き換え | refs.js | 対照表の編集、チェック | 643ed15 |
 | `KisokuCustom`（custom.js） | カスタム書式の設定とプレビュー | custom.js:450 | 設定タブ | 643ed15 |
-| `KisokuEditor`（editor.js） | 条・章・附則の編集フォーム | editor.js:616 | 左の対照表 | 643ed15 |
+| `KisokuEditor`（editor.js） | 条・章・附則の編集フォーム。条の分割（項の「…」→ ここから新しい条にする）と前の条へのまとめ（`splitArticle`・`mergeArticles`） | editor.js:616 | 左の対照表 | 643ed15 |
 | `_check_tree` 系 | 画面から来た木の検証（上限値も） | py/web_entry.py:153 | 保存・整形 | 643ed15 |
 
 ## データと状態

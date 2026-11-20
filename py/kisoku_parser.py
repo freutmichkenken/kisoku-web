@@ -1896,6 +1896,13 @@ def build_tree(flat):
             if node.get('suspect_article'):
                 # 条見出しの疑いの行は、置いたあとの項に要確認の印を付ける（Wordのコメントと照合レポートに出す）
                 inline_pending.insert(0, _hint_head(body))
+                if cur_article is not None:
+                    # 前の項の本文につなげず、独立した項として残す（画面の「ここから新しい条にする」で分けられるように）
+                    last_dot = None
+                    cur_paragraph = {'type': 'paragraph', 'number': len(cur_article['paragraphs']) + 1,
+                                     'body': body, 'items': []}
+                    cur_article['paragraphs'].append(cur_paragraph)
+                    continue
             if node.get('note') and cur_paragraph:
                 # 括弧書きの注記は、直前のいちばん深い項目（号の細分など）の末尾に付ける
                 _deepest_container(cur_paragraph)['body'] += body

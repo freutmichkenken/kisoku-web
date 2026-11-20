@@ -1223,7 +1223,7 @@ def apply_style(json_path, template_path, template_key, output_path,
 
     def _article_hint_text(hints):
         """_article_hint の内容から、コメント本文を作る。"""
-        lines = ["【要確認】この項の中に、独立した条の見出しが含まれている可能性があります。"]
+        lines = ["【要確認】この項に、別の条の見出しが含まれている可能性があります。"]
         lines += [f"・{h[:40]}" for h in hints]
         return "\n".join(lines)
 
