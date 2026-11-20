@@ -25,3 +25,4 @@ jobs:
       - run: python3 tests/test_misdetection.py
       - run: python3 tests/test_format_variation.py
       - run: node tests/test_refs.js
+      - run: node tests/test_editor_split.js

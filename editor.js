@@ -354,6 +354,68 @@
     return art;
   }
 
+  // 項の本文の先頭にある条見出し「第６条－２（本採用拒否）」。括弧の中がタイトル。
+  // 条の後ろは枝番（「の２」「－２」など）だけを許す。タイトルの括弧は1段の入れ子まで（「（賃金（基本給等））」）。
+  // 見出しと本文中の参照（「第25条（休職）と第26条…」）は言葉では見分けきれないので、
+  // 解析で「条見出しの疑い」の印（_article_hint。原本の行頭にあった見出し）が付いた項だけ見出しとして扱う。
+  // 印の文言と同じタイトルの見出しで本文が始まるときだけ、その部分を除く（番号は参照の書き換えで変わることがある）
+  const HEAD_RE = new RegExp(
+    "^[\\s　]*第[\\s　]*[0-9０-９〇一二三四五六七八九十百千]+[\\s　]*条" +
+    "(?:[\\s　]*[^\\s　（(【［\\[0-9０-９、。，．第項号]{1,2}[\\s　]*[0-9０-９〇一二三四五六七八九十]+)?[\\s　]*" +
+    "(?:[（(]((?:[^（()）]|[（(][^（()）]*[）)])+)[）)]|[【［\\[]([^】］\\]]+)[】］\\]])[\\s　]*");
+  function headMatch(body, hints) {
+    const m = HEAD_RE.exec(body);
+    if (!m) return null;
+    const title = (m[1] || m[2]).trim();
+    const marked = (hints || []).some((h) => {
+      const hm = HEAD_RE.exec(String(h).replace(/^([\s　]*第[^条]{1,8}条)［参照先なし］/, "$1"));
+      return hm && (hm[1] || hm[2]).trim() === title;
+    });
+    return marked ? { title, len: m[0].length } : null;
+  }
+
+  // 条を i 番目の項の前で2つに分ける。i 番目以降の項（号・表・図ごと）を新しい条へ移す。
+  // 移す先頭の項が、解析で印の付いた条見出しで始まれば、括弧の中をタイトルにして見出しの部分だけ本文から除く。
+  // それ以外は本文に手を付けず、タイトルは空。返り値: [前の条, 新しい条]
+  function splitArticle(article, i) {
+    const a = clone(article);
+    const paras = a.paragraphs || [];
+    if (!(i > 0 && i < paras.length)) return null;
+    const b = newArticle();
+    b.paragraphs = paras.splice(i);
+    const first = b.paragraphs[0];
+    // 見出しの「第６条」が、参照の書き換え（refs.js）で「第６条［参照先なし］」と印を付けられていることがある
+    const body = (first.body || "").replace(/^([\s　]*第[^条]{1,8}条)［参照先なし］/, "$1");
+    const m = headMatch(body, first._article_hint);
+    if (m) {
+      b.title = m.title;
+      first.body = body.slice(m.len);
+      delete first._article_hint;   // 条に分けたので、整形の「要確認」コメントはもう要らない
+      // 見出しだけの項は、中に号・表・図が無く、後ろに項があれば除く
+      const empty = !first.body.trim() && !(first.items || []).length
+        && !(first.tables || []).length && !(first.drawings || []).length;
+      if (empty && b.paragraphs.length > 1) b.paragraphs.shift();
+    }
+    return [renumber(a), renumber(b)];
+  }
+
+  // 条 article を前の条 prev の末尾にまとめる。タイトルは「（タイトル）」として先頭の項の本文の頭に残す。
+  // 条の前に置く節の行（lead）も、消さずに項として残す。返り値: まとめた前の条
+  function mergeArticles(prev, article) {
+    const p = clone(prev), a = clone(article);
+    const moved = (a.lead || []).map((txt) => Object.assign(NEW.paragraph(), { body: txt }));
+    const paras = a.paragraphs || [];
+    const title = (a.title || "").trim();
+    const note = (a.title_note || "").trim();
+    const head = (title ? `（${title}）` : "") + (note ? `${title ? "　" : ""}${note}` : "");
+    if (head) {
+      if (paras.length) paras[0].body = head + (paras[0].body || "");
+      else paras.push(Object.assign(NEW.paragraph(), { body: head }));
+    }
+    p.paragraphs = (p.paragraphs || []).concat(moved, paras);
+    return renumber(p);
+  }
+
   function newArticle() {
     return { type: "article", number: 0, branch: 0, number_str: "", title: "", title_note: "",
              paragraphs: [NEW.paragraph()] };
@@ -408,6 +470,8 @@
       redraw();
     };
     if (kind === "paragraph") items.push(["号を追加", addChild(NEW.item)]);
+    // この項から後ろを新しい条にする（第1項では条をまるごと移すことになるので出さない）
+    if (kind === "paragraph" && i > 0 && ctx.split) items.push(["ここから新しい条にする", () => ctx.split(i)]);
     if (kind === "item") {
       items.push(["号の下位その1を追加", addChild(() => NEW.sub("multi"))]);
       items.push(["号の下位その2を追加", addChild(() => NEW.sub("single"))]);
@@ -476,7 +540,8 @@
     form.kisokuEdit = { dirty: () => key() !== start, commit: () => h.commit(prepare(getNode())) };
   }
 
-  // 条の編集欄。h: { commit(art), cancel(), insertAfter(art), remove() }
+  // 条の編集欄。h: { commit(art), cancel(), insertAfter(art), remove(),
+  //   split(art, i)（i 番目の項から新しい条にする）, mergePrev(art)・prevLabel（前の条にまとめる。無ければ null） }
   function articleForm(article, h) {
     closeMenu();                 // 前の編集欄で開いたままのメニューを閉じる
     const art = clone(article);
@@ -512,6 +577,7 @@
         units: unitsOf(art),
         picker: pickerNode,
         setPicker(n) { pickerNode = n; redraw(); },
+        split: h.split ? (i) => h.split(renumber(art), i) : null,
         // 表・図・画像を前（dir=-1、その項・号の末尾へ）か次（dir=1、先頭へ）の項・号へ移す
         move(node, key, idx, dir) {
           const target = this.units[this.units.indexOf(node) + dir];
@@ -534,6 +600,10 @@
         withTitle(button("確定", () => h.commit(renumber(art)), "btn small primary"), "Ctrl+S"),
         withTitle(button("取消", () => h.cancel()), "Esc"),
         button("下に条を追加", () => h.insertAfter(renumber(art))),
+        // 前の条が無い（章の最初の条・文書の最初の条）ときは出さない
+        ...(h.mergePrev ? [button("前の条にまとめる", () => {
+          if (confirm(`この条を前の条「${h.prevLabel}」の末尾にまとめますか？\nこの条のタイトルは本文の先頭に残ります。`)) h.mergePrev(renumber(art));
+        })] : []),
         button("条を削除", () => { if (confirm("この条を削除しますか？")) h.remove(); }),
       ]));
       let target = focusNode ? taOf.get(focusNode) : wasTitle ? inp : null;
@@ -613,5 +683,6 @@
   // 新旧対照表を作り直すたびに、③のテンプレートの番号の書き方を受け取る
   function setMarks(spec) { markSpec = spec && typeof spec === "object" ? spec : {}; }
 
-  window.KisokuEditor = { setMarks, articleForm, chapterForm, supplementForm, newArticle, newChapter, renumber, clone };
+  window.KisokuEditor = { setMarks, articleForm, chapterForm, supplementForm, newArticle, newChapter, renumber, clone,
+                          splitArticle, mergeArticles };
 })();

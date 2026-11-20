@@ -322,7 +322,10 @@ def articles(tree):
 # AIなし：構造はこれまでどおり（前の項に含める）で、要確認の印が付く
 arts = articles(parse_loose(use_gemini=False))
 assert [a["number_str"] for a in arts] == ["第６条", "第７条"]
-assert arts[0]["paragraphs"][1]["_article_hint"] == ["第６条＃２（本採用拒否）"]
+# （前の項の本文につなげず、独立した第3項として残す）
+assert [p["body"][:6] for p in arts[0]["paragraphs"]] == ["新たに採用し", "試用期間は勤", "第６条＃２（"]
+assert arts[0]["paragraphs"][2]["_article_hint"] == ["第６条＃２（本採用拒否）"]
+assert arts[0]["paragraphs"][2]["items"][0]["body"] == "出勤状況が悪いとき。"
 
 # AIが「条」と答えたら、行の番号で条にする（第6条の枝番2）
 gh.classify_with_gemini = lambda t, b, a: "article" if "＃" in t else None
@@ -335,12 +338,13 @@ assert arts[1]["paragraphs"][0]["items"][0]["body"] == "出勤状況が悪いと
 # 条以外の答えなら置き換えず、印を残す
 gh.classify_with_gemini = lambda t, b, a: "paragraph"
 arts = articles(parse_loose(use_gemini=True))
-assert len(arts) == 2 and arts[0]["paragraphs"][1]["_article_hint"]
+assert len(arts) == 2 and arts[0]["paragraphs"][2]["_article_hint"]
 
-# 前の行が文の途中で終わっていて結合された場合も、印は付く
+# 前の行が句点で終わっていなくても、独立した項として残る（文の途中で結合される形は、次の ＃３ の例で確かめる）
 LOOSE[2] = "２．　試用期間は勤続年数に通算する"
 arts = articles(parse_loose(use_gemini=False))
-assert len(arts) == 2 and arts[0]["paragraphs"][1]["_article_hint"] == ["第６条＃２（本採用拒否）"], arts
+assert len(arts) == 2 and arts[0]["paragraphs"][2].get("_article_hint") == ["第６条＃２（本採用拒否）"], \
+    json.dumps(arts[0]["paragraphs"], ensure_ascii=False)
 assert "inline_article_hint" not in json.dumps(arts, ensure_ascii=False)
 LOOSE[2] = "２．　試用期間は勤続年数に通算する。"
 
