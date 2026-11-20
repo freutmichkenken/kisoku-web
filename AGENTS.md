@@ -32,3 +32,10 @@ node tests/test_refs.js
 - 参照の書き換え（`tests/test_refs.js`）：`refs.js` が、条の追加・削除で本文中の「第◯条」を新しい番号に書き換え、法令・ほかの規程への参照は書き換えないことを確かめる。
 - 書式ゆらぎ（`tests/test_format_variation.py`）：サンプルの標準形と、書式を崩した形（折り返し・数字の空白・タイトル別行・項の「２．」）との違いを条ごとに数える。`tests/cases/format_variation_known.json` に無い不一致が出たら失敗。
 - 差分が出た場合、意図した変更かどうかをユーザーに確認し、了承を得てから `python3 tests/regression.py --update` で基準を更新する。
+
+## アプリ地図
+
+`docs/APP_MAP.md` に、画面の役割・共通部品・データの持ち方・UIの約束をまとめている。
+- 画面、UI、共通部品、データの持ち方に触る変更の前に読み、置き場所や既存部品との重複を確かめる
+- 変更で画面・共通部品・UIの約束が変わったら、同じ変更の中で地図も直す
+- 末尾の機械抽出の節は手で直さず、sagy スキルの `scripts/app-inventory.py` で作り直す(手順は `references/app-map.md`)
