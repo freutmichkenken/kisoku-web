@@ -177,6 +177,7 @@ body::before {
   :root[data-side="hidden"] .side { display: none; }
   :root[data-side="hidden"] body { padding-left: 0; }
   :root[data-side="hidden"] main { padding-top: calc(68px + env(safe-area-inset-top, 0px)); }
+  :root[data-side="hidden"] .lv { padding-top: calc(68px + env(safe-area-inset-top, 0px)); }
 }
 @media (prefers-reduced-motion: reduce) { .side { transition: none; } }
 .side, .side * { box-sizing: border-box; }
